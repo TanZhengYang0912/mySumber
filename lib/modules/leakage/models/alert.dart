@@ -90,6 +90,10 @@ class Alert {
   final int? readingId;
   final String alertType;
   final String? householdId;
+  final String? equipmentNodeId;
+  final String? facilityName;
+  final String? facilityCity;
+  final String? equipmentName;
   final String state;
   final DateTime detectedAt;
   final String signature;
@@ -110,6 +114,10 @@ class Alert {
     this.readingId,
     required this.alertType,
     this.householdId,
+    this.equipmentNodeId,
+    this.facilityName,
+    this.facilityCity,
+    this.equipmentName,
     required this.state,
     required this.detectedAt,
     required this.signature,
@@ -150,6 +158,10 @@ class Alert {
         'reading_id': readingId,
         'alert_type': alertType,
         'household_id': householdId,
+        if (equipmentNodeId != null) 'equipment_node_id': equipmentNodeId,
+        if (facilityName != null) 'facility_name': facilityName,
+        if (facilityCity != null) 'facility_city': facilityCity,
+        if (equipmentName != null) 'equipment_name': equipmentName,
         'state': state,
         'detected_at': detectedAt.toIso8601String(),
         'signature': signature,
@@ -171,6 +183,10 @@ class Alert {
         readingId: map['reading_id'] as int?,
         alertType: map['alert_type'] as String,
         householdId: map['household_id'] as String?,
+        equipmentNodeId: map['equipment_node_id'] as String?,
+        facilityName: map['facility_name'] as String?,
+        facilityCity: map['facility_city'] as String?,
+        equipmentName: map['equipment_name'] as String?,
         state: map['state'] as String,
         detectedAt: DateTime.parse(map['detected_at'] as String),
         signature: map['signature'] as String,
@@ -187,11 +203,23 @@ class Alert {
         dataYear: map['data_year'] as int?,
       );
 
-  Alert copyWith({int? id, String? status, bool? isDeleted}) => Alert(
+  Alert copyWith({
+    int? id,
+    String? status,
+    bool? isDeleted,
+    String? equipmentNodeId,
+    String? facilityName,
+    String? facilityCity,
+    String? equipmentName,
+  }) => Alert(
         id: id ?? this.id,
         readingId: readingId,
         alertType: alertType,
         householdId: householdId,
+        equipmentNodeId: equipmentNodeId ?? this.equipmentNodeId,
+        facilityName: facilityName ?? this.facilityName,
+        facilityCity: facilityCity ?? this.facilityCity,
+        equipmentName: equipmentName ?? this.equipmentName,
         state: state,
         detectedAt: detectedAt,
         signature: signature,

@@ -49,6 +49,21 @@ class LeakageRepository {
     await _client.from('alerts').update({'status': status}).eq('id', id);
   }
 
+  Future<void> updateAlertLocation({
+    required int id,
+    String? equipmentNodeId,
+    String? facilityName,
+    String? facilityCity,
+    String? equipmentName,
+  }) async {
+    await _client.from('alerts').update({
+      'equipment_node_id': equipmentNodeId,
+      'facility_name': facilityName,
+      'facility_city': facilityCity,
+      'equipment_name': equipmentName,
+    }).eq('id', id);
+  }
+
   Future<int> insertReport(Report report) async {
     final row = await _client
         .from('reports')
