@@ -244,10 +244,21 @@ class AppState extends ChangeNotifier {
     final now = DateTime.now();
 
     Future<int> aid(int idx, Alert Function() build) async {
+      final desired = build();
       if (idx < waterAlerts.length && waterAlerts[idx].id != null) {
-        return waterAlerts[idx].id!;
+        final existing = waterAlerts[idx];
+        if (existing.facilityName == null || existing.equipmentName == null) {
+          await repository.updateAlertLocation(
+            id: existing.id!,
+            equipmentNodeId: desired.equipmentNodeId,
+            facilityName: desired.facilityName,
+            facilityCity: desired.facilityCity,
+            equipmentName: desired.equipmentName,
+          );
+        }
+        return existing.id!;
       }
-      return repository.insertAlert(build());
+      return repository.insertAlert(desired);
     }
 
     final w1 = await aid(0, () => Alert(
@@ -258,6 +269,9 @@ class AppState extends ChangeNotifier {
           severity: Severity.high,
           explanation: 'High NRW detected in Selangor water distribution network.',
           status: AlertStatus.pending,
+          facilityName: '1 Utama Shopping Centre',
+          facilityCity: 'Petaling Jaya',
+          equipmentName: 'Main Water Pump A1',
           producedMld: 3200,
           billedMld: 2100,
           lossMld: 1100,
@@ -282,6 +296,9 @@ class AppState extends ChangeNotifier {
           severity: Severity.medium,
           explanation: 'NRW loss above threshold in Kedah.',
           status: AlertStatus.resolved,
+          facilityName: 'Aman Central',
+          facilityCity: 'Alor Setar',
+          equipmentName: 'Cooling Tower Valve',
           producedMld: 1800,
           billedMld: 1500,
           lossMld: 300,
@@ -306,6 +323,9 @@ class AppState extends ChangeNotifier {
           severity: Severity.low,
           explanation: 'Minor NRW variance detected in Johor.',
           status: AlertStatus.resolved,
+          facilityName: 'Mid Valley Southkey',
+          facilityCity: 'Johor Bahru',
+          equipmentName: 'Main Water Pump A1',
           producedMld: 2500,
           billedMld: 2350,
           lossMld: 150,
@@ -336,10 +356,21 @@ class AppState extends ChangeNotifier {
     final now = DateTime.now();
 
     Future<int> aid(int idx, Alert Function() build) async {
+      final desired = build();
       if (idx < elecAlerts.length && elecAlerts[idx].id != null) {
-        return elecAlerts[idx].id!;
+        final existing = elecAlerts[idx];
+        if (existing.facilityName == null || existing.equipmentName == null) {
+          await repository.updateAlertLocation(
+            id: existing.id!,
+            equipmentNodeId: desired.equipmentNodeId,
+            facilityName: desired.facilityName,
+            facilityCity: desired.facilityCity,
+            equipmentName: desired.equipmentName,
+          );
+        }
+        return existing.id!;
       }
-      return repository.insertAlert(build());
+      return repository.insertAlert(desired);
     }
 
     final e1 = await aid(0, () => Alert(
@@ -350,6 +381,9 @@ class AppState extends ChangeNotifier {
           severity: Severity.medium,
           explanation: 'Above-average electricity loss detected in Kelantan grid.',
           status: AlertStatus.resolved,
+          facilityName: 'AEON Mall Kota Bharu',
+          facilityCity: 'Kota Bharu',
+          equipmentName: 'Sub-Transformer B2',
           producedMld: 8500,
           billedMld: 7200,
           lossMld: 1300,
@@ -374,6 +408,9 @@ class AppState extends ChangeNotifier {
           severity: Severity.high,
           explanation: 'Suspected meter tampering pattern in Kelantan substation.',
           status: AlertStatus.notFixed,
+          facilityName: 'AEON Mall Kota Bharu',
+          facilityCity: 'Kota Bharu',
+          equipmentName: 'Sub-Transformer B2',
           producedMld: 9200,
           billedMld: 7000,
           lossMld: 2200,
@@ -398,6 +435,9 @@ class AppState extends ChangeNotifier {
           severity: Severity.low,
           explanation: 'Minor distribution loss in Terengganu zone.',
           status: AlertStatus.resolved,
+          facilityName: 'Paya Bunga Square',
+          facilityCity: 'Kuala Terengganu',
+          equipmentName: 'Sub-Transformer B2',
           producedMld: 7100,
           billedMld: 6600,
           lossMld: 500,
