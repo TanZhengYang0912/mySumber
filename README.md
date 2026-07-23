@@ -27,7 +27,7 @@ without stepping on each other.
 |---|---|---|
 | **Admin** | Password: `admin` | Equipment dashboard, alerts oversight, reports, and AI anomaly review |
 | **Worker** | Password: `worker` | Water alert queue and electricity alert queue |
-| **Customer** | Email + password (Supabase Auth) | Home dashboard, usage comparison, repair history, and optional feedback |
+| **Customer** | Email + password (Supabase Auth) | Home dashboard, usage comparison, and repair history |
 
 ---
 
@@ -42,11 +42,6 @@ mysumber/
 │   ├── water_production.csv      data.gov.my — water production by state
 │   ├── electricity_consumption.csv
 │   └── electricity_supply.csv
-│
-├── supabase/
-│   └── functions/
-│       └── generate-ai-summary/  (unused — AI now called directly from Flutter)
-│           └── index.ts
 │
 ├── lib/
 │   ├── main.dart                 App entry point, role-based navigation shell
@@ -71,26 +66,25 @@ mysumber/
 │       │
 │       ├── usage/                Module 2 — Customer Experience
 │       │   └── screens/
-│       │       ├── customer_home_screen.dart    Home: usage overview, AI summary card, pending review banner
+│       │       ├── customer_home_screen.dart    Home: usage overview and utility status
 │       │       ├── compare_usage_screen.dart    Water/electricity monthly history + daily bar chart
 │       │       ├── report_problem_screen.dart   Profile + Report a Problem flow
-│       │       └── my_reports_screen.dart       Resolved repairs list + star/tag/comment rating sheet
+│       │       └── my_reports_screen.dart       Resolved repairs list
 │       │
 │       ├── leakage/              Module 3 — Water Leakage Detection
 │       │   ├── data/
-│       │   │   └── leakage_repository.dart      Supabase CRUD: alerts, reports, readings, and optional feedback
+│       │   │   └── leakage_repository.dart      Supabase CRUD: alerts, reports, and readings
 │       │   ├── models/
 │       │   │   ├── alert.dart
 │       │   │   ├── report.dart
 │       │   │   ├── reading.dart
-│       │   │   ├── service_review.dart          Optional customer repair feedback
-│       │   │   └── ai_summary.dart              Legacy customer-feedback summary model
+│       │   │   └── ai_anomaly_analysis.dart     Validated Admin anomaly analysis model
 │       │   ├── screens/          home_screen.dart, alert_queue_screen.dart, alert_detail_screen.dart,
 │       │   │                     report_history_screen.dart, network_error.dart
 │       │   ├── services/         baseline_service, nrw_service, simulation_service, explainer,
 │       │   │                     electricity_loss_service
 │       │   └── state/
-│       │       └── app_state.dart               Central Provider: alerts, reports, and optional feedback
+│       │       └── app_state.dart               Central Provider: alerts and reports
 │       │
 │       ├── electricity/          Module 4 — Electricity Anomaly Detection
 │       │   ├── models/           ElectricityRecord
@@ -146,16 +140,16 @@ field inspections, photo uploads, or repair-result submissions.
    ```
 
 The Admin AI Anomaly Review calls the external API only after an Admin taps the
-button for one alert. The older customer-review summary flow remains separate
-and is not called by Admin Review. Never commit `lib/config.dart` or any
+button for one alert. Customer repair ratings, comments, and the old review
+summary flow have been removed. Never commit `lib/config.dart` or any
 Supabase `service_role` key.
 
 ---
 
 ## Cloud database (Supabase)
 
-Module 3 operational data (`alerts`, `readings`, `reports`) and optional
-customer feedback tables live in a shared Supabase (Postgres) project.
+Module 3 operational data (`alerts`, `readings`, `reports`) lives in a shared
+Supabase (Postgres) project.
 
 ### Tables
 
@@ -164,8 +158,6 @@ customer feedback tables live in a shared Supabase (Postgres) project.
 | `alerts` | 3 | NRW and electricity anomaly alerts with facility/equipment context and validated AI analysis |
 | `readings` | 3 | Household water readings |
 | `reports` | 3 | Worker field reports |
-| `service_reviews` | 2 | Optional customer repair ratings |
-| `ai_summaries` | 2 | Legacy customer-feedback summaries; not used by Admin AI Review |
 
 ### Running the app
 
@@ -253,7 +245,6 @@ The two files to watch:
 - [ ] All comments removed from code
 - [ ] All modules merged to `main` and running
 - [ ] `flutter run` launches without errors on emulator
-- [ ] Supabase tables created (`service_reviews`, `ai_summaries`)
 - [ ] Groq API key set in `lib/config.dart`
 - [ ] No `service_role` key committed anywhere
 - [ ] `.gitignore` up to date

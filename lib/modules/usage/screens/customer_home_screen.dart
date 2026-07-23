@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 
 import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
-import '../../leakage/state/app_state.dart';
 import '../models/utility_entry.dart';
 import '../state/usage_state.dart';
 import '../widgets/add_consumption_sheet.dart';
@@ -16,11 +15,8 @@ class CustomerHomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final role = context.watch<RoleState>();
-    final app = context.watch<AppState>();
     final usage = context.watch<UsageState>();
     final displayName = role.displayName;
-
-    final summary = app.latestSummary;
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -40,12 +36,6 @@ class CustomerHomeScreen extends StatelessWidget {
               child: _myUsageCard(usage),
             ),
           ),
-          if (summary != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
-              child: _aiSummaryCard(context, summary.summaryText,
-                  summary.pros, summary.cons, summary.reviewCount),
-            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
             child: _stateSelector(context, usage),
@@ -152,57 +142,6 @@ class CustomerHomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _aiSummaryCard(BuildContext context, String summaryText,
-      List<String> pros, List<String> cons, int reviewCount) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0F766E), Color(0xFF1E40AF)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.auto_awesome,
-                  color: Colors.white, size: 16),
-              const SizedBox(width: 8),
-              const Text('AI Service Insights',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800)),
-              const Spacer(),
-              Text('$reviewCount reviews',
-                  style: const TextStyle(
-                      color: Colors.white60, fontSize: 11)),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(summaryText,
-              style: const TextStyle(
-                  color: Colors.white, fontSize: 13, height: 1.5)),
-          if (pros.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                ...pros.map((p) => _SummaryPill(label: '+ $p', positive: true)),
-                ...cons.map((c) => _SummaryPill(label: '- $c', positive: false)),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
   Widget _greetingHeader(BuildContext context, String name) {
     return Container(
       width: double.infinity,
@@ -292,7 +231,8 @@ class CustomerHomeScreen extends StatelessWidget {
                   ],
                 ),
                 IconButton(
-                  icon: const Icon(Icons.logout, color: Colors.white70, size: 20),
+                  icon:
+                      const Icon(Icons.logout, color: Colors.white70, size: 20),
                   onPressed: () => context.read<RoleState>().logout(),
                 ),
               ],
@@ -478,9 +418,7 @@ class CustomerHomeScreen extends StatelessWidget {
             children: [
               Icon(
                 hasTrend
-                    ? (trendPositive
-                        ? Icons.trending_down
-                        : Icons.trending_up)
+                    ? (trendPositive ? Icons.trending_down : Icons.trending_up)
                     : Icons.remove,
                 size: 14,
                 color: trendColor,
@@ -593,8 +531,7 @@ class CustomerHomeScreen extends StatelessWidget {
                 children: [
                   _legendDot(accent, 'You'),
                   if (hasGovData)
-                    _legendDot(
-                        AppColors.textTertiary, 'Govt · $baselineYear'),
+                    _legendDot(AppColors.textTertiary, 'Govt · $baselineYear'),
                 ],
               ),
             ],
@@ -616,8 +553,8 @@ class CustomerHomeScreen extends StatelessWidget {
                 child: Text(
                   'No readings yet — tap "Add +" to log your first month.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                      fontSize: 13, color: AppColors.textSecondary),
+                  style:
+                      TextStyle(fontSize: 13, color: AppColors.textSecondary),
                 ),
               ),
             )
@@ -736,8 +673,18 @@ class CustomerHomeScreen extends StatelessWidget {
 
   String _monthLabel(DateTime d) {
     const names = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return names[d.month - 1];
   }
@@ -799,28 +746,6 @@ class CustomerHomeScreen extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _SummaryPill extends StatelessWidget {
-  final String label;
-  final bool positive;
-  const _SummaryPill({required this.label, required this.positive});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: positive
-            ? Colors.white.withValues(alpha: 0.2)
-            : Colors.red.withValues(alpha: 0.25),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(label,
-          style: const TextStyle(
-              color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
     );
   }
 }
