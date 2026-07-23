@@ -1,12 +1,12 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../theme/tokens.dart';
-import '../../leakage/models/ai_summary.dart';
-import '../../leakage/models/service_review.dart';
+import '../../leakage/models/alert.dart';
 import '../../leakage/state/app_state.dart';
+import '../services/anomaly_review_filter.dart';
+import 'anomaly_review_detail_screen.dart';
 
 class ReviewManagementScreen extends StatefulWidget {
   const ReviewManagementScreen({super.key});
@@ -16,98 +16,35 @@ class ReviewManagementScreen extends StatefulWidget {
 }
 
 class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
-  Future<void> _generate(BuildContext context) async {
-    final app = context.read<AppState>();
-    final messenger = ScaffoldMessenger.of(context);
-    // Defensive try/catch: generateAiSummary is contract-bound to return a
-    // SummaryResult and swallow its own errors, but if it ever regresses we
-    // must still leave the AppState guard in a clean state and inform the user.
-    SummaryResult result;
-    try {
-      result = await app.generateAiSummary();
-    } catch (e, st) {
-      if (kDebugMode) debugPrint('_generate uncaught: $e\n$st');
-      result = SummaryResult.storageError;
-    }
-    if (!mounted) return;
-    if (result == SummaryResult.alreadyRunning) return; // silent skip
-
-    final String message;
-    final Color color;
-    switch (result) {
-      case SummaryResult.success:
-        message = 'AI Insights generated!';
-        color = AppColors.success;
-        break;
-      case SummaryResult.belowThreshold:
-        message =
-            'Need at least ${AppState.minReviewsForSummary} detailed reviews (with tags or comment).';
-        color = AppColors.warning;
-        break;
-      case SummaryResult.upToDate:
-        message = 'Summary is already up to date — no new reviews.';
-        color = AppColors.workerPrimary;
-        break;
-      case SummaryResult.networkError:
-        message = 'Network error — request timed out or connection failed.';
-        color = AppColors.critical;
-        break;
-      case SummaryResult.apiError:
-        message = 'Groq API error — check your API key or rate limit.';
-        color = AppColors.critical;
-        break;
-      case SummaryResult.parseError:
-        message = 'AI response format invalid — please try again.';
-        color = AppColors.critical;
-        break;
-      case SummaryResult.storageError:
-        message = 'Failed to save summary — check Supabase connection.';
-        color = AppColors.critical;
-        break;
-      case SummaryResult.alreadyRunning:
-        return; // unreachable — handled above
-    }
-    messenger.showSnackBar(SnackBar(
-      content: Text(message),
-      backgroundColor: color,
-    ));
-  }
+  Set<String> _statuses = {
+    AlertStatus.pending,
+    AlertStatus.investigating,
+    AlertStatus.notFixed,
+  };
+  Utility? _utility;
+  String? _state;
+  String? _facilityName;
+  String? _equipmentName;
 
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
-    final reviews = app.reviews;
-    final summary = app.latestSummary;
-
-    // Exclude 0-star entries from the average — they represent unrated or
-    // malformed rows and would drag the mean toward zero.
-    // Materialise once so isEmpty / reduce / length don't each re-iterate.
-    final ratedStars =
-        reviews.where((r) => r.stars > 0).map((r) => r.stars).toList();
-    final avgStars = ratedStars.isEmpty
-        ? 0.0
-        : ratedStars.reduce((a, b) => a + b) / ratedStars.length;
-    final detailedCount = app.validReviewCount;
-
-    final canGen = app.canGenerateSummary;
-    final isUpToDate = app.isSummaryUpToDate;
-    final generating = app.isGeneratingSummary;
-    final canGenerate = canGen && !isUpToDate;
-
-    // Below-threshold takes priority over "Regenerate" — a disabled button
-    // labelled "Regenerate" while the hint says "Need X more" is contradictory.
-    final String buttonLabel;
-    if (generating) {
-      buttonLabel = 'Generating...';
-    } else if (!canGen) {
-      buttonLabel = '✨ Generate AI Insights';
-    } else if (summary != null && isUpToDate) {
-      buttonLabel = '✓ Summary Up to Date';
-    } else if (summary != null) {
-      buttonLabel = '✨ Regenerate AI Insights';
-    } else {
-      buttonLabel = '✨ Generate AI Insights';
-    }
+    final alerts = app.alerts;
+    final query = AnomalyReviewQuery(
+      statuses: _statuses,
+      utility: _utility,
+      state: _state,
+      facilityName: _facilityName,
+      equipmentName: _equipmentName,
+    );
+    final results = AnomalyReviewFilter.apply(alerts, query);
+    final states = AnomalyReviewFilter.states(alerts);
+    final facilities = AnomalyReviewFilter.facilities(alerts, state: _state);
+    final equipment = AnomalyReviewFilter.equipment(
+      alerts,
+      state: _state,
+      facilityName: _facilityName,
+    );
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -115,113 +52,28 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
         padding: EdgeInsets.zero,
         children: [
           _header(),
-          _statsRow(reviews.length, detailedCount, avgStars, summary),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: FilledButton.icon(
-              onPressed:
-                  (generating || !canGenerate) ? null : () => _generate(context),
-              icon: generating
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                          color: Colors.white, strokeWidth: 2),
-                    )
-                  : const Icon(Icons.auto_awesome, size: 18),
-              label: Text(buttonLabel),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.adminPrimary,
-                minimumSize: const Size.fromHeight(52),
-                textStyle: const TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.w800),
-              ),
+          if (app.loading)
+            const LinearProgressIndicator(minHeight: 2)
+          else ...[
+            _summary(alerts),
+            _filters(
+              states: states,
+              facilities: facilities,
+              equipment: equipment,
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
-            child: _hintRow(app, summary),
-          ),
-          if (summary != null) ...[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: _AiSummaryCard(summary: summary),
-            ),
+            _resultsHeader(results.length),
+            for (final alert in results) _alertCard(alert),
+            if (results.isEmpty) _emptyState(),
           ],
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: SectionLabel('ALL REVIEWS'),
-          ),
-          for (final r in reviews)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: _ReviewCard(review: r),
-            ),
-          if (reviews.isEmpty)
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 24, 16, 0),
-              child: Center(
-                child: Text('No reviews yet.',
-                    style: TextStyle(color: AppColors.textSecondary)),
-              ),
-            ),
           const SizedBox(height: 24),
         ],
       ),
     );
   }
 
-  Widget _hintRow(AppState app, AiSummary? summary) {
-    // Priority: below-threshold > up-to-date > new-reviews-since-last > blank.
-    if (!app.canGenerateSummary) {
-      final n = app.reviewsUntilSummary;
-      return _hintPill(
-        Icons.lock_outline,
-        AppColors.textTertiary,
-        'Need $n more detailed review${n == 1 ? '' : 's'} (with tags or comment) to unlock AI Insights',
-      );
-    }
-    if (app.isSummaryUpToDate) {
-      final analyzed = summary!.reviewCount;
-      return _hintPill(
-        Icons.check_circle_outline,
-        AppColors.success,
-        'Summary up to date — $analyzed detailed review${analyzed == 1 ? '' : 's'} analyzed',
-      );
-    }
-    if (summary != null && app.newReviewsSinceSummary > 0) {
-      final n = app.newReviewsSinceSummary;
-      final capNote =
-          n > 50 ? ' — newest 50 will be analyzed' : ' — consider regenerating';
-      return _hintPill(
-        Icons.fiber_new_outlined,
-        AppColors.warning,
-        '$n new detailed review${n == 1 ? '' : 's'} since last summary$capNote',
-      );
-    }
-    return const SizedBox(height: 4);
-  }
-
-  Widget _hintPill(IconData icon, Color color, String text) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(icon, size: 14, color: color),
-        const SizedBox(width: 4),
-        Flexible(
-          child: Text(
-            text,
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 12, color: color),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _header() {
     return Container(
-      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(18, 44, 18, 20),
       decoration: const BoxDecoration(
         color: AppColors.adminPrimary,
         borderRadius: BorderRadius.only(
@@ -229,343 +81,443 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
           bottomRight: Radius.circular(24),
         ),
       ),
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-      child: SafeArea(
-        bottom: false,
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.18),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.star_outline, color: Colors.white, size: 22),
-            ),
-            const SizedBox(width: 12),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('mySumber · ADMIN',
-                      style: TextStyle(color: Colors.white70, fontSize: 13)),
-                  SizedBox(height: 2),
-                  Text('Service Reviews',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800)),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _statsRow(int total, int detailed, double avg, AiSummary? summary) {
-    final lastGen = summary == null
-        ? 'Never'
-        : DateFormat('d MMM, HH:mm').format(summary.generatedAt.toLocal());
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
       child: Row(
         children: [
-          Expanded(
-            child: _StatCell(
-              label: 'Total Reviews',
-              value: '$total',
-              subline: total == 0 ? null : '$detailed with tags/comment',
-              icon: Icons.rate_review_outlined,
-              color: AppColors.adminPrimary,
-              bg: AppColors.adminSurface,
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(14),
             ),
+            child: const Icon(Icons.analytics_outlined,
+                color: Colors.white, size: 24),
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: _StatCell(
-              label: 'Avg. Rating',
-              value: avg == 0 ? '—' : avg.toStringAsFixed(1),
-              icon: Icons.star_outline,
-              color: const Color(0xFFF59E0B),
-              bg: const Color(0xFFFEF3C7),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: _StatCell(
-              label: 'Last AI Run',
-              value: lastGen,
-              icon: Icons.auto_awesome_outlined,
-              color: AppColors.workerPrimary,
-              bg: AppColors.workerSurface,
-              valueSize: 11,
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('AI Anomaly Review',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 21,
+                        fontWeight: FontWeight.w800)),
+                SizedBox(height: 4),
+                Text('Review water and electricity detection results',
+                    style: TextStyle(color: Colors.white70, fontSize: 12)),
+              ],
             ),
           ),
         ],
       ),
     );
   }
-}
 
-class _StatCell extends StatelessWidget {
-  final String label;
-  final String value;
-  final String? subline;
-  final IconData icon;
-  final Color color;
-  final Color bg;
-  final double valueSize;
+  Widget _summary(List<Alert> alerts) {
+    final pending = alerts.where((a) => a.status == AlertStatus.pending).length;
+    final ongoing = alerts
+        .where((a) =>
+            a.status == AlertStatus.investigating ||
+            a.status == AlertStatus.notFixed)
+        .length;
+    final high = alerts.where((a) => a.severity == Severity.high).length;
 
-  const _StatCell({
-    required this.label,
-    required this.value,
-    this.subline,
-    required this.icon,
-    required this.color,
-    required this.bg,
-    this.valueSize = 22,
-  });
+    return SizedBox(
+      height: 108,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+        children: [
+          _summaryCard('Pending', '$pending', Icons.pending_actions,
+              AppColors.warningSurface, AppColors.warning),
+          _summaryCard('Ongoing', '$ongoing', Icons.sync,
+              AppColors.waterSurface, AppColors.waterAccent),
+          _summaryCard('High severity', '$high', Icons.priority_high,
+              AppColors.criticalSurface, AppColors.critical),
+        ],
+      ),
+    );
+  }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _summaryCard(
+    String label,
+    String value,
+    IconData icon,
+    Color background,
+    Color foreground,
+  ) {
     return Container(
+      width: 135,
+      margin: const EdgeInsets.only(right: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: const [
-          BoxShadow(
-              color: Color(0x0A000000), blurRadius: 6, offset: Offset(0, 2))
-        ],
+        color: background,
+        borderRadius: BorderRadius.circular(14),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration:
-                BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
-            child: Icon(icon, color: color, size: 16),
+          Icon(icon, color: foreground, size: 20),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(value,
+                  style: TextStyle(
+                      color: foreground,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800)),
+              Text(label,
+                  style: TextStyle(
+                      color: foreground.withValues(alpha: 0.8), fontSize: 11)),
+            ],
           ),
-          const SizedBox(height: 8),
-          Text(value,
-              style: TextStyle(
-                  fontSize: valueSize,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
-                  height: 1.1)),
-          const SizedBox(height: 2),
-          Text(label,
-              style: const TextStyle(
-                  fontSize: 11, color: AppColors.textSecondary)),
-          if (subline != null)
-            Text(subline!,
-                style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: color)),
         ],
       ),
     );
   }
-}
 
-class _AiSummaryCard extends StatelessWidget {
-  final AiSummary summary;
-  const _AiSummaryCard({required this.summary});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0F766E), Color(0xFF1E40AF)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      padding: const EdgeInsets.all(16),
+  Widget _filters({
+    required List<String> states,
+    required List<String> facilities,
+    required List<String> equipment,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.auto_awesome, color: Colors.white, size: 16),
-              const SizedBox(width: 8),
-              const Text('AI Insights',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800)),
+              const SectionLabel('FILTER ANOMALIES'),
               const Spacer(),
-              Text(
-                'Based on ${summary.reviewCount} detailed review${summary.reviewCount == 1 ? '' : 's'}',
-                style:
-                    const TextStyle(color: Colors.white70, fontSize: 11),
+              TextButton(
+                onPressed: _clearFilters,
+                child: const Text('Clear'),
               ),
             ],
+          ),
+          const SizedBox(height: 4),
+          _statusChips(),
+          const SizedBox(height: 8),
+          _utilityChips(),
+          const SizedBox(height: 10),
+          _dropdown(
+            label: 'State / Federal Territory',
+            value: _state,
+            values: states,
+            onChanged: (value) => setState(() {
+              _state = value;
+              _facilityName = null;
+              _equipmentName = null;
+            }),
           ),
           const SizedBox(height: 10),
-          Text(
-            summary.summaryText,
-            style: const TextStyle(
-                color: Colors.white, fontSize: 13, height: 1.5),
+          _dropdown(
+            label: 'Shopping Mall',
+            value: _facilityName,
+            values: facilities,
+            onChanged: (value) => setState(() {
+              _facilityName = value;
+              _equipmentName = null;
+            }),
           ),
-          if (summary.pros.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            const Text('PROS',
-                style: TextStyle(
-                    color: Colors.white60,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5)),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: summary.pros
-                  .map((p) => _Pill(label: p, positive: true))
-                  .toList(),
-            ),
-          ],
-          if (summary.cons.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            const Text('CONS',
-                style: TextStyle(
-                    color: Colors.white60,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5)),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: summary.cons
-                  .map((c) => _Pill(label: c, positive: false))
-                  .toList(),
-            ),
-          ],
-          const SizedBox(height: 8),
-          Text(
-            'Generated ${DateFormat("d MMM yyyy, HH:mm").format(summary.generatedAt.toLocal())}',
-            style:
-                const TextStyle(color: Colors.white38, fontSize: 10),
+          const SizedBox(height: 10),
+          _dropdown(
+            label: 'Equipment',
+            value: _equipmentName,
+            values: equipment,
+            onChanged: (value) => setState(() => _equipmentName = value),
           ),
         ],
       ),
     );
   }
-}
 
-class _Pill extends StatelessWidget {
-  final String label;
-  final bool positive;
-  const _Pill({required this.label, required this.positive});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: positive
-            ? Colors.white.withValues(alpha: 0.2)
-            : Colors.red.withValues(alpha: 0.25),
-        borderRadius: BorderRadius.circular(999),
+  Widget _statusChips() {
+    final options = <({String label, Set<String> values})>[
+      (label: 'All', values: AlertStatus.all.toSet()),
+      (label: 'Pending', values: {AlertStatus.pending}),
+      (
+        label: 'Ongoing',
+        values: {AlertStatus.investigating, AlertStatus.notFixed},
       ),
-      child: Text(label,
-          style: const TextStyle(
-              color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+      (label: 'Solved', values: {AlertStatus.resolved}),
+      (label: 'Faults', values: {AlertStatus.faults}),
+    ];
+    return Wrap(
+      spacing: 8,
+      runSpacing: 6,
+      children: [
+        for (final option in options)
+          FilterChip(
+            label: Text(option.label),
+            selected: _statuses.containsAll(option.values) &&
+                option.values.every(_statuses.contains),
+            onSelected: (_) => setState(() => _statuses = option.values),
+            selectedColor: AppColors.adminPrimary,
+            checkmarkColor: Colors.white,
+            labelStyle: TextStyle(
+              color: _statuses.containsAll(option.values) &&
+                      option.values.every(_statuses.contains)
+                  ? Colors.white
+                  : AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+      ],
     );
   }
-}
 
-class _ReviewCard extends StatelessWidget {
-  final ServiceReview review;
-  const _ReviewCard({required this.review});
+  Widget _utilityChips() {
+    return Wrap(
+      spacing: 8,
+      children: [
+        _utilityChip('All utilities', null),
+        _utilityChip('Water', Utility.water),
+        _utilityChip('Electricity', Utility.electricity),
+      ],
+    );
+  }
 
-  @override
-  Widget build(BuildContext context) {
-    final date = DateFormat('d MMM yyyy').format(review.createdAt);
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: const [
-          BoxShadow(
-              color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2))
-        ],
+  Widget _utilityChip(String label, Utility? utility) {
+    final selected = _utility == utility;
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => setState(() => _utility = utility),
+      selectedColor: AppColors.adminPrimary,
+      labelStyle: TextStyle(
+        color: selected ? Colors.white : AppColors.textPrimary,
+        fontWeight: FontWeight.w600,
       ),
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    );
+  }
+
+  Widget _dropdown({
+    required String label,
+    required String? value,
+    required List<String> values,
+    required ValueChanged<String?> onChanged,
+  }) {
+    final selectedValue = values.contains(value) ? value : null;
+    return DropdownButtonFormField<String>(
+      initialValue: selectedValue,
+      decoration: InputDecoration(labelText: label),
+      items: [
+        const DropdownMenuItem<String>(value: null, child: Text('All')),
+        for (final item in values)
+          DropdownMenuItem<String>(value: item, child: Text(item)),
+      ],
+      onChanged: values.isEmpty ? null : onChanged,
+    );
+  }
+
+  Widget _resultsHeader(int count) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
+      child: Row(
         children: [
-          Row(
+          const SectionLabel('ANOMALY RESULTS'),
+          const Spacer(),
+          Text('$count found',
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
+  Widget _alertCard(Alert alert) {
+    final facility = alert.facilityName ?? 'Facility not linked';
+    final equipment = alert.equipmentName ?? 'Equipment not linked';
+    final city = alert.facilityCity;
+    final explanation = _reviewExplanation(alert.explanation);
+    final utilityLabel =
+        alert.utility == Utility.water ? 'Water' : 'Electricity';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: alert.id == null
+            ? null
+            : () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => AnomalyReviewDetailScreen(alertId: alert.id!),
+                )),
+        child: Container(
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.divider),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                children: List.generate(
-                  5,
-                  (i) => Icon(
-                    i < review.stars ? Icons.star : Icons.star_outline,
-                    color: const Color(0xFFF59E0B),
-                    size: 16,
+                children: [
+                  Expanded(
+                    child: Text(facility,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w800, fontSize: 15)),
                   ),
-                ),
+                  Icon(Icons.chevron_right,
+                      color: alert.id == null
+                          ? AppColors.textTertiary
+                          : AppColors.adminPrimary),
+                ],
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  review.consumerEmail,
-                  style: const TextStyle(
-                      fontSize: 12, color: AppColors.textSecondary),
+              if (city != null && city.trim().isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text('$city, ${alert.state}',
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: 12)),
+              ] else ...[
+                const SizedBox(height: 2),
+                Text(alert.state,
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: 12)),
+              ],
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Icon(Icons.settings_input_component_outlined,
+                      size: 17, color: AppColors.adminPrimary),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(equipment,
+                        style: const TextStyle(fontWeight: FontWeight.w700)),
+                  ),
+                  _statusPill(alert.status),
+                ],
+              ),
+              const SizedBox(height: 9),
+              Row(
+                children: [
+                  _utilityPill(utilityLabel, alert.utility),
+                  const SizedBox(width: 6),
+                  _severityPill(alert.severity),
+                  const Spacer(),
+                  Text(DateFormat('d MMM y').format(alert.detectedAt),
+                      style: const TextStyle(
+                          color: AppColors.textTertiary, fontSize: 11)),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(explanation,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              Text(date,
                   style: const TextStyle(
-                      fontSize: 11, color: AppColors.textTertiary)),
+                      color: AppColors.textSecondary, height: 1.35)),
+              const SizedBox(height: 10),
+              _valueSummary(alert),
             ],
           ),
-          if (review.tags.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 6,
-              runSpacing: 4,
-              children: review.tags
-                  .map((t) => Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: AppColors.adminSurface,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(t,
-                            style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.adminPrimary)),
-                      ))
-                  .toList(),
-            ),
-          ],
-          if (review.comment.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              '"${review.comment}"',
-              style: const TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
-                  fontStyle: FontStyle.italic,
-                  height: 1.4),
-            ),
-          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _valueSummary(Alert alert) {
+    final hasBalance = alert.lossPct != null;
+    final text = hasBalance
+        ? 'Loss ${alert.lossPct!.toStringAsFixed(1)}%'
+        : (alert.actualL != 0 || alert.baselineL != 0
+            ? '${alert.actualL.round()} L vs ${alert.baselineL.round()} L baseline'
+            : 'Evidence linked to alert details');
+    return Row(
+      children: [
+        const Icon(Icons.show_chart, size: 16, color: AppColors.textTertiary),
+        const SizedBox(width: 6),
+        Text(text,
+            style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600)),
+      ],
+    );
+  }
+
+  Widget _statusPill(String status) {
+    return Pill(AlertStatus.label(status), color: _statusColor(status));
+  }
+
+  Widget _severityPill(String severity) {
+    return Pill(Severity.label(severity), color: _severityColor(severity));
+  }
+
+  Widget _utilityPill(String utility, Utility type) {
+    final color = type == Utility.water
+        ? AppColors.waterAccent
+        : AppColors.electricityAccent;
+    return Pill(utility, color: color);
+  }
+
+  Widget _emptyState() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 40, 24, 24),
+      child: Column(
+        children: const [
+          Icon(Icons.search_off, size: 42, color: AppColors.textTertiary),
+          SizedBox(height: 10),
+          Text('No anomalies match these filters.',
+              style: TextStyle(color: AppColors.textSecondary)),
         ],
       ),
     );
+  }
+
+  void _clearFilters() {
+    setState(() {
+      _statuses = {
+        AlertStatus.pending,
+        AlertStatus.investigating,
+        AlertStatus.notFixed,
+      };
+      _utility = null;
+      _state = null;
+      _facilityName = null;
+      _equipmentName = null;
+    });
+  }
+
+  String _reviewExplanation(String explanation) {
+    final recommendationStart = RegExp(
+      r'\s+Recommend\b.*$',
+      caseSensitive: false,
+      dotAll: true,
+    ).firstMatch(explanation);
+    if (recommendationStart == null) return explanation.trim();
+    return explanation.substring(0, recommendationStart.start).trim();
+  }
+
+  Color _severityColor(String severity) {
+    switch (severity) {
+      case Severity.high:
+        return AppColors.critical;
+      case Severity.medium:
+        return AppColors.warning;
+      default:
+        return AppColors.success;
+    }
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case AlertStatus.pending:
+        return AppColors.textSecondary;
+      case AlertStatus.investigating:
+        return AppColors.waterAccent;
+      case AlertStatus.resolved:
+        return AppColors.success;
+      case AlertStatus.notFixed:
+        return AppColors.critical;
+      case AlertStatus.faults:
+        return AppColors.warning;
+      default:
+        return AppColors.textSecondary;
+    }
   }
 }

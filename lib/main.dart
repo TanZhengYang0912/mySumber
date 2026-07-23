@@ -204,7 +204,7 @@ class _AppShellState extends State<AppShell> {
           _NavItem(icon: Icons.inventory_2_outlined, label: 'Inventory'),
           _NavItem(icon: Icons.notifications_outlined, label: 'Alerts'),
           _NavItem(icon: Icons.shield_outlined, label: 'Oversight'),
-          _NavItem(icon: Icons.article_outlined, label: 'Review'),
+          _NavItem(icon: Icons.analytics_outlined, label: 'AI Review'),
         ];
         break;
       case 'worker':
@@ -219,7 +219,8 @@ class _AppShellState extends State<AppShell> {
         break;
       default:
         _screens = [
-          CustomerHomeScreen(onUsageTap: () => setState(() => _currentIndex = 1)),
+          CustomerHomeScreen(
+              onUsageTap: () => setState(() => _currentIndex = 1)),
           const CompareUsageScreen(),
           const ReportProblemScreen(),
         ];
