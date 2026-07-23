@@ -110,6 +110,7 @@ class Alert {
   final int? dataYear;
   final String? aiSummary;
   final String? aiPossibleCause;
+  final String? aiSeverityAssessment;
   final String? aiRecommendation;
   final double? aiConfidence;
   final DateTime? aiGeneratedAt;
@@ -139,6 +140,7 @@ class Alert {
     this.dataYear,
     this.aiSummary,
     this.aiPossibleCause,
+    this.aiSeverityAssessment,
     this.aiRecommendation,
     this.aiConfidence,
     this.aiGeneratedAt,
@@ -163,6 +165,7 @@ class Alert {
   bool get hasAiAnalysis =>
       aiSummary != null &&
       aiPossibleCause != null &&
+      aiSeverityAssessment != null &&
       aiRecommendation != null &&
       aiConfidence != null &&
       aiGeneratedAt != null;
@@ -194,11 +197,14 @@ class Alert {
         'loss_mld': lossMld,
         'loss_pct': lossPct,
         'data_year': dataYear,
-        'ai_summary': aiSummary,
-        'ai_possible_cause': aiPossibleCause,
-        'ai_recommendation': aiRecommendation,
-        'ai_confidence': aiConfidence,
-        'ai_generated_at': aiGeneratedAt?.toIso8601String(),
+        if (aiSummary != null) 'ai_summary': aiSummary,
+        if (aiPossibleCause != null) 'ai_possible_cause': aiPossibleCause,
+        if (aiSeverityAssessment != null)
+          'ai_severity_assessment': aiSeverityAssessment,
+        if (aiRecommendation != null) 'ai_recommendation': aiRecommendation,
+        if (aiConfidence != null) 'ai_confidence': aiConfidence,
+        if (aiGeneratedAt != null)
+          'ai_generated_at': aiGeneratedAt!.toIso8601String(),
       };
 
   factory Alert.fromMap(Map<String, Object?> map) => Alert(
@@ -226,6 +232,7 @@ class Alert {
         dataYear: map['data_year'] as int?,
         aiSummary: map['ai_summary'] as String?,
         aiPossibleCause: map['ai_possible_cause'] as String?,
+        aiSeverityAssessment: map['ai_severity_assessment'] as String?,
         aiRecommendation: map['ai_recommendation'] as String?,
         aiConfidence: (map['ai_confidence'] as num?)?.toDouble(),
         aiGeneratedAt: map['ai_generated_at'] == null
@@ -243,6 +250,7 @@ class Alert {
     String? equipmentName,
     String? aiSummary,
     String? aiPossibleCause,
+    String? aiSeverityAssessment,
     String? aiRecommendation,
     double? aiConfidence,
     DateTime? aiGeneratedAt,
@@ -272,6 +280,7 @@ class Alert {
         dataYear: dataYear,
         aiSummary: aiSummary ?? this.aiSummary,
         aiPossibleCause: aiPossibleCause ?? this.aiPossibleCause,
+        aiSeverityAssessment: aiSeverityAssessment ?? this.aiSeverityAssessment,
         aiRecommendation: aiRecommendation ?? this.aiRecommendation,
         aiConfidence: aiConfidence ?? this.aiConfidence,
         aiGeneratedAt: aiGeneratedAt ?? this.aiGeneratedAt,

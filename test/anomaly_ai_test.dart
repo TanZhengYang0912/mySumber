@@ -47,6 +47,7 @@ void main() {
       explanation: 'Stored anomaly explanation.',
       aiSummary: 'Water use is above baseline.',
       aiPossibleCause: 'Abnormal pump demand.',
+      aiSeverityAssessment: 'High',
       aiRecommendation: 'Continue monitoring.',
       aiConfidence: 0.92,
       aiGeneratedAt: DateTime.utc(2026, 7, 23, 8),
@@ -56,9 +57,33 @@ void main() {
 
     expect(restored.aiSummary, 'Water use is above baseline.');
     expect(restored.aiPossibleCause, 'Abnormal pump demand.');
+    expect(restored.aiSeverityAssessment, 'High');
     expect(restored.aiConfidence, 0.92);
     expect(restored.aiGeneratedAt, DateTime.utc(2026, 7, 23, 8));
     expect(restored.hasAiAnalysis, isTrue);
+  });
+
+  test('serializes every validated AI field using alert column names', () {
+    final analysis = AiAnomalyAnalysis(
+      summary: 'Summary',
+      possibleCause: 'Cause',
+      severityAssessment: 'Medium',
+      confidence: 0.7,
+      recommendation: 'Monitor.',
+      generatedAt: DateTime.utc(2026, 7, 23, 8),
+    );
+
+    expect(
+      analysis.toAlertFields().keys,
+      containsAll([
+        'ai_summary',
+        'ai_possible_cause',
+        'ai_severity_assessment',
+        'ai_recommendation',
+        'ai_confidence',
+        'ai_generated_at',
+      ]),
+    );
   });
 
   test('sends anomaly context and parses Groq JSON', () async {

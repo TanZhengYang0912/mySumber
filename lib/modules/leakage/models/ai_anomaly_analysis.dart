@@ -56,6 +56,7 @@ class AiAnomalyAnalysis {
   Map<String, Object?> toAlertFields() => {
         'ai_summary': summary,
         'ai_possible_cause': possibleCause,
+        'ai_severity_assessment': severityAssessment,
         'ai_recommendation': recommendation,
         'ai_confidence': confidence,
         'ai_generated_at': generatedAt.toIso8601String(),

@@ -12,6 +12,7 @@ enum AnomalyAiFailure {
   timeout,
   apiError,
   invalidResponse,
+  alreadyRunning,
 }
 
 class AnomalyAiException implements Exception {
