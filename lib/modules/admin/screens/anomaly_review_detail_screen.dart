@@ -184,6 +184,13 @@ class AnomalyReviewDetailScreen extends StatelessWidget {
           Text(explanation, style: const TextStyle(height: 1.45)),
           const SizedBox(height: 14),
           const Text(
+            'Possible Cause',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 4),
+          Text(alert.signature, style: const TextStyle(height: 1.45)),
+          const SizedBox(height: 14),
+          const Text(
             'System Recommendation',
             style: TextStyle(fontWeight: FontWeight.w800),
           ),
