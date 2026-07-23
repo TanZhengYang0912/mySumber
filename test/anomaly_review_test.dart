@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:mysumber/modules/admin/services/anomaly_review_filter.dart';
 import 'package:mysumber/modules/leakage/models/alert.dart';
 
 void main() {
@@ -44,4 +45,107 @@ void main() {
     expect(legacy.facilityName, isNull);
     expect(legacy.equipmentName, isNull);
   });
+
+  final alerts = _fixtureAlerts();
+
+  test('default query returns only pending and ongoing alerts', () {
+    final result = AnomalyReviewFilter.apply(
+      alerts,
+      const AnomalyReviewQuery(),
+    );
+
+    expect(result.map((a) => a.status), containsAll([
+      AlertStatus.pending,
+      AlertStatus.investigating,
+    ]));
+    expect(result.map((a) => a.status), isNot(contains(AlertStatus.resolved)));
+    expect(result.map((a) => a.status), isNot(contains(AlertStatus.faults)));
+  });
+
+  test('filters by utility, state, facility, and equipment', () {
+    final result = AnomalyReviewFilter.apply(
+      alerts,
+      const AnomalyReviewQuery(
+        statuses: {AlertStatus.pending},
+        utility: Utility.water,
+        state: 'Selangor',
+        facilityName: '1 Utama Shopping Centre',
+        equipmentName: 'Main Water Pump A1',
+      ),
+    );
+
+    expect(result, hasLength(1));
+    expect(result.single.facilityName, '1 Utama Shopping Centre');
+  });
+
+  test('option lists are unique, sorted, and state-aware', () {
+    expect(AnomalyReviewFilter.states(alerts), ['Kedah', 'Selangor']);
+    expect(
+      AnomalyReviewFilter.facilities(alerts, state: 'Selangor'),
+      ['1 Utama Shopping Centre'],
+    );
+    expect(
+      AnomalyReviewFilter.equipment(
+        alerts,
+        state: 'Selangor',
+        facilityName: '1 Utama Shopping Centre',
+      ),
+      ['Main Water Pump A1', 'Sub-Transformer B2'],
+    );
+  });
 }
+
+List<Alert> _fixtureAlerts() => [
+      Alert(
+        id: 1,
+        alertType: AlertType.nrwHotspot,
+        state: 'Selangor',
+        detectedAt: DateTime.utc(2026, 7, 23),
+        signature: 'nrw_hotspot',
+        severity: Severity.high,
+        explanation: 'Water usage exceeded the baseline.',
+        status: AlertStatus.pending,
+        facilityName: '1 Utama Shopping Centre',
+        facilityCity: 'Petaling Jaya',
+        equipmentName: 'Main Water Pump A1',
+      ),
+      Alert(
+        id: 2,
+        alertType: AlertType.nrwHotspot,
+        state: 'Kedah',
+        detectedAt: DateTime.utc(2026, 7, 22),
+        signature: 'nrw_hotspot',
+        severity: Severity.medium,
+        explanation: 'Water usage is still above baseline.',
+        status: AlertStatus.investigating,
+        facilityName: 'Aman Central',
+        facilityCity: 'Alor Setar',
+        equipmentName: 'Cooling Tower Valve',
+      ),
+      Alert(
+        id: 3,
+        alertType: AlertType.electricityHotspot,
+        state: 'Selangor',
+        detectedAt: DateTime.utc(2026, 7, 21),
+        signature: 'electricity_hotspot',
+        severity: Severity.low,
+        explanation: 'Electricity loss returned to baseline.',
+        status: AlertStatus.resolved,
+        facilityName: '1 Utama Shopping Centre',
+        facilityCity: 'Petaling Jaya',
+        equipmentName: 'Sub-Transformer B2',
+      ),
+      Alert(
+        id: 4,
+        alertType: AlertType.electricityHotspot,
+        state: 'Selangor',
+        detectedAt: DateTime.utc(2026, 7, 20),
+        signature: 'electricity_hotspot',
+        severity: Severity.low,
+        explanation: 'The pattern was classified as a fault.',
+        status: AlertStatus.faults,
+        facilityName: '1 Utama Shopping Centre',
+        facilityCity: 'Petaling Jaya',
+        equipmentName: 'Sub-Transformer B2',
+      ),
+    ];
