@@ -15,7 +15,7 @@ without stepping on each other.
 | Module | Description | Storage | Status |
 |---|---|---|---|
 | 1. Equipment Management | Import/version government datasets, dual-bar variance chart, anomaly detection | Local CSV | ✅ Complete |
-| 2. Customer Experience | Personal usage comparison, repair report flow, service review & AI insights | Local + Cloud (Supabase) | ✅ Complete |
+| 2. Customer Experience | Personal usage comparison and repair report flow | Local + Cloud (Supabase) | ✅ Complete |
 | 3. Water Leakage Detection | Detect leakage from real NRW data + simulated household readings, worker alert queue | Cloud (Supabase) + Local CSV | ✅ Complete |
 | 4. Electricity Anomaly Detection | Detect meter tampering patterns, electricity loss hotspot analysis | Local CSV + Cloud (Supabase) | ✅ Complete |
 
@@ -25,9 +25,9 @@ without stepping on each other.
 
 | Role | Login | Access |
 |---|---|---|
-| **Admin** | Password: `admin` | Equipment dashboard, alerts oversight, reports, service reviews & AI insights |
-| **Worker** | Password: `worker` | Water alert queue, electricity alert queue, field report submission |
-| **Customer** | Email + password (Supabase Auth) | Home dashboard, usage comparison, repair history, AI service summary |
+| **Admin** | Password: `admin` | Equipment dashboard, alerts oversight, reports, and AI anomaly review |
+| **Worker** | Password: `worker` | Water alert queue and electricity alert queue |
+| **Customer** | Email + password (Supabase Auth) | Home dashboard, usage comparison, repair history, and optional feedback |
 
 ---
 
@@ -78,19 +78,19 @@ mysumber/
 │       │
 │       ├── leakage/              Module 3 — Water Leakage Detection
 │       │   ├── data/
-│       │   │   └── leakage_repository.dart      Supabase CRUD: alerts, reports, readings, reviews, summaries
+│       │   │   └── leakage_repository.dart      Supabase CRUD: alerts, reports, readings, and optional feedback
 │       │   ├── models/
 │       │   │   ├── alert.dart
 │       │   │   ├── report.dart
 │       │   │   ├── reading.dart
-│       │   │   ├── service_review.dart          Customer repair rating (stars + tags + comment)
-│       │   │   └── ai_summary.dart              AI-generated service quality summary
+│       │   │   ├── service_review.dart          Optional customer repair feedback
+│       │   │   └── ai_summary.dart              Legacy customer-feedback summary model
 │       │   ├── screens/          home_screen.dart, alert_queue_screen.dart, alert_detail_screen.dart,
 │       │   │                     report_history_screen.dart, network_error.dart
 │       │   ├── services/         baseline_service, nrw_service, simulation_service, explainer,
 │       │   │                     electricity_loss_service
 │       │   └── state/
-│       │       └── app_state.dart               Central Provider: alerts, reports, reviews, AI summary
+│       │       └── app_state.dart               Central Provider: alerts, reports, and optional feedback
 │       │
 │       ├── electricity/          Module 4 — Electricity Anomaly Detection
 │       │   ├── models/           ElectricityRecord
@@ -102,7 +102,8 @@ mysumber/
 │               ├── oversight_screen.dart         Alerts + reports oversight (tabs)
 │               ├── admin_alert_detail_screen.dart
 │               ├── abnormal_production_screen.dart
-│               └── review_management_screen.dart  All reviews + ✨ Generate AI Insights button
+│               ├── review_management_screen.dart  AI anomaly queue and filters
+│               └── anomaly_review_detail_screen.dart  Alert evidence + AI explanation
 │
 ├── pubspec.yaml                  Shared dependencies
 └── README.md                     This file
@@ -110,49 +111,26 @@ mysumber/
 
 ---
 
-## Feature: AI-Powered Service Reviews
+## Feature: AI Anomaly Review
 
-Customers rate completed repairs (1–5 stars + tags + comment). Admins click
-"✨ Generate AI Insights" to send all reviews to the Groq API (Llama 3 8B),
-which returns a structured summary (pros, cons, overall assessment) stored in
-Supabase and displayed to both customers and admins.
+The system detects abnormal water and electricity patterns and automatically
+creates an alert. Admins use **AI Anomaly Review** to inspect the same alert
+records shown in Oversight. Each record is linked to the concrete hierarchy:
 
-### Review tags
-
-| Positive | Negative |
-|---|---|
-| Fast Response | Still Leaking |
-| Perfectly Fixed | Slow Response |
-| Great Attitude | Overcharged |
-| Professional | Unprofessional |
-| Thorough Check | Poor Fix |
-
-### Supabase tables required
-
-Run this SQL once in Supabase → SQL Editor:
-
-```sql
-CREATE TABLE service_reviews (
-  id             SERIAL PRIMARY KEY,
-  alert_id       INTEGER,
-  consumer_email TEXT NOT NULL,
-  stars          INTEGER NOT NULL CHECK (stars BETWEEN 1 AND 5),
-  tags           TEXT[] DEFAULT '{}',
-  comment        TEXT DEFAULT '',
-  created_at     TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE ai_summaries (
-  id             SERIAL PRIMARY KEY,
-  summary_text   TEXT NOT NULL,
-  pros           TEXT[] DEFAULT '{}',
-  cons           TEXT[] DEFAULT '{}',
-  review_count   INTEGER NOT NULL DEFAULT 0,
-  generated_at   TIMESTAMPTZ DEFAULT NOW()
-);
+```text
+State → Shopping Mall → Equipment → Alert
 ```
 
-### Groq API key
+Review defaults to `Pending` and `Ongoing` alerts and supports filtering by
+utility, state, shopping mall, equipment, and status. Each detail view shows
+the detected evidence, actual value versus baseline when available, severity,
+and the stored AI anomaly explanation. Status operations continue through the
+existing Oversight flow.
+
+This feature does not summarize customer ratings and does not require Worker
+field inspections, photo uploads, or repair-result submissions.
+
+### Legacy customer-feedback summary API key
 
 1. Register free at [console.groq.com](https://console.groq.com).
 2. Copy the key (`gsk_xxx...`).
@@ -165,19 +143,18 @@ CREATE TABLE ai_summaries (
 
 ## Cloud database (Supabase)
 
-Module 3 operational data (`alerts`, `readings`, `reports`) and the review
-system (`service_reviews`, `ai_summaries`) live in a shared Supabase
-(Postgres) project.
+Module 3 operational data (`alerts`, `readings`, `reports`) and optional
+customer feedback tables live in a shared Supabase (Postgres) project.
 
 ### Tables
 
 | Table | Module | Description |
 |---|---|---|
-| `alerts` | 3 | NRW and electricity anomaly alerts |
+| `alerts` | 3 | NRW and electricity anomaly alerts with facility/equipment context |
 | `readings` | 3 | Household water readings |
 | `reports` | 3 | Worker field reports |
-| `service_reviews` | 2 | Customer repair ratings |
-| `ai_summaries` | 2 | AI-generated review summaries |
+| `service_reviews` | 2 | Optional customer repair ratings |
+| `ai_summaries` | 2 | Legacy customer-feedback summaries; not used by Admin AI Review |
 
 ### Running the app
 
