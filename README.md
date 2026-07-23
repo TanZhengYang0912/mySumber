@@ -123,21 +123,32 @@ State → Shopping Mall → Equipment → Alert
 
 Review defaults to `Pending` and `Ongoing` alerts and supports filtering by
 utility, state, shopping mall, equipment, and status. Each detail view shows
-the detected evidence, actual value versus baseline when available, severity,
-and the stored AI anomaly explanation. Status operations continue through the
-existing Oversight flow.
+the detected evidence, actual value versus baseline when available, and the
+system severity. Admin can then tap `Generate AI Analysis` for one selected
+alert. The app calls Groq model `llama-3.1-8b-instant`, validates the JSON
+response locally, and saves the result on the same `alerts` row. Reopening the
+detail page displays the saved result without another request; `Regenerate AI
+Analysis` starts a new request explicitly. Status and system severity remain
+unchanged by AI output, and status operations continue through the existing
+Oversight flow.
 
 This feature does not summarize customer ratings and does not require Worker
 field inspections, photo uploads, or repair-result submissions.
 
-### Legacy customer-feedback summary API key
+### Groq API key
 
 1. Register free at [console.groq.com](https://console.groq.com).
 2. Copy the key (`gsk_xxx...`).
-3. Paste it into `lib/config.dart`:
+3. Copy `lib/config.example.dart` to the local, gitignored file
+   `lib/config.dart`, then paste the key:
    ```dart
    static const String apiKey = 'gsk_your_key_here';
    ```
+
+The Admin AI Anomaly Review calls the external API only after an Admin taps the
+button for one alert. The older customer-review summary flow remains separate
+and is not called by Admin Review. Never commit `lib/config.dart` or any
+Supabase `service_role` key.
 
 ---
 
@@ -150,7 +161,7 @@ customer feedback tables live in a shared Supabase (Postgres) project.
 
 | Table | Module | Description |
 |---|---|---|
-| `alerts` | 3 | NRW and electricity anomaly alerts with facility/equipment context |
+| `alerts` | 3 | NRW and electricity anomaly alerts with facility/equipment context and validated AI analysis |
 | `readings` | 3 | Household water readings |
 | `reports` | 3 | Worker field reports |
 | `service_reviews` | 2 | Optional customer repair ratings |
@@ -165,8 +176,8 @@ key already embedded in `main.dart`. Run `flutter pub get` then `flutter run`.
 
 Row Level Security (RLS) is enabled on all tables. The anon key is the only
 key that belongs in app code. Never commit a Supabase `service_role` key.
-`lib/config.dart` (Groq key) should be added to `.gitignore` before pushing
-to any public repository.
+`lib/config.dart` (Groq key) is gitignored and must never be pushed to a public
+repository.
 
 ---
 

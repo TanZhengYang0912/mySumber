@@ -108,6 +108,12 @@ class Alert {
   final double? lossMld;
   final double? lossPct;
   final int? dataYear;
+  final String? aiSummary;
+  final String? aiPossibleCause;
+  final String? aiSeverityAssessment;
+  final String? aiRecommendation;
+  final double? aiConfidence;
+  final DateTime? aiGeneratedAt;
 
   const Alert({
     this.id,
@@ -132,6 +138,12 @@ class Alert {
     this.lossMld,
     this.lossPct,
     this.dataYear,
+    this.aiSummary,
+    this.aiPossibleCause,
+    this.aiSeverityAssessment,
+    this.aiRecommendation,
+    this.aiConfidence,
+    this.aiGeneratedAt,
   });
 
   bool get isNrw => alertType == AlertType.nrwHotspot;
@@ -150,8 +162,17 @@ class Alert {
   double get ratio => baselineL == 0 ? 0 : actualL / baselineL;
   bool get isUnresolved => AlertStatus.unresolved.contains(status);
 
-  String get title =>
-      alertType == AlertType.household ? '$state · ${householdId ?? ''}' : state;
+  bool get hasAiAnalysis =>
+      aiSummary != null &&
+      aiPossibleCause != null &&
+      aiSeverityAssessment != null &&
+      aiRecommendation != null &&
+      aiConfidence != null &&
+      aiGeneratedAt != null;
+
+  String get title => alertType == AlertType.household
+      ? '$state · ${householdId ?? ''}'
+      : state;
 
   Map<String, Object?> toMap() => {
         'id': id,
@@ -176,6 +197,14 @@ class Alert {
         'loss_mld': lossMld,
         'loss_pct': lossPct,
         'data_year': dataYear,
+        if (aiSummary != null) 'ai_summary': aiSummary,
+        if (aiPossibleCause != null) 'ai_possible_cause': aiPossibleCause,
+        if (aiSeverityAssessment != null)
+          'ai_severity_assessment': aiSeverityAssessment,
+        if (aiRecommendation != null) 'ai_recommendation': aiRecommendation,
+        if (aiConfidence != null) 'ai_confidence': aiConfidence,
+        if (aiGeneratedAt != null)
+          'ai_generated_at': aiGeneratedAt!.toIso8601String(),
       };
 
   factory Alert.fromMap(Map<String, Object?> map) => Alert(
@@ -201,6 +230,14 @@ class Alert {
         lossMld: (map['loss_mld'] as num?)?.toDouble(),
         lossPct: (map['loss_pct'] as num?)?.toDouble(),
         dataYear: map['data_year'] as int?,
+        aiSummary: map['ai_summary'] as String?,
+        aiPossibleCause: map['ai_possible_cause'] as String?,
+        aiSeverityAssessment: map['ai_severity_assessment'] as String?,
+        aiRecommendation: map['ai_recommendation'] as String?,
+        aiConfidence: (map['ai_confidence'] as num?)?.toDouble(),
+        aiGeneratedAt: map['ai_generated_at'] == null
+            ? null
+            : DateTime.parse(map['ai_generated_at'] as String),
       );
 
   Alert copyWith({
@@ -211,7 +248,14 @@ class Alert {
     String? facilityName,
     String? facilityCity,
     String? equipmentName,
-  }) => Alert(
+    String? aiSummary,
+    String? aiPossibleCause,
+    String? aiSeverityAssessment,
+    String? aiRecommendation,
+    double? aiConfidence,
+    DateTime? aiGeneratedAt,
+  }) =>
+      Alert(
         id: id ?? this.id,
         readingId: readingId,
         alertType: alertType,
@@ -234,5 +278,11 @@ class Alert {
         lossMld: lossMld,
         lossPct: lossPct,
         dataYear: dataYear,
+        aiSummary: aiSummary ?? this.aiSummary,
+        aiPossibleCause: aiPossibleCause ?? this.aiPossibleCause,
+        aiSeverityAssessment: aiSeverityAssessment ?? this.aiSeverityAssessment,
+        aiRecommendation: aiRecommendation ?? this.aiRecommendation,
+        aiConfidence: aiConfidence ?? this.aiConfidence,
+        aiGeneratedAt: aiGeneratedAt ?? this.aiGeneratedAt,
       );
 }

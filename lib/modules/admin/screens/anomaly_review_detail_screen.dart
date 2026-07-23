@@ -4,11 +4,13 @@ import 'package:provider/provider.dart';
 
 import '../../../theme/tokens.dart';
 import 'admin_alert_detail_screen.dart';
+import '../../leakage/models/ai_anomaly_analysis.dart';
 import '../../leakage/models/alert.dart';
 import '../../leakage/state/app_state.dart';
 import '../../leakage/screens/style.dart';
+import '../../leakage/services/anomaly_ai_service.dart';
 
-class AnomalyReviewDetailScreen extends StatelessWidget {
+class AnomalyReviewDetailScreen extends StatefulWidget {
   final int alertId;
 
   const AnomalyReviewDetailScreen({
@@ -17,9 +19,20 @@ class AnomalyReviewDetailScreen extends StatelessWidget {
   });
 
   @override
+  State<AnomalyReviewDetailScreen> createState() =>
+      _AnomalyReviewDetailScreenState();
+}
+
+class _AnomalyReviewDetailScreenState extends State<AnomalyReviewDetailScreen> {
+  AiAnomalyAnalysis? _sessionAnalysis;
+  String? _errorMessage;
+  bool _generating = false;
+  bool? _sessionAnalysisPersisted;
+
+  @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
-    final matches = app.alerts.where((alert) => alert.id == alertId);
+    final matches = app.alerts.where((alert) => alert.id == widget.alertId);
     if (matches.isEmpty) {
       return Scaffold(
         appBar: AppBar(
@@ -51,7 +64,7 @@ class AnomalyReviewDetailScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _evidenceCard(alert),
           const SizedBox(height: 10),
-          _analysisCard(alert, explanation),
+          _analysisSection(context, app, alert, explanation),
           const SizedBox(height: 10),
           FilledButton.icon(
             onPressed: alert.id == null
@@ -71,6 +84,157 @@ class AnomalyReviewDetailScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Widget _analysisSection(
+    BuildContext context,
+    AppState app,
+    Alert alert,
+    String explanation,
+  ) {
+    final savedAnalysis = _savedAnalysis(alert);
+    final persistenceFailed =
+        _sessionAnalysisPersisted == false && _sessionAnalysis != null;
+    final analysis = persistenceFailed
+        ? _sessionAnalysis
+        : savedAnalysis ?? _sessionAnalysis;
+    final isRunning = _generating ||
+        (alert.id != null && app.isGeneratingAnomalyAnalysis(alert.id!));
+    final hasError = _errorMessage != null;
+
+    return _card(
+      background: AppColors.adminSurface,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SectionLabel('AI ANALYSIS', color: AppColors.adminPrimary),
+          const SizedBox(height: 10),
+          if (analysis == null) ...[
+            const Text(
+              'AI analysis has not been generated for this anomaly.',
+              style: TextStyle(height: 1.45),
+            ),
+            const SizedBox(height: 12),
+          ] else ...[
+            _analysisValue('Summary', analysis.summary),
+            const SizedBox(height: 12),
+            _analysisValue('Possible Cause', analysis.possibleCause),
+            const SizedBox(height: 12),
+            _analysisValue(
+              'AI Severity Assessment',
+              '${analysis.severityAssessment} · ${(analysis.confidence * 100).round()}% confidence',
+            ),
+            const SizedBox(height: 12),
+            _analysisValue('System Recommendation', analysis.recommendation),
+            const SizedBox(height: 12),
+            Text(
+              'Generated ${DateFormat('d MMM y, h:mm a').format(analysis.generatedAt)}',
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            if (persistenceFailed) ...[
+              const SizedBox(height: 10),
+              const Text(
+                'This result was generated but could not be saved. Retry to persist it.',
+                style: TextStyle(color: Colors.deepOrange, height: 1.35),
+              ),
+            ],
+            const SizedBox(height: 14),
+          ],
+          if (hasError) ...[
+            Text(
+              _errorMessage!,
+              style: const TextStyle(color: Colors.deepOrange, height: 1.35),
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (explanation.trim().isNotEmpty) ...[
+            const Text(
+              'System Detection Context',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 4),
+            Text(explanation, style: const TextStyle(height: 1.45)),
+            const SizedBox(height: 14),
+          ],
+          FilledButton.icon(
+            onPressed: isRunning ? null : () => _generate(context, alert),
+            icon: Icon(
+              isRunning ? Icons.hourglass_top : Icons.auto_awesome,
+            ),
+            label: Text(
+              isRunning
+                  ? 'Generating...'
+                  : hasError
+                      ? 'Retry AI Analysis'
+                      : analysis == null
+                          ? 'Generate AI Analysis'
+                          : 'Regenerate AI Analysis',
+            ),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.adminPrimary,
+              minimumSize: const Size.fromHeight(48),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _analysisValue(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
+        const SizedBox(height: 4),
+        Text(value, style: const TextStyle(height: 1.45)),
+      ],
+    );
+  }
+
+  AiAnomalyAnalysis? _savedAnalysis(Alert alert) {
+    if (!alert.hasAiAnalysis) return null;
+    return AiAnomalyAnalysis(
+      summary: alert.aiSummary!,
+      possibleCause: alert.aiPossibleCause!,
+      severityAssessment: alert.aiSeverityAssessment!,
+      confidence: alert.aiConfidence!,
+      recommendation: alert.aiRecommendation!,
+      generatedAt: alert.aiGeneratedAt!,
+    );
+  }
+
+  Future<void> _generate(BuildContext context, Alert alert) async {
+    setState(() {
+      _errorMessage = null;
+      _generating = true;
+      _sessionAnalysisPersisted = null;
+    });
+
+    try {
+      final result =
+          await context.read<AppState>().generateAnomalyAnalysis(alert);
+      if (!mounted) return;
+      setState(() {
+        _sessionAnalysis = result.analysis;
+        _sessionAnalysisPersisted = result.persisted;
+        _generating = false;
+      });
+    } on AnomalyAiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = error.message;
+        _generating = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Unable to generate AI analysis: $error';
+        _generating = false;
+      });
+    }
   }
 
   Widget _headerCard(
@@ -168,40 +332,6 @@ class AnomalyReviewDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _analysisCard(Alert alert, String explanation) {
-    return _card(
-      background: AppColors.adminSurface,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SectionLabel('AI ANALYSIS', color: AppColors.adminPrimary),
-          const SizedBox(height: 10),
-          const Text(
-            'Anomaly Summary',
-            style: TextStyle(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 4),
-          Text(explanation, style: const TextStyle(height: 1.45)),
-          const SizedBox(height: 14),
-          const Text(
-            'Possible Cause',
-            style: TextStyle(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 4),
-          Text(alert.signature, style: const TextStyle(height: 1.45)),
-          const SizedBox(height: 14),
-          const Text(
-            'System Recommendation',
-            style: TextStyle(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 4),
-          Text(_reviewRecommendation(alert),
-              style: const TextStyle(height: 1.45)),
-        ],
-      ),
-    );
-  }
-
   Widget _metric(String label, String value) {
     return Container(
       width: 145,
@@ -244,15 +374,5 @@ class AnomalyReviewDetailScreen extends StatelessWidget {
     ).firstMatch(explanation);
     if (recommendationStart == null) return explanation.trim();
     return explanation.substring(0, recommendationStart.start).trim();
-  }
-
-  String _reviewRecommendation(Alert alert) {
-    if (alert.status == AlertStatus.faults) {
-      return 'Review this record as a possible false alarm.';
-    }
-    if (alert.severity == Severity.high) {
-      return 'Prioritise Admin attention and compare the latest readings.';
-    }
-    return 'Continue monitoring this equipment record.';
   }
 }

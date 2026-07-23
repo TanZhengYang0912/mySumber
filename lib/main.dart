@@ -1,8 +1,10 @@
+import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'theme/tokens.dart';
+import 'config.dart';
 
 import 'modules/admin/screens/abnormal_production_screen.dart';
 import 'modules/admin/screens/oversight_screen.dart';
@@ -15,6 +17,7 @@ import 'modules/leakage/data/leakage_repository.dart';
 import 'modules/leakage/models/alert.dart' show Utility;
 import 'modules/leakage/screens/home_screen.dart';
 import 'modules/leakage/services/baseline_service.dart';
+import 'modules/leakage/services/anomaly_ai_service.dart';
 import 'modules/leakage/services/nrw_service.dart';
 import 'modules/leakage/services/simulation_service.dart';
 import 'modules/leakage/state/app_state.dart';
@@ -62,11 +65,16 @@ class MySumberApp extends StatelessWidget {
               baseline: baseline,
               repository: repository,
             );
+            final anomalyAi = AnomalyAiService(
+              client: http.Client(),
+              apiKey: GroqConfig.apiKey,
+            );
             final state = AppState(
               baseline: baseline,
               nrw: nrw,
               repository: repository,
               simulation: simulation,
+              anomalyAi: anomalyAi,
             );
             state.init();
             return state;
