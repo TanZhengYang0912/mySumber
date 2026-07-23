@@ -54,10 +54,12 @@ void main() {
       const AnomalyReviewQuery(),
     );
 
-    expect(result.map((a) => a.status), containsAll([
-      AlertStatus.pending,
-      AlertStatus.investigating,
-    ]));
+    expect(
+        result.map((a) => a.status),
+        containsAll([
+          AlertStatus.pending,
+          AlertStatus.investigating,
+        ]));
     expect(result.map((a) => a.status), isNot(contains(AlertStatus.resolved)));
     expect(result.map((a) => a.status), isNot(contains(AlertStatus.faults)));
   });
