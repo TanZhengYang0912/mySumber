@@ -7,6 +7,7 @@ import '../../leakage/models/alert.dart';
 import '../../leakage/state/app_state.dart';
 import '../services/admin_tablet_layout.dart';
 import '../services/anomaly_review_filter.dart';
+import '../widgets/landscape_filter_menu.dart';
 import 'anomaly_review_detail_screen.dart';
 
 class ReviewManagementScreen extends StatefulWidget {
@@ -60,14 +61,22 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isTablet =
-            usesAdminTabletLayout(MediaQuery.sizeOf(context).width);
+        final mode = adminLayoutModeFor(MediaQuery.sizeOf(context));
+        final isTablet = mode == AdminLayoutMode.tabletLandscape;
         if (app.loading) {
           return Scaffold(
             backgroundColor: AppColors.canvas,
             body: Column(
               children: [
-                isTablet ? _tabletHeader(results) : _header(),
+                isTablet
+                    ? _tabletHeader(results)
+                    : mode == AdminLayoutMode.phoneLandscape
+                        ? _phoneLandscapeHeader(
+                            states: states,
+                            facilities: facilities,
+                            equipment: equipment,
+                          )
+                        : _header(),
                 const LinearProgressIndicator(minHeight: 2),
               ],
             ),
@@ -82,15 +91,198 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
                   facilities: facilities,
                   equipment: equipment,
                 )
-              : _phoneLayout(
-                  alerts: alerts,
-                  results: results,
-                  states: states,
-                  facilities: facilities,
-                  equipment: equipment,
-                ),
+              : mode == AdminLayoutMode.phoneLandscape
+                  ? _phoneLandscapeLayout(
+                      results: results,
+                      states: states,
+                      facilities: facilities,
+                      equipment: equipment,
+                    )
+                  : _phoneLayout(
+                      alerts: alerts,
+                      results: results,
+                      states: states,
+                      facilities: facilities,
+                      equipment: equipment,
+                    ),
         );
       },
+    );
+  }
+
+  Widget _phoneLandscapeLayout({
+    required List<Alert> results,
+    required List<String> states,
+    required List<String> facilities,
+    required List<String> equipment,
+  }) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        child: Column(
+          children: [
+            _phoneLandscapeHeader(
+              states: states,
+              facilities: facilities,
+              equipment: equipment,
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: results.isEmpty
+                  ? _emptyState()
+                  : GridView.builder(
+                      key: const ValueKey('phone-landscape-review-grid'),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 10,
+                        childAspectRatio: 1.65,
+                      ),
+                      itemCount: results.length,
+                      itemBuilder: (context, index) =>
+                          _landscapeAlertCard(results[index]),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _phoneLandscapeHeader({
+    required List<String> states,
+    required List<String> facilities,
+    required List<String> equipment,
+  }) {
+    return SizedBox(
+      height: 48,
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.adminSurface,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            alignment: Alignment.center,
+            child: const Icon(
+              Icons.analytics_outlined,
+              color: AppColors.adminPrimary,
+            ),
+          ),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'AI Review',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          _landscapeStatusLabel(),
+          const SizedBox(width: 8),
+          LandscapeFilterMenu(
+            child: _landscapeFilterControls(
+              states: states,
+              facilities: facilities,
+              equipment: equipment,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _landscapeStatusLabel() {
+    final label = _statuses.length == AlertStatus.all.length
+        ? 'All'
+        : _statuses.length == 2 &&
+                _statuses.contains(AlertStatus.investigating) &&
+                _statuses.contains(AlertStatus.notFixed)
+            ? 'Ongoing'
+            : AlertStatus.label(_statuses.first);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: AppColors.canvas,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: AppColors.textSecondary,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  Widget _landscapeFilterControls({
+    required List<String> states,
+    required List<String> facilities,
+    required List<String> equipment,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            const Expanded(child: SectionLabel('Filter anomalies')),
+            TextButton(onPressed: _clearFilters, child: const Text('Clear')),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _statusChips(),
+        const SizedBox(height: 10),
+        _utilityChips(),
+        const SizedBox(height: 10),
+        FilterChip(
+          label: const Text('High severity'),
+          selected: _highSeverityOnly,
+          onSelected: (selected) =>
+              setState(() => _highSeverityOnly = selected),
+          selectedColor: AppColors.criticalSurface,
+          checkmarkColor: AppColors.critical,
+          labelStyle: TextStyle(
+            color:
+                _highSeverityOnly ? AppColors.critical : AppColors.textPrimary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 10),
+        _dropdown(
+          label: 'State / Federal Territory',
+          value: _state,
+          values: states,
+          onChanged: (value) => setState(() {
+            _state = value;
+            _facilityName = null;
+            _equipmentName = null;
+          }),
+        ),
+        const SizedBox(height: 10),
+        _dropdown(
+          label: 'Shopping Mall',
+          value: _facilityName,
+          values: facilities,
+          onChanged: (value) => setState(() {
+            _facilityName = value;
+            _equipmentName = null;
+          }),
+        ),
+        const SizedBox(height: 10),
+        _dropdown(
+          label: 'Equipment',
+          value: _equipmentName,
+          values: equipment,
+          onChanged: (value) => setState(() => _equipmentName = value),
+        ),
+      ],
     );
   }
 
@@ -782,6 +974,93 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
                       color: AppColors.textSecondary, height: 1.35)),
               const SizedBox(height: 10),
               _valueSummary(alert),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _landscapeAlertCard(Alert alert) {
+    final facility = alert.facilityName ?? 'Facility not linked';
+    final equipment = alert.equipmentName ?? 'Equipment not linked';
+    final city = alert.facilityCity;
+    final utilityLabel =
+        alert.utility == Utility.water ? 'Water' : 'Electricity';
+    final location = city == null || city.trim().isEmpty
+        ? '${alert.state} · $equipment'
+        : '$city, ${alert.state} · $equipment';
+
+    return Semantics(
+      button: alert.id != null,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: alert.id == null
+            ? null
+            : () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => AnomalyReviewDetailScreen(alertId: alert.id!),
+                )),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.divider),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      facility,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right,
+                    size: 18,
+                    color: alert.id == null
+                        ? AppColors.textTertiary
+                        : AppColors.adminPrimary,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 3),
+              Text(
+                location,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 11,
+                ),
+              ),
+              const Spacer(),
+              Wrap(
+                spacing: 5,
+                runSpacing: 4,
+                children: [
+                  _utilityPill(utilityLabel, alert.utility),
+                  _severityPill(alert.severity),
+                  _statusPill(alert.status),
+                ],
+              ),
+              const SizedBox(height: 7),
+              Text(
+                DateFormat('d MMM y').format(alert.detectedAt),
+                style: const TextStyle(
+                  color: AppColors.textTertiary,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ],
           ),
         ),
