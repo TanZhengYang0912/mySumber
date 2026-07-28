@@ -1,4 +1,20 @@
-const adminTabletBreakpoint = 840.0;
+import 'package:flutter/material.dart';
 
-bool usesAdminTabletLayout(double viewportWidth) =>
-    viewportWidth >= adminTabletBreakpoint;
+enum AdminLayoutMode {
+  phonePortrait,
+  phoneLandscape,
+  tabletPortrait,
+  tabletLandscape,
+}
+
+AdminLayoutMode adminLayoutModeFor(Size viewport) {
+  if (viewport.shortestSide < 600) {
+    return viewport.width > viewport.height
+        ? AdminLayoutMode.phoneLandscape
+        : AdminLayoutMode.phonePortrait;
+  }
+
+  return viewport.width >= 840
+      ? AdminLayoutMode.tabletLandscape
+      : AdminLayoutMode.tabletPortrait;
+}
