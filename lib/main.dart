@@ -250,52 +250,103 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     final primary = rolePrimary(widget.userRole);
-    return Scaffold(
-      backgroundColor: AppColors.canvas,
-      body: _screens[_currentIndex],
-      bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          border: Border(
-            top: BorderSide(color: AppColors.divider, width: 1),
-          ),
-        ),
-        child: SafeArea(
-          top: false,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(_navItems.length, (i) {
-              final item = _navItems[i];
-              final selected = i == _currentIndex;
-              return Expanded(
-                child: InkWell(
-                  onTap: () => setState(() => _currentIndex = i),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          item.icon,
-                          color: selected ? primary : AppColors.textTertiary,
-                          size: 24,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          item.label,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: selected ? primary : AppColors.textTertiary,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final useAdminRail =
+            widget.userRole == 'admin' && constraints.maxWidth >= 840;
+        final screenStack = IndexedStack(
+          index: _currentIndex,
+          children: _screens,
+        );
+
+        return Scaffold(
+          backgroundColor: AppColors.canvas,
+          body: useAdminRail
+              ? Row(
+                  children: [
+                    NavigationRail(
+                      selectedIndex: _currentIndex,
+                      onDestinationSelected: (index) =>
+                          setState(() => _currentIndex = index),
+                      labelType: NavigationRailLabelType.all,
+                      backgroundColor: Colors.white,
+                      indicatorColor: AppColors.adminSurface,
+                      selectedIconTheme:
+                          const IconThemeData(color: AppColors.adminPrimary),
+                      selectedLabelTextStyle: const TextStyle(
+                        color: AppColors.adminPrimary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      unselectedIconTheme:
+                          const IconThemeData(color: AppColors.textTertiary),
+                      unselectedLabelTextStyle: const TextStyle(
+                        color: AppColors.textTertiary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      destinations: [
+                        for (final item in _navItems)
+                          NavigationRailDestination(
+                            icon: Icon(item.icon),
+                            selectedIcon: Icon(item.icon),
+                            label: Text(item.label),
                           ),
-                        ),
                       ],
                     ),
+                    const VerticalDivider(width: 1),
+                    Expanded(child: screenStack),
+                  ],
+                )
+              : screenStack,
+          bottomNavigationBar:
+              useAdminRail ? null : _buildBottomNavigation(primary),
+        );
+      },
+    );
+  }
+
+  Widget _buildBottomNavigation(Color primary) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          top: BorderSide(color: AppColors.divider, width: 1),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: List.generate(_navItems.length, (i) {
+            final item = _navItems[i];
+            final selected = i == _currentIndex;
+            return Expanded(
+              child: InkWell(
+                onTap: () => setState(() => _currentIndex = i),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        item.icon,
+                        color: selected ? primary : AppColors.textTertiary,
+                        size: 24,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        item.label,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: selected ? primary : AppColors.textTertiary,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              );
-            }),
-          ),
+              ),
+            );
+          }),
         ),
       ),
     );
