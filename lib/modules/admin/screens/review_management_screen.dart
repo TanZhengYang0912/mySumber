@@ -16,6 +16,8 @@ class ReviewManagementScreen extends StatefulWidget {
 }
 
 class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
+  static const _tabletBreakpoint = 840.0;
+
   Set<String> _statuses = {
     AlertStatus.pending,
     AlertStatus.investigating,
@@ -25,6 +27,9 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
   String? _state;
   String? _facilityName;
   String? _equipmentName;
+  bool _highSeverityOnly = false;
+  int? _selectedAlertId;
+  bool _selectionSyncScheduled = false;
 
   @override
   Widget build(BuildContext context) {
@@ -36,6 +41,7 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
       state: _state,
       facilityName: _facilityName,
       equipmentName: _equipmentName,
+      highSeverityOnly: _highSeverityOnly,
     );
     final results = AnomalyReviewFilter.apply(alerts, query);
     final states = AnomalyReviewFilter.states(alerts);
@@ -46,28 +52,63 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
       facilityName: _facilityName,
     );
 
-    return Scaffold(
-      backgroundColor: AppColors.canvas,
-      body: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          _header(),
-          if (app.loading)
-            const LinearProgressIndicator(minHeight: 2)
-          else ...[
-            _summary(alerts),
-            _filters(
-              states: states,
-              facilities: facilities,
-              equipment: equipment,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isTablet = constraints.maxWidth >= _tabletBreakpoint;
+        if (app.loading) {
+          return Scaffold(
+            backgroundColor: AppColors.canvas,
+            body: Column(
+              children: [
+                isTablet ? _tabletHeader(results) : _header(),
+                const LinearProgressIndicator(minHeight: 2),
+              ],
             ),
-            _resultsHeader(results.length),
-            for (final alert in results) _alertCard(alert),
-            if (results.isEmpty) _emptyState(),
-          ],
-          const SizedBox(height: 24),
-        ],
-      ),
+          );
+        }
+        return Scaffold(
+          backgroundColor: AppColors.canvas,
+          body: isTablet
+              ? _tabletLayout(
+                  results: results,
+                  states: states,
+                  facilities: facilities,
+                  equipment: equipment,
+                )
+              : _phoneLayout(
+                  alerts: alerts,
+                  results: results,
+                  states: states,
+                  facilities: facilities,
+                  equipment: equipment,
+                ),
+        );
+      },
+    );
+  }
+
+  Widget _phoneLayout({
+    required List<Alert> alerts,
+    required List<Alert> results,
+    required List<String> states,
+    required List<String> facilities,
+    required List<String> equipment,
+  }) {
+    return ListView(
+      padding: EdgeInsets.zero,
+      children: [
+        _header(),
+        _summary(alerts),
+        _filters(
+          states: states,
+          facilities: facilities,
+          equipment: equipment,
+        ),
+        _resultsHeader(results.length),
+        for (final alert in results) _alertCard(alert),
+        if (results.isEmpty) _emptyState(),
+        const SizedBox(height: 24),
+      ],
     );
   }
 
@@ -110,6 +151,288 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _tabletLayout({
+    required List<Alert> results,
+    required List<String> states,
+    required List<String> facilities,
+    required List<String> equipment,
+  }) {
+    _syncSelection(results);
+    final selectedAlert = _selectedAlert(results);
+
+    return Column(
+      children: [
+        _tabletHeader(results),
+        _tabletFilters(
+          states: states,
+          facilities: facilities,
+          equipment: equipment,
+        ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 400,
+                  child: Column(
+                    children: [
+                      _resultsHeader(results.length, compact: true),
+                      Expanded(
+                        child: results.isEmpty
+                            ? _emptyState()
+                            : ListView.separated(
+                                padding: const EdgeInsets.only(top: 2),
+                                itemCount: results.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 8),
+                                itemBuilder: (context, index) =>
+                                    _tabletResultTile(
+                                  results[index],
+                                  selected:
+                                      results[index].id == selectedAlert?.id,
+                                ),
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+                const VerticalDivider(width: 32),
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.topLeft,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 840),
+                      child: selectedAlert?.id == null
+                          ? _tabletEmptyDetail()
+                          : AnomalyReviewDetailContent(
+                              key: ValueKey(selectedAlert!.id),
+                              alertId: selectedAlert.id!,
+                              pane: true,
+                            ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _tabletHeader(List<Alert> results) {
+    final pending =
+        results.where((alert) => alert.status == AlertStatus.pending).length;
+    final high =
+        results.where((alert) => alert.severity == Severity.high).length;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(24, 18, 24, 16),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(bottom: BorderSide(color: AppColors.divider)),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Row(
+          children: [
+            const Icon(Icons.analytics_outlined,
+                color: AppColors.adminPrimary, size: 28),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'AI Anomaly Review',
+                    style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800),
+                  ),
+                  SizedBox(height: 3),
+                  Text(
+                    'Review water and electricity detection results',
+                    style:
+                        TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            _tabletStat('$pending', 'Pending'),
+            const SizedBox(width: 18),
+            _tabletStat('$high', 'High severity'),
+            const SizedBox(width: 18),
+            _tabletStat('${results.length}', 'Results'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _tabletStat(String value, String label) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text(value,
+            style: const TextStyle(
+                color: AppColors.adminPrimary,
+                fontSize: 17,
+                fontWeight: FontWeight.w800)),
+        Text(label,
+            style:
+                const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+      ],
+    );
+  }
+
+  Widget _tabletFilters({
+    required List<String> states,
+    required List<String> facilities,
+    required List<String> equipment,
+  }) {
+    return Container(
+      width: double.infinity,
+      color: AppColors.surface,
+      padding: const EdgeInsets.fromLTRB(24, 10, 24, 12),
+      child: Column(
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              const _FilterCaption('Status'),
+              _statusChips(),
+              const _FilterCaption('Utility'),
+              _utilityChips(),
+              FilterChip(
+                label: const Text('High severity'),
+                selected: _highSeverityOnly,
+                onSelected: (selected) =>
+                    setState(() => _highSeverityOnly = selected),
+                selectedColor: AppColors.criticalSurface,
+                checkmarkColor: AppColors.critical,
+                labelStyle: TextStyle(
+                  color: _highSeverityOnly
+                      ? AppColors.critical
+                      : AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _dropdown(
+                  label: 'State / Federal Territory',
+                  value: _state,
+                  values: states,
+                  onChanged: (value) => setState(() {
+                    _state = value;
+                    _facilityName = null;
+                    _equipmentName = null;
+                  }),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _dropdown(
+                  label: 'Shopping Mall',
+                  value: _facilityName,
+                  values: facilities,
+                  onChanged: (value) => setState(() {
+                    _facilityName = value;
+                    _equipmentName = null;
+                  }),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _dropdown(
+                  label: 'Equipment',
+                  value: _equipmentName,
+                  values: equipment,
+                  onChanged: (value) => setState(() => _equipmentName = value),
+                ),
+              ),
+              const SizedBox(width: 6),
+              TextButton(
+                onPressed: _clearFilters,
+                child: const Text('Clear'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Alert? _selectedAlert(List<Alert> results) {
+    for (final alert in results) {
+      if (alert.id == _selectedAlertId) return alert;
+    }
+    for (final alert in results) {
+      if (alert.id != null) return alert;
+    }
+    return null;
+  }
+
+  void _syncSelection(List<Alert> results) {
+    final selectedStillMatches = _selectedAlertId != null &&
+        results.any((a) => a.id == _selectedAlertId);
+    final nextId = _selectedAlert(results)?.id;
+    if (selectedStillMatches ||
+        _selectedAlertId == nextId ||
+        _selectionSyncScheduled) {
+      return;
+    }
+    final previousId = _selectedAlertId;
+    _selectionSyncScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        _selectedAlertId = nextId;
+        _selectionSyncScheduled = false;
+      });
+      if (previousId != null) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content:
+                  Text('The selected anomaly changed with the latest results.'),
+            ),
+          );
+      }
+    });
+  }
+
+  Widget _tabletEmptyDetail() {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.rule_folder_outlined,
+                size: 42, color: AppColors.textTertiary),
+            SizedBox(height: 10),
+            Text('Select an anomaly to review',
+                style: TextStyle(fontWeight: FontWeight.w700)),
+            SizedBox(height: 4),
+            Text(
+              'Its evidence and AI analysis will appear here.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -202,6 +525,21 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
           _statusChips(),
           const SizedBox(height: 8),
           _utilityChips(),
+          const SizedBox(height: 8),
+          FilterChip(
+            label: const Text('High severity'),
+            selected: _highSeverityOnly,
+            onSelected: (selected) =>
+                setState(() => _highSeverityOnly = selected),
+            selectedColor: AppColors.criticalSurface,
+            checkmarkColor: AppColors.critical,
+            labelStyle: TextStyle(
+              color: _highSeverityOnly
+                  ? AppColors.critical
+                  : AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           const SizedBox(height: 10),
           _dropdown(
             label: 'State / Federal Territory',
@@ -314,9 +652,11 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
     );
   }
 
-  Widget _resultsHeader(int count) {
+  Widget _resultsHeader(int count, {bool compact = false}) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
+      padding: compact
+          ? const EdgeInsets.fromLTRB(2, 0, 2, 10)
+          : const EdgeInsets.fromLTRB(16, 18, 16, 8),
       child: Row(
         children: [
           const SectionLabel('ANOMALY RESULTS'),
@@ -420,6 +760,89 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
     );
   }
 
+  Widget _tabletResultTile(Alert alert, {required bool selected}) {
+    final facility = alert.facilityName ?? 'Facility not linked';
+    final equipment = alert.equipmentName ?? 'Equipment not linked';
+    final city = alert.facilityCity;
+    final utilityLabel =
+        alert.utility == Utility.water ? 'Water' : 'Electricity';
+
+    return Semantics(
+      selected: selected,
+      button: alert.id != null,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: alert.id == null
+            ? null
+            : () => setState(() => _selectedAlertId = alert.id),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 78),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected ? AppColors.adminPrimary : AppColors.divider,
+              width: selected ? 2 : 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      facility,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right,
+                    size: 18,
+                    color: alert.id == null
+                        ? AppColors.textTertiary
+                        : AppColors.adminPrimary,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 3),
+              Text(
+                city == null || city.trim().isEmpty
+                    ? '${alert.state} · $equipment'
+                    : '$city, ${alert.state} · $equipment',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: 11),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  _utilityPill(utilityLabel, alert.utility),
+                  const SizedBox(width: 5),
+                  _severityPill(alert.severity),
+                  const SizedBox(width: 5),
+                  _statusPill(alert.status),
+                  const Spacer(),
+                  Text(
+                    DateFormat('d MMM y').format(alert.detectedAt),
+                    style: const TextStyle(
+                        color: AppColors.textTertiary, fontSize: 10),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _valueSummary(Alert alert) {
     final hasBalance = alert.lossPct != null;
     final text = hasBalance
@@ -480,6 +903,7 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
       _state = null;
       _facilityName = null;
       _equipmentName = null;
+      _highSeverityOnly = false;
     });
   }
 
@@ -519,5 +943,24 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
       default:
         return AppColors.textSecondary;
     }
+  }
+}
+
+class _FilterCaption extends StatelessWidget {
+  final String text;
+
+  const _FilterCaption(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text.toUpperCase(),
+      style: const TextStyle(
+        color: AppColors.textSecondary,
+        fontSize: 10,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 0.7,
+      ),
+    );
   }
 }
