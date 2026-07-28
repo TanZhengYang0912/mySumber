@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import 'package:mysumber/modules/dataset/data/dataset_repository.dart';
 import 'package:mysumber/modules/dataset/models/models.dart';
+import 'package:mysumber/modules/dataset/screens/dashboard_screen.dart';
 import 'package:mysumber/modules/dataset/screens/inventory_screen.dart';
 import 'package:mysumber/modules/dataset/services/inventory_filter.dart';
 import 'package:mysumber/modules/dataset/state/dataset_state.dart';
@@ -87,6 +88,46 @@ void main() {
     await tester.pump();
 
     expect(find.text('All Shopping Malls'), findsOneWidget);
+  });
+
+  testWidgets('dashboard renders a concise summary in phone landscape',
+      (tester) async {
+    tester.view.physicalSize = const Size(914, 411);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final datasetState = _StaticDatasetState()
+      ..nodes = const [
+        EquipmentNode(
+          nodeName: 'Cooling Tower Valve',
+          utilityType: 'Water',
+          zoneId: 'Selangor',
+          status: 'Critical',
+          healthScore: 58,
+        ),
+        EquipmentNode(
+          nodeName: 'Main Water Pump A1',
+          utilityType: 'Water',
+          zoneId: 'Selangor',
+          status: 'Active',
+          healthScore: 92,
+        ),
+      ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChangeNotifierProvider<DatasetState>.value(
+          value: datasetState,
+          child: const DashboardScreen(),
+        ),
+      ),
+    );
+
+    expect(
+      find.byKey(const ValueKey('phone-landscape-dashboard')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('priority-equipment')), findsOneWidget);
+    expect(find.text('Usage Comparison'), findsNothing);
   });
 
   test('filters Selangor to its nine equipment nodes', () async {
@@ -196,4 +237,11 @@ void main() {
     expect(find.text('All Shopping Malls'), findsOneWidget);
     expect(find.text('All (78)'), findsNWidgets(2));
   });
+}
+
+class _StaticDatasetState extends DatasetState {
+  _StaticDatasetState() : super(repository: DatasetRepository());
+
+  @override
+  Future<void> loadNodes() async {}
 }
