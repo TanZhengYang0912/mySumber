@@ -10,6 +10,7 @@ import 'modules/admin/screens/abnormal_production_screen.dart';
 import 'modules/admin/screens/oversight_screen.dart';
 import 'modules/admin/screens/review_management_screen.dart';
 import 'modules/admin/services/admin_tablet_layout.dart';
+import 'modules/admin/widgets/admin_compact_rail.dart';
 
 import 'modules/auth/screens/landing_screen.dart';
 import 'modules/auth/state/auth_state.dart' show RoleState;
@@ -253,8 +254,15 @@ class _AppShellState extends State<AppShell> {
     final primary = rolePrimary(widget.userRole);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final useAdminRail = widget.userRole == 'admin' &&
-            usesAdminTabletLayout(constraints.maxWidth);
+        final isAdmin = widget.userRole == 'admin';
+        final mode = isAdmin
+            ? adminLayoutModeFor(
+                Size(constraints.maxWidth, constraints.maxHeight),
+              )
+            : null;
+        final useCompactRail = mode == AdminLayoutMode.phoneLandscape;
+        final useTabletRail = mode == AdminLayoutMode.tabletLandscape;
+        final usesAdminRail = useCompactRail || useTabletRail;
         final screenStack = IndexedStack(
           index: _currentIndex,
           children: _screens,
@@ -262,44 +270,52 @@ class _AppShellState extends State<AppShell> {
 
         return Scaffold(
           backgroundColor: AppColors.canvas,
-          body: useAdminRail
+          body: usesAdminRail
               ? Row(
                   children: [
-                    NavigationRail(
-                      selectedIndex: _currentIndex,
-                      onDestinationSelected: (index) =>
-                          setState(() => _currentIndex = index),
-                      labelType: NavigationRailLabelType.all,
-                      backgroundColor: Colors.white,
-                      indicatorColor: AppColors.adminSurface,
-                      selectedIconTheme:
-                          const IconThemeData(color: AppColors.adminPrimary),
-                      selectedLabelTextStyle: const TextStyle(
-                        color: AppColors.adminPrimary,
-                        fontWeight: FontWeight.w700,
+                    if (useCompactRail)
+                      AdminCompactRail(
+                        currentIndex: _currentIndex,
+                        onDestinationSelected: (index) =>
+                            setState(() => _currentIndex = index),
+                        onLogout: () => context.read<RoleState>().logout(),
+                      )
+                    else
+                      NavigationRail(
+                        selectedIndex: _currentIndex,
+                        onDestinationSelected: (index) =>
+                            setState(() => _currentIndex = index),
+                        labelType: NavigationRailLabelType.all,
+                        backgroundColor: Colors.white,
+                        indicatorColor: AppColors.adminSurface,
+                        selectedIconTheme:
+                            const IconThemeData(color: AppColors.adminPrimary),
+                        selectedLabelTextStyle: const TextStyle(
+                          color: AppColors.adminPrimary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        unselectedIconTheme:
+                            const IconThemeData(color: AppColors.textTertiary),
+                        unselectedLabelTextStyle: const TextStyle(
+                          color: AppColors.textTertiary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        destinations: [
+                          for (final item in _navItems)
+                            NavigationRailDestination(
+                              icon: Icon(item.icon),
+                              selectedIcon: Icon(item.icon),
+                              label: Text(item.label),
+                            ),
+                        ],
                       ),
-                      unselectedIconTheme:
-                          const IconThemeData(color: AppColors.textTertiary),
-                      unselectedLabelTextStyle: const TextStyle(
-                        color: AppColors.textTertiary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      destinations: [
-                        for (final item in _navItems)
-                          NavigationRailDestination(
-                            icon: Icon(item.icon),
-                            selectedIcon: Icon(item.icon),
-                            label: Text(item.label),
-                          ),
-                      ],
-                    ),
                     const VerticalDivider(width: 1),
                     Expanded(child: screenStack),
                   ],
                 )
               : screenStack,
           bottomNavigationBar:
-              useAdminRail ? null : _buildBottomNavigation(primary),
+              usesAdminRail ? null : _buildBottomNavigation(primary),
         );
       },
     );
