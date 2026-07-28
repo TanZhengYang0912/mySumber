@@ -2,6 +2,7 @@ import '../../leakage/models/alert.dart';
 
 class AnomalyReviewQuery {
   final Set<String> statuses;
+  final bool highSeverityOnly;
   final Utility? utility;
   final String? state;
   final String? facilityName;
@@ -13,6 +14,7 @@ class AnomalyReviewQuery {
       AlertStatus.investigating,
       AlertStatus.notFixed,
     },
+    this.highSeverityOnly = false,
     this.utility,
     this.state,
     this.facilityName,
@@ -26,6 +28,11 @@ class AnomalyReviewFilter {
     Severity.medium: 2,
     Severity.low: 1,
   };
+  static const _statusRank = {
+    AlertStatus.pending: 2,
+    AlertStatus.investigating: 1,
+    AlertStatus.notFixed: 1,
+  };
 
   static List<Alert> apply(
     Iterable<Alert> alerts,
@@ -33,6 +40,9 @@ class AnomalyReviewFilter {
   ) {
     final result = alerts.where((alert) {
       if (!query.statuses.contains(alert.status)) return false;
+      if (query.highSeverityOnly && alert.severity != Severity.high) {
+        return false;
+      }
       if (query.utility != null && alert.utility != query.utility) return false;
       if (query.state != null && alert.state != query.state) return false;
       if (query.facilityName != null &&
@@ -46,17 +56,20 @@ class AnomalyReviewFilter {
       return true;
     }).toList();
 
-    result.sort((a, b) {
-      final byDate = b.detectedAt.compareTo(a.detectedAt);
-      if (byDate != 0) return byDate;
-      final bySeverity = (_severityRank[b.severity] ?? 0)
-          .compareTo(_severityRank[a.severity] ?? 0);
-      if (bySeverity != 0) return bySeverity;
-      final byState = a.state.compareTo(b.state);
-      if (byState != 0) return byState;
-      return (a.facilityName ?? '').compareTo(b.facilityName ?? '');
-    });
+    result.sort(_compareForReview);
     return result;
+  }
+
+  static int _compareForReview(Alert a, Alert b) {
+    final bySeverity = (_severityRank[b.severity] ?? 0)
+        .compareTo(_severityRank[a.severity] ?? 0);
+    if (bySeverity != 0) return bySeverity;
+    final byStatus =
+        (_statusRank[b.status] ?? 0).compareTo(_statusRank[a.status] ?? 0);
+    if (byStatus != 0) return byStatus;
+    final byDate = b.detectedAt.compareTo(a.detectedAt);
+    if (byDate != 0) return byDate;
+    return (a.id ?? -1).compareTo(b.id ?? -1);
   }
 
   static List<String> states(Iterable<Alert> alerts) => _unique(

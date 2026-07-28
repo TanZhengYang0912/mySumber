@@ -80,6 +80,27 @@ void main() {
     expect(result.single.facilityName, '1 Utama Shopping Centre');
   });
 
+  test('combines ongoing status with the high-severity filter', () {
+    final result = AnomalyReviewFilter.apply(
+      alerts,
+      const AnomalyReviewQuery(
+        statuses: {AlertStatus.investigating, AlertStatus.notFixed},
+        highSeverityOnly: true,
+      ),
+    );
+
+    expect(result.map((alert) => alert.id), [5]);
+  });
+
+  test('orders review results by severity, pending status, then recency', () {
+    final result = AnomalyReviewFilter.apply(
+      alerts,
+      AnomalyReviewQuery(statuses: AlertStatus.all.toSet()),
+    );
+
+    expect(result.take(3).map((alert) => alert.id), [1, 5, 2]);
+  });
+
   test('option lists are unique, sorted, and state-aware', () {
     expect(AnomalyReviewFilter.states(alerts), ['Kedah', 'Selangor']);
     expect(
@@ -146,6 +167,19 @@ List<Alert> _fixtureAlerts() => [
         severity: Severity.low,
         explanation: 'The pattern was classified as a fault.',
         status: AlertStatus.faults,
+        facilityName: '1 Utama Shopping Centre',
+        facilityCity: 'Petaling Jaya',
+        equipmentName: 'Sub-Transformer B2',
+      ),
+      Alert(
+        id: 5,
+        alertType: AlertType.electricityHotspot,
+        state: 'Selangor',
+        detectedAt: DateTime.utc(2026, 7, 24),
+        signature: 'electricity_hotspot',
+        severity: Severity.high,
+        explanation: 'Electricity loss remains above baseline.',
+        status: AlertStatus.investigating,
         facilityName: '1 Utama Shopping Centre',
         facilityCity: 'Petaling Jaya',
         equipmentName: 'Sub-Transformer B2',
