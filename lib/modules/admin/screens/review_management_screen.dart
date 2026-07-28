@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../../theme/tokens.dart';
 import '../../leakage/models/alert.dart';
 import '../../leakage/state/app_state.dart';
+import '../services/admin_tablet_layout.dart';
 import '../services/anomaly_review_filter.dart';
 import 'anomaly_review_detail_screen.dart';
 
@@ -16,13 +17,7 @@ class ReviewManagementScreen extends StatefulWidget {
 }
 
 class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
-  static const _tabletBreakpoint = 840.0;
-
-  Set<String> _statuses = {
-    AlertStatus.pending,
-    AlertStatus.investigating,
-    AlertStatus.notFixed,
-  };
+  Set<String> _statuses = {AlertStatus.pending};
   Utility? _utility;
   String? _state;
   String? _facilityName;
@@ -35,26 +30,38 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
     final alerts = app.alerts;
+    final states = AnomalyReviewFilter.states(alerts);
+    final selectedState = AnomalyReviewFilter.normalizeOption(_state, states);
+    final facilities =
+        AnomalyReviewFilter.facilities(alerts, state: selectedState);
+    final selectedFacility =
+        AnomalyReviewFilter.normalizeOption(_facilityName, facilities);
+    final equipment = AnomalyReviewFilter.equipment(
+      alerts,
+      state: selectedState,
+      facilityName: selectedFacility,
+    );
+    final selectedEquipment =
+        AnomalyReviewFilter.normalizeOption(_equipmentName, equipment);
+    _syncLocationFilters(
+      state: selectedState,
+      facilityName: selectedFacility,
+      equipmentName: selectedEquipment,
+    );
     final query = AnomalyReviewQuery(
       statuses: _statuses,
       utility: _utility,
-      state: _state,
-      facilityName: _facilityName,
-      equipmentName: _equipmentName,
+      state: selectedState,
+      facilityName: selectedFacility,
+      equipmentName: selectedEquipment,
       highSeverityOnly: _highSeverityOnly,
     );
     final results = AnomalyReviewFilter.apply(alerts, query);
-    final states = AnomalyReviewFilter.states(alerts);
-    final facilities = AnomalyReviewFilter.facilities(alerts, state: _state);
-    final equipment = AnomalyReviewFilter.equipment(
-      alerts,
-      state: _state,
-      facilityName: _facilityName,
-    );
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isTablet = constraints.maxWidth >= _tabletBreakpoint;
+        final isTablet =
+            usesAdminTabletLayout(MediaQuery.sizeOf(context).width);
         if (app.loading) {
           return Scaffold(
             backgroundColor: AppColors.canvas,
@@ -413,6 +420,26 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
     });
   }
 
+  void _syncLocationFilters({
+    required String? state,
+    required String? facilityName,
+    required String? equipmentName,
+  }) {
+    if (_state == state &&
+        _facilityName == facilityName &&
+        _equipmentName == equipmentName) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        _state = state;
+        _facilityName = facilityName;
+        _equipmentName = equipmentName;
+      });
+    });
+  }
+
   Widget _tabletEmptyDetail() {
     return const Center(
       child: Padding(
@@ -589,20 +616,22 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
       runSpacing: 6,
       children: [
         for (final option in options)
-          FilterChip(
-            label: Text(option.label),
-            selected: _statuses.containsAll(option.values) &&
-                option.values.every(_statuses.contains),
-            onSelected: (_) => setState(() => _statuses = option.values),
-            selectedColor: AppColors.adminPrimary,
-            checkmarkColor: Colors.white,
-            labelStyle: TextStyle(
-              color: _statuses.containsAll(option.values) &&
-                      option.values.every(_statuses.contains)
-                  ? Colors.white
-                  : AppColors.textPrimary,
-              fontWeight: FontWeight.w600,
-            ),
+          Builder(
+            builder: (context) {
+              final selected = _statuses.length == option.values.length &&
+                  _statuses.containsAll(option.values);
+              return FilterChip(
+                label: Text(option.label),
+                selected: selected,
+                onSelected: (_) => setState(() => _statuses = option.values),
+                selectedColor: AppColors.adminPrimary,
+                checkmarkColor: Colors.white,
+                labelStyle: TextStyle(
+                  color: selected ? Colors.white : AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              );
+            },
           ),
       ],
     );
@@ -894,11 +923,7 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
 
   void _clearFilters() {
     setState(() {
-      _statuses = {
-        AlertStatus.pending,
-        AlertStatus.investigating,
-        AlertStatus.notFixed,
-      };
+      _statuses = {AlertStatus.pending};
       _utility = null;
       _state = null;
       _facilityName = null;

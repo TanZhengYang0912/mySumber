@@ -9,6 +9,7 @@ import 'config.dart';
 import 'modules/admin/screens/abnormal_production_screen.dart';
 import 'modules/admin/screens/oversight_screen.dart';
 import 'modules/admin/screens/review_management_screen.dart';
+import 'modules/admin/services/admin_tablet_layout.dart';
 
 import 'modules/auth/screens/landing_screen.dart';
 import 'modules/auth/state/auth_state.dart' show RoleState;
@@ -252,8 +253,8 @@ class _AppShellState extends State<AppShell> {
     final primary = rolePrimary(widget.userRole);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final useAdminRail =
-            widget.userRole == 'admin' && constraints.maxWidth >= 840;
+        final useAdminRail = widget.userRole == 'admin' &&
+            usesAdminTabletLayout(constraints.maxWidth);
         final screenStack = IndexedStack(
           index: _currentIndex,
           children: _screens,

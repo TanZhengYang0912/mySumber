@@ -9,11 +9,7 @@ class AnomalyReviewQuery {
   final String? equipmentName;
 
   const AnomalyReviewQuery({
-    this.statuses = const {
-      AlertStatus.pending,
-      AlertStatus.investigating,
-      AlertStatus.notFixed,
-    },
+    this.statuses = const {AlertStatus.pending},
     this.highSeverityOnly = false,
     this.utility,
     this.state,
@@ -101,6 +97,16 @@ class AnomalyReviewFilter {
           .map((alert) => alert.equipmentName)
           .whereType<String>(),
     );
+  }
+
+  static String? normalizeOption(
+    String? selected,
+    Iterable<String> availableOptions,
+  ) {
+    if (selected == null || availableOptions.contains(selected)) {
+      return selected;
+    }
+    return null;
   }
 
   static List<String> _unique(Iterable<String> values) {

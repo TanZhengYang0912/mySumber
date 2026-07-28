@@ -48,18 +48,13 @@ void main() {
 
   final alerts = _fixtureAlerts();
 
-  test('default query returns only pending and ongoing alerts', () {
+  test('default query opens the pending review queue', () {
     final result = AnomalyReviewFilter.apply(
       alerts,
       const AnomalyReviewQuery(),
     );
 
-    expect(
-        result.map((a) => a.status),
-        containsAll([
-          AlertStatus.pending,
-          AlertStatus.investigating,
-        ]));
+    expect(result.map((a) => a.status), everyElement(AlertStatus.pending));
     expect(result.map((a) => a.status), isNot(contains(AlertStatus.resolved)));
     expect(result.map((a) => a.status), isNot(contains(AlertStatus.faults)));
   });
@@ -78,6 +73,23 @@ void main() {
 
     expect(result, hasLength(1));
     expect(result.single.facilityName, '1 Utama Shopping Centre');
+  });
+
+  test('normalizes a removed live filter option to all', () {
+    expect(
+      AnomalyReviewFilter.normalizeOption(
+        '1 Utama Shopping Centre',
+        const ['Aman Central'],
+      ),
+      isNull,
+    );
+    expect(
+      AnomalyReviewFilter.normalizeOption(
+        'Main Water Pump A1',
+        const ['Main Water Pump A1'],
+      ),
+      'Main Water Pump A1',
+    );
   });
 
   test('combines ongoing status with the high-severity filter', () {
