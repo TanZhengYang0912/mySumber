@@ -10,7 +10,7 @@ import '../../leakage/state/app_state.dart';
 import '../../leakage/screens/style.dart';
 import '../../leakage/services/anomaly_ai_service.dart';
 
-class AnomalyReviewDetailScreen extends StatefulWidget {
+class AnomalyReviewDetailScreen extends StatelessWidget {
   final int alertId;
 
   const AnomalyReviewDetailScreen({
@@ -19,29 +19,58 @@ class AnomalyReviewDetailScreen extends StatefulWidget {
   });
 
   @override
-  State<AnomalyReviewDetailScreen> createState() =>
-      _AnomalyReviewDetailScreenState();
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.canvas,
+      appBar: AppBar(
+        title: const Text('AI Anomaly Review'),
+        backgroundColor: AppColors.adminPrimary,
+        foregroundColor: Colors.white,
+      ),
+      body: AnomalyReviewDetailContent(alertId: alertId),
+    );
+  }
 }
 
-class _AnomalyReviewDetailScreenState extends State<AnomalyReviewDetailScreen> {
+class AnomalyReviewDetailContent extends StatefulWidget {
+  final int alertId;
+  final bool pane;
+
+  const AnomalyReviewDetailContent({
+    super.key,
+    required this.alertId,
+    this.pane = false,
+  });
+
+  @override
+  State<AnomalyReviewDetailContent> createState() =>
+      _AnomalyReviewDetailContentState();
+}
+
+class _AnomalyReviewDetailContentState
+    extends State<AnomalyReviewDetailContent> {
   AiAnomalyAnalysis? _sessionAnalysis;
   String? _errorMessage;
   bool _generating = false;
   bool? _sessionAnalysisPersisted;
 
   @override
+  void didUpdateWidget(covariant AnomalyReviewDetailContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.alertId != widget.alertId) {
+      _sessionAnalysis = null;
+      _errorMessage = null;
+      _generating = false;
+      _sessionAnalysisPersisted = null;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
     final matches = app.alerts.where((alert) => alert.id == widget.alertId);
     if (matches.isEmpty) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('AI Anomaly Review'),
-          backgroundColor: AppColors.adminPrimary,
-          foregroundColor: Colors.white,
-        ),
-        body: const Center(child: Text('Alert unavailable.')),
-      );
+      return const Center(child: Text('Alert unavailable.'));
     }
 
     final alert = matches.first;
@@ -50,39 +79,31 @@ class _AnomalyReviewDetailScreenState extends State<AnomalyReviewDetailScreen> {
     final equipment = alert.equipmentName ?? 'Equipment not linked';
     final explanation = _reviewExplanation(alert.explanation);
 
-    return Scaffold(
-      backgroundColor: AppColors.canvas,
-      appBar: AppBar(
-        title: const Text('AI Anomaly Review'),
-        backgroundColor: AppColors.adminPrimary,
-        foregroundColor: Colors.white,
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(14),
-        children: [
-          _headerCard(alert, facility, equipment, city),
-          const SizedBox(height: 10),
-          _evidenceCard(alert),
-          const SizedBox(height: 10),
-          _analysisSection(context, app, alert, explanation),
-          const SizedBox(height: 10),
-          FilledButton.icon(
-            onPressed: alert.id == null
-                ? null
-                : () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) =>
-                          AdminAlertDetailScreen(alertId: alert.id!),
-                    )),
-            icon: const Icon(Icons.open_in_new),
-            label: const Text('Open in Oversight'),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.adminPrimary,
-              minimumSize: const Size.fromHeight(50),
-            ),
+    return ListView(
+      key: const Key('anomaly-review-detail-content'),
+      padding: widget.pane ? EdgeInsets.zero : const EdgeInsets.all(14),
+      children: [
+        _headerCard(alert, facility, equipment, city),
+        const SizedBox(height: 10),
+        _evidenceCard(alert),
+        const SizedBox(height: 10),
+        _analysisSection(context, app, alert, explanation),
+        const SizedBox(height: 10),
+        FilledButton.icon(
+          onPressed: alert.id == null
+              ? null
+              : () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => AdminAlertDetailScreen(alertId: alert.id!),
+                  )),
+          icon: const Icon(Icons.open_in_new),
+          label: const Text('Open in Oversight'),
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.adminPrimary,
+            minimumSize: const Size.fromHeight(50),
           ),
-          const SizedBox(height: 20),
-        ],
-      ),
+        ),
+        const SizedBox(height: 20),
+      ],
     );
   }
 
