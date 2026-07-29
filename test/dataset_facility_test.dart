@@ -128,6 +128,7 @@ void main() {
     );
     expect(find.byKey(const ValueKey('priority-equipment')), findsOneWidget);
     expect(find.text('Usage Comparison'), findsOneWidget);
+    expect(find.byTooltip('View full dashboard'), findsOneWidget);
   });
 
   test('filters Selangor to its nine equipment nodes', () async {

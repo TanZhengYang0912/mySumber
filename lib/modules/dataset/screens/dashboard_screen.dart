@@ -19,6 +19,11 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   String _selectedPeriod = 'Monthly';
   final _stateBarController = ScrollController();
+  final _standardDashboardController = ScrollController();
+  final _landscapeDashboardController = ScrollController();
+  final _fullDashboardKey = GlobalKey();
+  AdminLayoutMode? _lastDashboardMode;
+  double _dashboardScrollOffset = 0;
 
   @override
   void initState() {
@@ -31,6 +36,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void dispose() {
     _stateBarController.dispose();
+    _standardDashboardController.dispose();
+    _landscapeDashboardController.dispose();
     super.dispose();
   }
 
@@ -48,6 +55,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final healthPreview = sortedByHealth.take(3).toList();
     final priority = healthPreview.isEmpty ? null : healthPreview.first;
     final mode = adminLayoutModeFor(MediaQuery.sizeOf(context));
+    _syncDashboardScrollMode(mode);
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -64,6 +72,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   healthPreview: healthPreview,
                 )
               : ListView(
+                  controller: _standardDashboardController,
                   key: const PageStorageKey('admin-dashboard-standard-list'),
                   padding: EdgeInsets.zero,
                   children: [
@@ -97,6 +106,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }) {
     return SafeArea(
       child: ListView(
+        controller: _landscapeDashboardController,
         key: const PageStorageKey('phone-landscape-dashboard'),
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
         children: [
@@ -142,11 +152,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ],
                   ),
                 ),
-                Text(
-                  '$total assets',
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w600,
+                Tooltip(
+                  message: 'View full dashboard',
+                  child: TextButton(
+                    onPressed: _scrollToFullDashboard,
+                    child: const Text('View full'),
                   ),
                 ),
               ],
@@ -171,11 +181,49 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          _usageComparisonCard(state),
+          KeyedSubtree(
+            key: _fullDashboardKey,
+            child: _usageComparisonCard(state),
+          ),
           const SizedBox(height: 16),
           _equipmentHealthCard(healthPreview),
         ],
       ),
+    );
+  }
+
+  void _syncDashboardScrollMode(AdminLayoutMode mode) {
+    final isLandscape = mode == AdminLayoutMode.phoneLandscape;
+    final previousMode = _lastDashboardMode;
+    final wasLandscape = previousMode == AdminLayoutMode.phoneLandscape;
+    _lastDashboardMode = mode;
+
+    if (previousMode == null || wasLandscape == isLandscape) return;
+
+    final source = wasLandscape
+        ? _landscapeDashboardController
+        : _standardDashboardController;
+    if (source.hasClients) {
+      _dashboardScrollOffset = source.offset;
+    }
+    final target = isLandscape
+        ? _landscapeDashboardController
+        : _standardDashboardController;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !target.hasClients) return;
+      final maxOffset = target.position.maxScrollExtent;
+      target.jumpTo(_dashboardScrollOffset.clamp(0, maxOffset));
+    });
+  }
+
+  void _scrollToFullDashboard() {
+    final targetContext = _fullDashboardKey.currentContext;
+    if (targetContext == null) return;
+    Scrollable.ensureVisible(
+      targetContext,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+      alignment: 0,
     );
   }
 

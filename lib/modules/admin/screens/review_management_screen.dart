@@ -26,6 +26,19 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
   bool _highSeverityOnly = false;
   int? _selectedAlertId;
   bool _selectionSyncScheduled = false;
+  final _phoneReviewController = ScrollController();
+  final _landscapeReviewController = ScrollController();
+  final _tabletReviewController = ScrollController();
+  AdminLayoutMode? _lastReviewMode;
+  double _reviewScrollOffset = 0;
+
+  @override
+  void dispose() {
+    _phoneReviewController.dispose();
+    _landscapeReviewController.dispose();
+    _tabletReviewController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -82,6 +95,7 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
             ),
           );
         }
+        _syncReviewScrollMode(mode);
         return Scaffold(
           backgroundColor: AppColors.canvas,
           body: isTablet
@@ -131,6 +145,7 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
               child: results.isEmpty
                   ? _emptyState()
                   : GridView.builder(
+                      controller: _landscapeReviewController,
                       key: const PageStorageKey('phone-landscape-review-grid'),
                       gridDelegate:
                           const SliverGridDelegateWithFixedCrossAxisCount(
@@ -148,6 +163,34 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
         ),
       ),
     );
+  }
+
+  ScrollController _reviewControllerFor(AdminLayoutMode mode) {
+    return switch (mode) {
+      AdminLayoutMode.phoneLandscape => _landscapeReviewController,
+      AdminLayoutMode.tabletLandscape => _tabletReviewController,
+      AdminLayoutMode.phonePortrait ||
+      AdminLayoutMode.tabletPortrait =>
+        _phoneReviewController,
+    };
+  }
+
+  void _syncReviewScrollMode(AdminLayoutMode mode) {
+    final previousMode = _lastReviewMode;
+    _lastReviewMode = mode;
+    if (previousMode == null || previousMode == mode) return;
+
+    final source = _reviewControllerFor(previousMode);
+    if (source.hasClients) {
+      _reviewScrollOffset = source.offset;
+    }
+    final target = _reviewControllerFor(mode);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !target.hasClients) return;
+      target.jumpTo(
+        _reviewScrollOffset.clamp(0, target.position.maxScrollExtent),
+      );
+    });
   }
 
   Widget _phoneLandscapeHeader({
@@ -294,6 +337,7 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
     required List<String> equipment,
   }) {
     return ListView(
+      controller: _phoneReviewController,
       key: const PageStorageKey('admin-review-phone-list'),
       padding: EdgeInsets.zero,
       children: [
@@ -386,6 +430,7 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
                         child: results.isEmpty
                             ? _emptyState()
                             : ListView.separated(
+                                controller: _tabletReviewController,
                                 key: const PageStorageKey(
                                   'admin-review-tablet-list',
                                 ),
