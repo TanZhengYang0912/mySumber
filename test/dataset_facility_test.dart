@@ -90,7 +90,7 @@ void main() {
     expect(find.text('All Shopping Malls'), findsOneWidget);
   });
 
-  testWidgets('dashboard renders a concise summary in phone landscape',
+  testWidgets('dashboard keeps full details below its landscape summary',
       (tester) async {
     tester.view.physicalSize = const Size(914, 411);
     tester.view.devicePixelRatio = 1;
@@ -123,11 +123,11 @@ void main() {
     );
 
     expect(
-      find.byKey(const ValueKey('phone-landscape-dashboard')),
+      find.byKey(const PageStorageKey('phone-landscape-dashboard')),
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('priority-equipment')), findsOneWidget);
-    expect(find.text('Usage Comparison'), findsNothing);
+    expect(find.text('Usage Comparison'), findsOneWidget);
   });
 
   test('filters Selangor to its nine equipment nodes', () async {

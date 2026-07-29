@@ -55,13 +55,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ? const Center(child: CircularProgressIndicator())
           : mode == AdminLayoutMode.phoneLandscape
               ? _phoneLandscapeDashboard(
+                  state: state,
                   total: total,
                   active: active,
                   warning: warning,
                   critical: critical,
                   priority: priority,
+                  healthPreview: healthPreview,
                 )
               : ListView(
+                  key: const PageStorageKey('admin-dashboard-standard-list'),
                   padding: EdgeInsets.zero,
                   children: [
                     _header(context),
@@ -84,77 +87,94 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _phoneLandscapeDashboard({
+    required DatasetState state,
     required int total,
     required int active,
     required int warning,
     required int critical,
     required EquipmentNode? priority,
+    required List<EquipmentNode> healthPreview,
   }) {
     return SafeArea(
-      child: Padding(
-        key: const ValueKey('phone-landscape-dashboard'),
+      child: ListView(
+        key: const PageStorageKey('phone-landscape-dashboard'),
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-        child: Column(
-          children: [
-            SizedBox(
-              height: 48,
-              child: Row(
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: AppColors.adminSurface,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    alignment: Alignment.center,
-                    child: const Icon(
-                      Icons.grid_view_outlined,
-                      color: AppColors.adminPrimary,
-                    ),
+        children: [
+          SizedBox(
+            height: 56,
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: AppColors.adminSurface,
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Text(
-                      'Dashboard',
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
+                  alignment: Alignment.center,
+                  child: const Icon(
+                    Icons.grid_view_outlined,
+                    color: AppColors.adminPrimary,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Dashboard',
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
-                    ),
+                      Text(
+                        'Priority system status',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
-                  Text(
-                    '$total assets',
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w600,
-                    ),
+                ),
+                Text(
+                  '$total assets',
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w600,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _landscapeStatusPanel(
-                      active: active,
-                      critical: critical,
-                      warning: warning,
-                      total: total,
-                    ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 200,
+            child: Row(
+              children: [
+                Expanded(
+                  child: _landscapeStatusPanel(
+                    active: active,
+                    critical: critical,
+                    warning: warning,
+                    total: total,
                   ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: _landscapePriorityPanel(priority),
-                  ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(child: _landscapePriorityPanel(priority)),
+              ],
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 16),
+          _usageComparisonCard(state),
+          const SizedBox(height: 16),
+          _equipmentHealthCard(healthPreview),
+        ],
       ),
     );
   }

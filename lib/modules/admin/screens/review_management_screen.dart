@@ -131,7 +131,7 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
               child: results.isEmpty
                   ? _emptyState()
                   : GridView.builder(
-                      key: const ValueKey('phone-landscape-review-grid'),
+                      key: const PageStorageKey('phone-landscape-review-grid'),
                       gridDelegate:
                           const SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 2,
@@ -294,6 +294,7 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
     required List<String> equipment,
   }) {
     return ListView(
+      key: const PageStorageKey('admin-review-phone-list'),
       padding: EdgeInsets.zero,
       children: [
         _header(),
@@ -385,6 +386,9 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
                         child: results.isEmpty
                             ? _emptyState()
                             : ListView.separated(
+                                key: const PageStorageKey(
+                                  'admin-review-tablet-list',
+                                ),
                                 padding: const EdgeInsets.only(top: 2),
                                 itemCount: results.length,
                                 separatorBuilder: (_, __) =>

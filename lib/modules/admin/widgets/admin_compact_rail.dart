@@ -20,6 +20,8 @@ class AdminCompactRail extends StatelessWidget {
       width: 56,
       color: Colors.white,
       child: SafeArea(
+        left: false,
+        right: false,
         child: Column(
           children: [
             const SizedBox(height: 8),
