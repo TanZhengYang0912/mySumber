@@ -50,3 +50,4 @@ app.*.map.json
 
 # API keys — never commit
 lib/config.dart
+mysumber_flowchart.drawio
