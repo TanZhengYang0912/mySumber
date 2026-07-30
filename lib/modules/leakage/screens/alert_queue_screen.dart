@@ -5,7 +5,9 @@ import 'package:provider/provider.dart';
 import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
 import '../models/alert.dart';
+import '../services/worker_compact_layout.dart';
 import '../state/app_state.dart';
+import '../widgets/worker_landscape_filter_menu.dart';
 import 'alert_detail_screen.dart';
 import 'style.dart';
 
@@ -52,6 +54,19 @@ class _AlertQueueScreenState extends State<AlertQueueScreen>
 
   bool get _isWater => widget.utility == Utility.water;
 
+  int get _activeFilterCount =>
+      (_search.text.trim().isNotEmpty ? 1 : 0) +
+      (_severity != 'all' ? 1 : 0) +
+      (_selectedState != 'all' ? 1 : 0);
+
+  void _clearFilters() {
+    setState(() {
+      _search.clear();
+      _severity = 'all';
+      _selectedState = 'all';
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
@@ -63,7 +78,8 @@ class _AlertQueueScreenState extends State<AlertQueueScreen>
     final allStates = {
       ...unresolvedAll.map((a) => a.state),
       ...resolvedAll.map((a) => a.state),
-    }.toList()..sort();
+    }.toList()
+      ..sort();
 
     List<Alert> filter(List<Alert> source) {
       return source.where((a) {
@@ -82,6 +98,8 @@ class _AlertQueueScreenState extends State<AlertQueueScreen>
     final resolved = filter(resolvedAll);
 
     final title = _isWater ? 'Water Alerts' : 'Electricity Alerts';
+    final isPhoneLandscape =
+        usesWorkerPhoneLandscape(MediaQuery.sizeOf(context));
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -103,19 +121,30 @@ class _AlertQueueScreenState extends State<AlertQueueScreen>
           ),
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(80),
+          preferredSize: Size.fromHeight(isPhoneLandscape ? 84 : 80),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                  ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    if (isPhoneLandscape)
+                      WorkerLandscapeFilterMenu(
+                        activeCount: _activeFilterCount,
+                        child: _landscapeFilterControls(allStates),
+                      ),
+                  ],
                 ),
               ),
               TabBar(
@@ -135,7 +164,7 @@ class _AlertQueueScreenState extends State<AlertQueueScreen>
       ),
       body: Column(
         children: [
-          _filters(allStates),
+          if (!isPhoneLandscape) _filters(allStates),
           Expanded(
             child: TabBarView(
               controller: _tabController,
@@ -147,6 +176,85 @@ class _AlertQueueScreenState extends State<AlertQueueScreen>
           ),
         ],
       ),
+    );
+  }
+
+  Widget _landscapeFilterControls(List<String> states) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            const Expanded(child: SectionLabel('Filter alerts')),
+            TextButton(onPressed: _clearFilters, child: const Text('Clear')),
+          ],
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _search,
+          onChanged: (_) => setState(() {}),
+          decoration: InputDecoration(
+            hintText: 'Search by location or code',
+            hintStyle: const TextStyle(color: AppColors.textTertiary),
+            prefixIcon: const Icon(Icons.search,
+                color: AppColors.textTertiary, size: 20),
+            isDense: true,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.divider),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.divider),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.workerPrimary),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        const SectionLabel('Severity'),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: {
+            'all': 'All',
+            Severity.high: 'High',
+            Severity.medium: 'Medium',
+            Severity.low: 'Low',
+          }.entries.map((option) {
+            return ChoiceChip(
+              label: Text(option.value),
+              selected: _severity == option.key,
+              onSelected: (_) => setState(() => _severity = option.key),
+              showCheckmark: false,
+              selectedColor: AppColors.workerSurface,
+              labelStyle: TextStyle(
+                color: _severity == option.key
+                    ? AppColors.workerPrimary
+                    : AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 12),
+        const SectionLabel('State'),
+        const SizedBox(height: 6),
+        _dropdown(
+          'State',
+          _selectedState,
+          {
+            'all': 'All States',
+            for (final state in states) state: state,
+          },
+          (value) => setState(() => _selectedState = value),
+        ),
+      ],
     );
   }
 
@@ -175,20 +283,23 @@ class _AlertQueueScreenState extends State<AlertQueueScreen>
                   borderSide: const BorderSide(color: AppColors.divider)),
               focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide:
-                      const BorderSide(color: AppColors.workerPrimary)),
+                  borderSide: const BorderSide(color: AppColors.workerPrimary)),
             ),
           ),
           const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
-                child: _dropdown('Severity', _severity, {
-                  'all': 'All Severity',
-                  Severity.high: 'High',
-                  Severity.medium: 'Medium',
-                  Severity.low: 'Low',
-                }, (v) => setState(() => _severity = v)),
+                child: _dropdown(
+                    'Severity',
+                    _severity,
+                    {
+                      'all': 'All Severity',
+                      Severity.high: 'High',
+                      Severity.medium: 'Medium',
+                      Severity.low: 'Low',
+                    },
+                    (v) => setState(() => _severity = v)),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -212,7 +323,8 @@ class _AlertQueueScreenState extends State<AlertQueueScreen>
   Widget _dropdown(String hint, String value, Map<String, String> options,
       ValueChanged<String> onChanged) {
     return DropdownButtonFormField<String>(
-      value: value,
+      key: ValueKey(value),
+      initialValue: value,
       isDense: true,
       decoration: InputDecoration(
         isDense: true,
@@ -235,8 +347,8 @@ class _AlertQueueScreenState extends State<AlertQueueScreen>
   Widget _list(List<Alert> alerts, String empty) {
     if (alerts.isEmpty) {
       return Center(
-        child: Text(empty,
-            style: const TextStyle(color: AppColors.textSecondary)),
+        child:
+            Text(empty, style: const TextStyle(color: AppColors.textSecondary)),
       );
     }
     return ListView.builder(

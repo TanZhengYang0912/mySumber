@@ -302,6 +302,7 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
           label: 'State / Federal Territory',
           value: _state,
           values: states,
+          showFloatingLabel: false,
           onChanged: (value) => setState(() {
             _state = value;
             _facilityName = null;
@@ -313,6 +314,7 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
           label: 'Shopping Mall',
           value: _facilityName,
           values: facilities,
+          showFloatingLabel: false,
           onChanged: (value) => setState(() {
             _facilityName = value;
             _equipmentName = null;
@@ -323,6 +325,7 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
           label: 'Equipment',
           value: _equipmentName,
           values: equipment,
+          showFloatingLabel: false,
           onChanged: (value) => setState(() => _equipmentName = value),
         ),
       ],
@@ -750,19 +753,25 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
         children: [
           Icon(icon, color: foreground, size: 20),
           const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(value,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(value,
+                    style: TextStyle(
+                        color: foreground,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800)),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                      color: foreground,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800)),
-              Text(label,
-                  style: TextStyle(
-                      color: foreground.withValues(alpha: 0.8), fontSize: 11)),
-            ],
+                      color: foreground.withValues(alpha: 0.8), fontSize: 11),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -813,6 +822,7 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
             label: 'State / Federal Territory',
             value: _state,
             values: states,
+            showFloatingLabel: false,
             onChanged: (value) => setState(() {
               _state = value;
               _facilityName = null;
@@ -824,6 +834,7 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
             label: 'Shopping Mall',
             value: _facilityName,
             values: facilities,
+            showFloatingLabel: false,
             onChanged: (value) => setState(() {
               _facilityName = value;
               _equipmentName = null;
@@ -834,6 +845,7 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
             label: 'Equipment',
             value: _equipmentName,
             values: equipment,
+            showFloatingLabel: false,
             onChanged: (value) => setState(() => _equipmentName = value),
           ),
         ],
@@ -908,17 +920,38 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
     required String? value,
     required List<String> values,
     required ValueChanged<String?> onChanged,
+    bool showFloatingLabel = true,
   }) {
     final selectedValue = values.contains(value) ? value : null;
-    return DropdownButtonFormField<String>(
+    final dropdown = DropdownButtonFormField<String>(
       initialValue: selectedValue,
-      decoration: InputDecoration(labelText: label),
+      decoration: InputDecoration(
+        labelText: showFloatingLabel ? label : null,
+        isDense: true,
+      ),
       items: [
         const DropdownMenuItem<String>(value: null, child: Text('All')),
         for (final item in values)
           DropdownMenuItem<String>(value: item, child: Text(item)),
       ],
       onChanged: values.isEmpty ? null : onChanged,
+    );
+
+    if (showFloatingLabel) return dropdown;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w700,
+              ),
+        ),
+        const SizedBox(height: 5),
+        dropdown,
+      ],
     );
   }
 

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
+import '../services/customer_compact_layout.dart';
 import '../services/validators.dart';
 
 /// Opens a dialog to edit the account's display name and phone number,
@@ -88,10 +89,113 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
     }
   }
 
+  InputDecoration _decoration(
+    String label, {
+    required bool compact,
+    String? hintText,
+  }) {
+    return InputDecoration(
+      labelText: compact ? null : label,
+      hintText: compact ? hintText : null,
+      isDense: compact,
+      contentPadding:
+          compact ? const EdgeInsets.symmetric(horizontal: 12, vertical: 10) : null,
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.adminPrimary),
+      ),
+    );
+  }
+
+  Widget _compactField(String label, Widget field) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 4),
+        field,
+      ],
+    );
+  }
+
+  Widget _nameField({required bool compact}) {
+    return TextFormField(
+      controller: _nameController,
+      autofocus: true,
+      decoration: _decoration(
+        'Name',
+        compact: compact,
+        hintText: 'Your name',
+      ),
+      validator: (v) {
+        if (v == null || v.trim().isEmpty) return 'Enter your name';
+        return null;
+      },
+    );
+  }
+
+  Widget _genderField({required bool compact}) {
+    return DropdownButtonFormField<String>(
+      initialValue: _gender,
+      decoration: _decoration(
+        'Gender',
+        compact: compact,
+        hintText: 'Select',
+      ),
+      items: genderOptions
+          .map((g) => DropdownMenuItem(value: g, child: Text(g)))
+          .toList(),
+      onChanged: (v) => setState(() => _gender = v),
+    );
+  }
+
+  Widget _phoneField({required bool compact}) {
+    return TextFormField(
+      controller: _phoneController,
+      keyboardType: TextInputType.phone,
+      decoration: _decoration(
+        'Phone number',
+        compact: compact,
+        hintText: '012-345 6789',
+      ),
+      validator: (v) {
+        if (v == null || v.trim().isEmpty) {
+          return 'Enter your phone number';
+        }
+        if (!isValidMalaysianPhone(v)) {
+          return 'Enter a valid Malaysian mobile number';
+        }
+        return null;
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isPhoneLandscape =
+        usesCustomerPhoneLandscape(MediaQuery.sizeOf(context));
+
     return AlertDialog(
+      insetPadding: isPhoneLandscape
+          ? const EdgeInsets.symmetric(horizontal: 24, vertical: 12)
+          : null,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      titlePadding: isPhoneLandscape
+          ? const EdgeInsets.fromLTRB(20, 14, 20, 0)
+          : null,
+      contentPadding: isPhoneLandscape
+          ? const EdgeInsets.fromLTRB(20, 8, 20, 4)
+          : null,
+      actionsPadding: isPhoneLandscape
+          ? const EdgeInsets.fromLTRB(12, 0, 12, 10)
+          : null,
       title: const Row(
         children: [
           Icon(Icons.person_outline, color: AppColors.adminPrimary, size: 20),
@@ -99,94 +203,88 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
           Text('Edit Profile'),
         ],
       ),
-      content: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextFormField(
-              controller: _nameController,
-              autofocus: true,
-              decoration: InputDecoration(
-                labelText: 'Name',
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide:
-                      const BorderSide(color: AppColors.adminPrimary),
-                ),
-              ),
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'Enter your name';
-                return null;
-              },
-            ),
-            const SizedBox(height: 14),
-            DropdownButtonFormField<String>(
-              initialValue: _gender,
-              decoration: InputDecoration(
-                labelText: 'Gender',
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide:
-                      const BorderSide(color: AppColors.adminPrimary),
-                ),
-              ),
-              items: genderOptions
-                  .map((g) => DropdownMenuItem(value: g, child: Text(g)))
-                  .toList(),
-              onChanged: (v) => setState(() => _gender = v),
-            ),
-            const SizedBox(height: 14),
-            TextFormField(
-              controller: _phoneController,
-              keyboardType: TextInputType.phone,
-              decoration: InputDecoration(
-                labelText: 'Phone number',
-                hintText: '012-345 6789',
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide:
-                      const BorderSide(color: AppColors.adminPrimary),
-                ),
-              ),
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) {
-                  return 'Enter your phone number';
-                }
-                if (!isValidMalaysianPhone(v)) {
-                  return 'Enter a valid Malaysian mobile number';
-                }
-                return null;
-              },
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 8),
-              Text(_error!,
-                  style: const TextStyle(
-                      color: AppColors.critical, fontSize: 12)),
+      content: SizedBox(
+        width: isPhoneLandscape ? 360 : null,
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (isPhoneLandscape) ...[
+                _compactField('Name', _nameField(compact: true)),
+                const SizedBox(height: 8),
+                _compactField('Gender', _genderField(compact: true)),
+              ]
+              else ...[
+                _nameField(compact: false),
+                const SizedBox(height: 14),
+                _genderField(compact: false),
+              ],
+              SizedBox(height: isPhoneLandscape ? 8 : 14),
+              if (isPhoneLandscape)
+                _compactField('Phone number', _phoneField(compact: true))
+              else
+                _phoneField(compact: false),
+              if (_error != null) ...[
+                const SizedBox(height: 8),
+                Text(_error!,
+                    style: const TextStyle(
+                        color: AppColors.critical, fontSize: 12)),
+              ],
             ],
-          ],
+          ),
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: _saving ? null : () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          style:
-              FilledButton.styleFrom(backgroundColor: AppColors.adminPrimary),
-          onPressed: _saving ? null : _save,
-          child: _saving
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2, color: Colors.white),
-                )
-              : const Text('Save'),
-        ),
+        if (isPhoneLandscape)
+          Row(
+            children: [
+              TextButton(
+                onPressed: _saving ? null : () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              const Spacer(),
+              SizedBox(
+                width: 112,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.adminPrimary,
+                    minimumSize: const Size(0, 40),
+                  ),
+                  onPressed: _saving ? null : _save,
+                  child: _saving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Save'),
+                ),
+              ),
+            ],
+          )
+        else ...[
+          TextButton(
+            onPressed: _saving ? null : () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.adminPrimary,
+            ),
+            onPressed: _saving ? null : _save,
+            child: _saving
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
+                  )
+                : const Text('Save'),
+          ),
+        ],
       ],
     );
   }

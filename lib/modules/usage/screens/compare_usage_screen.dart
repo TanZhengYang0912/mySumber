@@ -5,9 +5,11 @@ import 'package:provider/provider.dart';
 import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
 import '../models/utility_entry.dart';
+import '../services/customer_compact_layout.dart';
 import '../state/usage_state.dart';
 import '../widgets/add_consumption_sheet.dart';
 import 'notifications_screen.dart';
+import 'report_problem_screen.dart';
 
 const _monthNames = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -56,6 +58,16 @@ class _CompareUsageScreenState extends State<CompareUsageScreen>
         ? AppColors.waterSurface
         : AppColors.electricitySurface;
 
+    if (usesCustomerPhoneLandscape(MediaQuery.sizeOf(context))) {
+      return _phoneLandscapeUsage(
+        context,
+        usage,
+        utility,
+        accent,
+        surface,
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.canvas,
       floatingActionButton: AddConsumptionFab(utility: utility),
@@ -83,6 +95,453 @@ class _CompareUsageScreenState extends State<CompareUsageScreen>
                 ),
               ],
             ),
+    );
+  }
+
+  Widget _phoneLandscapeUsage(
+    BuildContext context,
+    UsageState usage,
+    UtilityType utility,
+    Color accent,
+    Color surface,
+  ) {
+    return Scaffold(
+      backgroundColor: AppColors.canvas,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+          child: Column(
+            key: const PageStorageKey('customer-phone-landscape-usage'),
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SectionLabel('MY USAGE'),
+                        SizedBox(height: 2),
+                        Text(
+                          'Household usage',
+                          style: TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  FilledButton.icon(
+                    onPressed: () =>
+                        showAddConsumptionFlow(context, utility: utility),
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Add reading'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.customerPrimary,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(0, 40),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: _landscapeUtilityToggle(),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) => Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        flex: constraints.maxWidth >= 760 ? 3 : 2,
+                        child: _landscapeUsageSummary(
+                          usage,
+                          utility,
+                          accent,
+                          surface,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      SizedBox(
+                        width: constraints.maxWidth >= 760 ? 242 : 210,
+                        child: _landscapeQuickActions(context, utility),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _landscapeUtilityToggle() {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _landscapeToggleButton(
+            label: 'Water',
+            icon: Icons.water_drop_outlined,
+            selected: _tab.index == 0,
+            color: AppColors.waterAccent,
+            onTap: () => _tab.animateTo(0),
+          ),
+          _landscapeToggleButton(
+            label: 'Electricity',
+            icon: Icons.electric_bolt_outlined,
+            selected: _tab.index == 1,
+            color: AppColors.electricityAccent,
+            onTap: () => _tab.animateTo(1),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _landscapeToggleButton({
+    required String label,
+    required IconData icon,
+    required bool selected,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(9),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
+        decoration: BoxDecoration(
+          color: selected ? color.withValues(alpha: 0.12) : Colors.transparent,
+          borderRadius: BorderRadius.circular(9),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: selected ? color : AppColors.textTertiary),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? color : AppColors.textSecondary,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _landscapeUsageSummary(
+    UsageState usage,
+    UtilityType utility,
+    Color accent,
+    Color surface,
+  ) {
+    final current = usage.currentMonthEntry(utility);
+    final vsLastMonth = usage.percentVsLastMonth(utility);
+    final average = usage.average(utility);
+    final months = _lastSixMonths();
+    final values = months.map((month) => usage.entryForMonth(utility, month)).toList();
+    final maxValue = values
+        .whereType<UtilityEntry>()
+        .map((entry) => entry.value)
+        .fold<double>(0, (max, value) => max > value ? max : value);
+
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '${_monthLabel(DateTime.now())} ${DateTime.now().year} · ${utility.label}',
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Text(
+                'Updated today',
+                style: TextStyle(color: AppColors.textTertiary, fontSize: 11),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                current == null ? 'N/A' : current.value.toStringAsFixed(1),
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 38,
+                  fontWeight: FontWeight.w800,
+                  height: 1,
+                ),
+              ),
+              if (current != null) ...[
+                const SizedBox(width: 6),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    '${utility.unit} used',
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              _landscapeMetric(
+                'vs last month',
+                vsLastMonth == null
+                    ? 'No data'
+                    : '${vsLastMonth <= 0 ? '↓' : '↑'} ${vsLastMonth.abs().toStringAsFixed(1)}%',
+                vsLastMonth == null
+                    ? AppColors.textTertiary
+                    : vsLastMonth <= 0
+                        ? AppColors.success
+                        : AppColors.critical,
+              ),
+              const SizedBox(width: 8),
+              _landscapeMetric(
+                'your average',
+                average == null ? 'N/A' : '${average.toStringAsFixed(1)} ${utility.unit}',
+                AppColors.textPrimary,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Monthly consumption',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+              ),
+              Text('Last 6 months',
+                  style: TextStyle(fontSize: 11, color: AppColors.textTertiary)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Expanded(
+            child: maxValue <= 0
+                ? const Center(
+                    child: Text(
+                      'No readings yet — add your first month.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                    ),
+                  )
+                : BarChart(
+                    BarChartData(
+                      maxY: maxValue * 1.2,
+                      gridData: const FlGridData(show: false),
+                      borderData: FlBorderData(show: false),
+                      barTouchData: BarTouchData(enabled: true),
+                      titlesData: FlTitlesData(
+                        leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        bottomTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 20,
+                            getTitlesWidget: (value, meta) {
+                              final index = value.round();
+                              if (index < 0 || index >= months.length) {
+                                return const SizedBox.shrink();
+                              }
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  _monthLabel(months[index]),
+                                  style: const TextStyle(
+                                    color: AppColors.textTertiary,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                      barGroups: List.generate(months.length, (index) {
+                        final entry = values[index];
+                        return BarChartGroupData(
+                          x: index,
+                          barRods: [
+                            BarChartRodData(
+                              toY: entry?.value ?? 0,
+                              width: 18,
+                              color: entry == null ? surface : accent,
+                              borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                            ),
+                          ],
+                        );
+                      }),
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _landscapeMetric(String label, String value, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.canvas,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: const TextStyle(color: AppColors.textTertiary, fontSize: 10)),
+            const SizedBox(height: 2),
+            Text(
+              value,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 13),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _landscapeQuickActions(BuildContext context, UtilityType utility) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isLowHeight = constraints.maxHeight < 270;
+        return AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Quick actions',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+              ),
+              SizedBox(height: isLowHeight ? 6 : 10),
+              _landscapeAction(
+                context,
+                compact: isLowHeight,
+                icon: Icons.add,
+                label: 'Add a reading',
+                onTap: () => showAddConsumptionFlow(context, utility: utility),
+              ),
+              SizedBox(height: isLowHeight ? 6 : 8),
+              _landscapeAction(
+                context,
+                compact: isLowHeight,
+            icon: Icons.report_problem_outlined,
+            label: 'Report a problem',
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ReportFlowScreen()),
+            ),
+              ),
+              const Spacer(),
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(isLowHeight ? 8 : 10),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.check_circle_outline,
+                        color: AppColors.success, size: 17),
+                    SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'All systems normal',
+                        style: TextStyle(
+                          color: AppColors.success,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (!isLowHeight) ...[
+                const SizedBox(height: 10),
+                const Text(
+                  'Tip: record readings monthly for more accurate comparisons.',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 11,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _landscapeAction(
+    BuildContext context, {
+    required bool compact,
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: AppColors.customerSurface,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 10, vertical: compact ? 7 : 10),
+          child: Row(
+            children: [
+              Icon(icon, color: AppColors.customerPrimary, size: 17),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

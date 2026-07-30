@@ -22,7 +22,9 @@ import 'modules/leakage/services/baseline_service.dart';
 import 'modules/leakage/services/anomaly_ai_service.dart';
 import 'modules/leakage/services/nrw_service.dart';
 import 'modules/leakage/services/simulation_service.dart';
+import 'modules/leakage/services/worker_compact_layout.dart';
 import 'modules/leakage/state/app_state.dart';
+import 'modules/leakage/widgets/worker_compact_rail.dart';
 
 import 'modules/dataset/data/dataset_repository.dart';
 import 'modules/dataset/screens/dashboard_screen.dart';
@@ -33,7 +35,9 @@ import 'modules/usage/screens/customer_home_screen.dart';
 import 'modules/usage/screens/compare_usage_screen.dart';
 import 'modules/usage/screens/profile_setup_screen.dart';
 import 'modules/usage/screens/report_problem_screen.dart';
+import 'modules/usage/services/customer_compact_layout.dart';
 import 'modules/usage/state/usage_state.dart';
+import 'modules/usage/widgets/customer_compact_rail.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -255,6 +259,8 @@ class _AppShellState extends State<AppShell> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isAdmin = widget.userRole == 'admin';
+        final isWorker = widget.userRole == 'worker';
+        final isCustomer = widget.userRole == 'user';
         final mode = isAdmin
             ? adminLayoutModeFor(
                 Size(constraints.maxWidth, constraints.maxHeight),
@@ -263,6 +269,16 @@ class _AppShellState extends State<AppShell> {
         final useCompactRail = mode == AdminLayoutMode.phoneLandscape;
         final useTabletRail = mode == AdminLayoutMode.tabletLandscape;
         final usesAdminRail = useCompactRail || useTabletRail;
+        final usesCustomerCompactRail = isCustomer &&
+            usesCustomerPhoneLandscape(
+              Size(constraints.maxWidth, constraints.maxHeight),
+            );
+        final usesWorkerCompactRail = isWorker &&
+            usesWorkerPhoneLandscape(
+              Size(constraints.maxWidth, constraints.maxHeight),
+            );
+        final usesRoleRail =
+            usesAdminRail || usesCustomerCompactRail || usesWorkerCompactRail;
         final screenStack = IndexedStack(
           index: _currentIndex,
           children: _screens,
@@ -270,7 +286,7 @@ class _AppShellState extends State<AppShell> {
 
         return Scaffold(
           backgroundColor: AppColors.canvas,
-          body: usesAdminRail
+          body: usesRoleRail
               ? Row(
                   children: [
                     if (useCompactRail)
@@ -280,7 +296,7 @@ class _AppShellState extends State<AppShell> {
                             setState(() => _currentIndex = index),
                         onLogout: () => context.read<RoleState>().logout(),
                       )
-                    else
+                    else if (useTabletRail)
                       NavigationRail(
                         selectedIndex: _currentIndex,
                         onDestinationSelected: (index) =>
@@ -308,6 +324,20 @@ class _AppShellState extends State<AppShell> {
                               label: Text(item.label),
                             ),
                         ],
+                      )
+                    else if (usesWorkerCompactRail)
+                      WorkerCompactRail(
+                        currentIndex: _currentIndex,
+                        onDestinationSelected: (index) =>
+                            setState(() => _currentIndex = index),
+                        onLogout: () => context.read<RoleState>().logout(),
+                      )
+                    else
+                      CustomerCompactRail(
+                        currentIndex: _currentIndex,
+                        onDestinationSelected: (index) =>
+                            setState(() => _currentIndex = index),
+                        onLogout: () => context.read<RoleState>().logout(),
                       ),
                     const VerticalDivider(width: 1),
                     Expanded(child: screenStack),
@@ -315,7 +345,7 @@ class _AppShellState extends State<AppShell> {
                 )
               : screenStack,
           bottomNavigationBar:
-              usesAdminRail ? null : _buildBottomNavigation(primary),
+              usesRoleRail ? null : _buildBottomNavigation(primary),
         );
       },
     );

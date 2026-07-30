@@ -11,6 +11,10 @@ import '../../leakage/screens/style.dart';
 import '../../leakage/state/app_state.dart';
 import 'abnormal_production_screen.dart';
 import 'admin_alert_detail_screen.dart';
+import '../services/admin_tablet_layout.dart';
+import '../services/anomaly_review_filter.dart';
+import '../widgets/landscape_filter_menu.dart';
+import '../widgets/oversight_landscape_workspace.dart';
 
 enum OversightSection { alerts, reports }
 
@@ -30,6 +34,10 @@ class _OversightScreenState extends State<OversightScreen>
   Utility? _reportUtility;
   String? _reportOutcome;
   String? _reportState;
+  Set<String> _landscapeStatuses = {AlertStatus.pending};
+  Utility? _landscapeUtility;
+  bool _landscapeHighSeverityOnly = false;
+  final _landscapeAlertController = ScrollController();
   final _reportSearch = TextEditingController();
 
   @override
@@ -47,15 +55,70 @@ class _OversightScreenState extends State<OversightScreen>
   @override
   void dispose() {
     _outerTab.dispose();
+    _landscapeAlertController.dispose();
     _reportSearch.dispose();
     super.dispose();
+  }
+
+  AnomalyReviewQuery _oversightAlertQuery() => AnomalyReviewQuery(
+        statuses: _landscapeStatuses,
+        utility: _landscapeUtility,
+        highSeverityOnly: _landscapeHighSeverityOnly,
+      );
+
+  int get _activeLandscapeFilterCount {
+    var count = 0;
+    if (!_landscapeStatuses.contains(AlertStatus.pending) ||
+        _landscapeStatuses.length != 1) {
+      count++;
+    }
+    if (_landscapeUtility != null) count++;
+    if (_landscapeHighSeverityOnly) count++;
+    return count;
+  }
+
+  void _clearLandscapeAlertFilters() {
+    setState(() {
+      _landscapeStatuses = {AlertStatus.pending};
+      _landscapeUtility = null;
+      _landscapeHighSeverityOnly = false;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
+    final mode = adminLayoutModeFor(MediaQuery.sizeOf(context));
+    final isPhoneLandscape = mode == AdminLayoutMode.phoneLandscape;
     final isAlertsTab = _outerTab.index == 0;
-    final pendingCount = app.pendingAlerts(_alertUtility).length;
+    final pendingCount = app.pendingAlerts().length;
+
+    if (isPhoneLandscape) {
+      final landscapeAlerts =
+          AnomalyReviewFilter.apply(app.alerts, _oversightAlertQuery());
+      return Scaffold(
+        backgroundColor: AppColors.canvas,
+        body: OversightLandscapeWorkspace(
+          sectionIndex: _outerTab.index,
+          pendingCount: pendingCount,
+          queueLabel: _landscapeQueueLabel(),
+          alerts: landscapeAlerts,
+          alertController: _landscapeAlertController,
+          filterMenu: LandscapeFilterMenu(
+            activeCount: _activeLandscapeFilterCount,
+            child: _landscapeFilterControls(),
+          ),
+          onSectionChanged: (index) => setState(() => _outerTab.index = index),
+          onAlertTap: (alert) {
+            if (alert.id == null) return;
+            Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => AdminAlertDetailScreen(alertId: alert.id!)));
+          },
+          onClearFilters: _clearLandscapeAlertFilters,
+          reportsBody: _reportsTab(app, compact: true),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -74,13 +137,16 @@ class _OversightScreenState extends State<OversightScreen>
                   fontWeight: FontWeight.w700, fontSize: 14),
               tabs: [
                 Tab(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('Alert Queue'),
-                      const SizedBox(width: 6),
-                      _countBadge(pendingCount),
-                    ],
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('Alert Queue'),
+                        const SizedBox(width: 6),
+                        _countBadge(pendingCount),
+                      ],
+                    ),
                   ),
                 ),
                 const Tab(text: 'Reports'),
@@ -110,6 +176,117 @@ class _OversightScreenState extends State<OversightScreen>
           : null,
     );
   }
+
+  String _landscapeQueueLabel() {
+    if (_landscapeStatuses.length == 1 &&
+        _landscapeStatuses.contains(AlertStatus.pending)) {
+      return 'Pending alerts';
+    }
+    if (_landscapeStatuses.length == 2 &&
+        _landscapeStatuses.contains(AlertStatus.investigating) &&
+        _landscapeStatuses.contains(AlertStatus.notFixed)) {
+      return 'Ongoing alerts';
+    }
+    if (_landscapeStatuses.length == 1 &&
+        _landscapeStatuses.contains(AlertStatus.resolved)) {
+      return 'Solved alerts';
+    }
+    if (_landscapeStatuses.length == 1 &&
+        _landscapeStatuses.contains(AlertStatus.faults)) {
+      return 'Fault alerts';
+    }
+    return 'Filtered alerts';
+  }
+
+  Widget _landscapeFilterControls() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            const Expanded(child: SectionLabel('Filter anomalies')),
+          ],
+        ),
+        const SizedBox(height: 8),
+        const Text('Status', style: TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _landscapeStatusChip('Pending', {AlertStatus.pending}),
+            _landscapeStatusChip(
+              'Ongoing',
+              {AlertStatus.investigating, AlertStatus.notFixed},
+            ),
+            _landscapeStatusChip('Solved', {AlertStatus.resolved}),
+            _landscapeStatusChip('Faults', {AlertStatus.faults}),
+          ],
+        ),
+        const SizedBox(height: 12),
+        const Text('Utility', style: TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            ChoiceChip(
+              label: const Text('All utilities'),
+              selected: _landscapeUtility == null,
+              onSelected: (_) => setState(() => _landscapeUtility = null),
+            ),
+            ChoiceChip(
+              label: const Text('Water'),
+              selected: _landscapeUtility == Utility.water,
+              onSelected: (_) =>
+                  setState(() => _landscapeUtility = Utility.water),
+            ),
+            ChoiceChip(
+              label: const Text('Electricity'),
+              selected: _landscapeUtility == Utility.electricity,
+              onSelected: (_) =>
+                  setState(() => _landscapeUtility = Utility.electricity),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        FilterChip(
+          label: const Text('High severity'),
+          selected: _landscapeHighSeverityOnly,
+          selectedColor: AppColors.criticalSurface,
+          checkmarkColor: AppColors.critical,
+          labelStyle: TextStyle(
+            color: _landscapeHighSeverityOnly
+                ? AppColors.critical
+                : AppColors.textPrimary,
+            fontWeight: FontWeight.w600,
+          ),
+          onSelected: (selected) =>
+              setState(() => _landscapeHighSeverityOnly = selected),
+        ),
+        const SizedBox(height: 4),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: _clearLandscapeAlertFilters,
+            child: const Text('Clear'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _landscapeStatusChip(String label, Set<String> statuses) {
+    final selected = _sameStatuses(_landscapeStatuses, statuses);
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => setState(() => _landscapeStatuses = {...statuses}),
+    );
+  }
+
+  bool _sameStatuses(Set<String> left, Set<String> right) =>
+      left.length == right.length && left.containsAll(right);
 
   Widget _header(BuildContext context) {
     return Container(
@@ -270,7 +447,7 @@ class _OversightScreenState extends State<OversightScreen>
 
   // --- Reports tab ---
 
-  Widget _reportsTab(AppState app) {
+  Widget _reportsTab(AppState app, {bool compact = false}) {
     final states = app.alerts.map((a) => a.state).toSet().toList()..sort();
     final query = _reportSearch.text.trim().toLowerCase();
     var reports = app.reportsFiltered(
@@ -302,7 +479,9 @@ class _OversightScreenState extends State<OversightScreen>
         .length;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+      padding: compact
+          ? const EdgeInsets.fromLTRB(16, 8, 16, 12)
+          : const EdgeInsets.fromLTRB(12, 12, 12, 24),
       children: [
         Row(
           children: [
@@ -491,14 +670,14 @@ class _OversightScreenState extends State<OversightScreen>
   // --- Shared controls ---
 
   Widget _utilityToggle(Utility? current, ValueChanged<Utility?> onChanged) {
-    return Row(
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
       children: [
         _utilityChip('All', current == null, () => onChanged(null)),
-        const SizedBox(width: 8),
         _utilityChip('Water', current == Utility.water,
             () => onChanged(Utility.water),
             icon: Icons.water_drop_outlined),
-        const SizedBox(width: 8),
         _utilityChip('Electricity', current == Utility.electricity,
             () => onChanged(Utility.electricity),
             icon: Icons.electric_bolt_outlined),

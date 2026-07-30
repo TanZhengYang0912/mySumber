@@ -139,22 +139,32 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       builder: (dialogCtx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Skip for now?'),
-        content: const Text(
-          'You can finish setting up your name, gender, phone number, and '
-          'address later from the Profile tab.',
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'You can finish setting up your name, gender, phone number, and '
+              'address later from the Profile tab.',
+            ),
+            const SizedBox(height: 16),
+            Center(
+              child: TextButton(
+                onPressed: () => Navigator.of(dialogCtx).pop(false),
+                child: const Text('Cancel'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.customerPrimary,
+                minimumSize: const Size.fromHeight(52),
+              ),
+              onPressed: () => Navigator.of(dialogCtx).pop(true),
+              child: const Text('Skip'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogCtx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style:
-                FilledButton.styleFrom(backgroundColor: AppColors.customerPrimary),
-            onPressed: () => Navigator.of(dialogCtx).pop(true),
-            child: const Text('Skip'),
-          ),
-        ],
       ),
     );
     if (confirmed == true && mounted) {

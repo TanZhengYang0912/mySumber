@@ -59,6 +59,41 @@ void main() {
     expect(result.map((a) => a.status), isNot(contains(AlertStatus.faults)));
   });
 
+  test('Oversight default keeps every pending severity and ranks high first', () {
+    final result = AnomalyReviewFilter.apply(
+      [
+        ...alerts,
+        Alert(
+          id: 6,
+          alertType: AlertType.nrwHotspot,
+          state: 'Selangor',
+          detectedAt: DateTime.utc(2026, 7, 30),
+          signature: 'new_medium_pending',
+          severity: Severity.medium,
+          explanation: 'Medium priority pending alert.',
+          status: AlertStatus.pending,
+        ),
+      ],
+      const AnomalyReviewQuery(statuses: {AlertStatus.pending}),
+    );
+
+    expect(result.map((alert) => alert.status), everyElement(AlertStatus.pending));
+    expect(result.take(2).map((alert) => alert.id), [1, 6]);
+  });
+
+  test('Ongoing high-severity query retains investigating and not-fixed alerts',
+      () {
+    final ongoingHigh = AnomalyReviewFilter.apply(
+      alerts,
+      const AnomalyReviewQuery(
+        statuses: {AlertStatus.investigating, AlertStatus.notFixed},
+        highSeverityOnly: true,
+      ),
+    );
+
+    expect(ongoingHigh.map((alert) => alert.id), [5]);
+  });
+
   test('filters by utility, state, facility, and equipment', () {
     final result = AnomalyReviewFilter.apply(
       alerts,

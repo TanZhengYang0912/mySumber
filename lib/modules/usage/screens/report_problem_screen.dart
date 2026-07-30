@@ -10,6 +10,8 @@ import '../../leakage/state/app_state.dart';
 import '../state/usage_state.dart';
 import '../widgets/edit_address_dialog.dart';
 import '../widgets/edit_profile_dialog.dart';
+import '../widgets/logout_confirmation_dialog.dart';
+import '../services/customer_compact_layout.dart';
 
 const _defaultServiceAddress = 'No. 12, Jln Merdeka, Selangor';
 const _defaultServiceState = 'Selangor';
@@ -56,6 +58,13 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
       initialName: role.displayName,
       initialPhone: role.phoneNumber,
       initialGender: role.gender,
+    );
+  }
+
+  void _requestLogout(BuildContext context) {
+    showLogoutConfirmation(
+      context,
+      onConfirm: () => context.read<RoleState>().logout(),
     );
   }
 
@@ -115,6 +124,16 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
         .map((s) => s[0].toUpperCase())
         .join();
 
+    if (usesCustomerPhoneLandscape(MediaQuery.sizeOf(context))) {
+      return _phoneLandscapeProfile(
+        context,
+        role,
+        displayName,
+        email,
+        initials,
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.canvas,
       body: ListView(
@@ -137,7 +156,7 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
             child: FilledButton.icon(
-              onPressed: () => context.read<RoleState>().logout(),
+              onPressed: () => _requestLogout(context),
               icon: const Icon(Icons.logout, size: 18),
               label: const Text('Sign Out'),
               style: FilledButton.styleFrom(
@@ -166,6 +185,219 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
             ),
           ),
           const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  Widget _phoneLandscapeProfile(
+    BuildContext context,
+    RoleState role,
+    String displayName,
+    String email,
+    String initials,
+  ) {
+    return Scaffold(
+      backgroundColor: AppColors.canvas,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
+          child: Column(
+            key: const PageStorageKey('customer-phone-landscape-profile'),
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppColors.customerSurface,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.person_outline,
+                      color: AppColors.customerPrimary,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'MY ACCOUNT',
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                        Text(
+                          'My Account',
+                          style: TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 19,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _landscapeNotificationButton(),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      flex: 4,
+                      child: ListView(
+                        padding: EdgeInsets.zero,
+                        children: [
+                          _profileCard(
+                            displayName,
+                            email,
+                            initials,
+                            role.phoneNumber,
+                          ),
+                          const SizedBox(height: 4),
+                          _landscapeAddressCard(
+                            _serviceAddress,
+                            _serviceState,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 6,
+                      child: ListView(
+                        padding: EdgeInsets.zero,
+                        children: [
+                          _landscapeAccountDetails(role),
+                          const SizedBox(height: 8),
+                          _menuCard(),
+                          const SizedBox(height: 8),
+                          FilledButton.icon(
+                            onPressed: () => _requestLogout(context),
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size(0, 40),
+                              backgroundColor: const Color(0xFFFEF2F2),
+                              foregroundColor: AppColors.critical,
+                            ),
+                            icon: const Icon(Icons.logout, size: 18),
+                            label: const Text('Sign Out'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _landscapeNotificationButton() {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(color: AppColors.divider),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(
+            Icons.notifications_outlined,
+            color: AppColors.textSecondary,
+            size: 21,
+          ),
+        ),
+        Positioned(
+          top: -4,
+          right: -4,
+          child: Container(
+            width: 17,
+            height: 17,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.critical,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.canvas, width: 2),
+            ),
+            child: const Text(
+              '2',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _landscapeAddressCard(String serviceAddress, String serviceState) {
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          _detailRow(
+            icon: Icons.location_on_outlined,
+            label: 'Service Address',
+            value: serviceAddress,
+            onTap: _editAddress,
+            trailing: const Icon(Icons.edit_outlined,
+                size: 16, color: AppColors.textTertiary),
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          _detailRow(
+            icon: Icons.map_outlined,
+            label: 'State',
+            value: serviceState,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _landscapeAccountDetails(RoleState role) {
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          _detailRow(
+            icon: Icons.wc_outlined,
+            label: 'Gender',
+            value: role.gender ?? 'Not set',
+            onTap: () => _editProfile(role),
+            trailing: const Icon(Icons.edit_outlined,
+                size: 16, color: AppColors.textTertiary),
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          _detailRow(
+            icon: Icons.receipt_long_outlined,
+            label: 'Account Number',
+            value: 'ACC-2024-0847',
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          _detailRow(
+            icon: Icons.credit_card_outlined,
+            label: 'Billing Plan',
+            value: 'Residential Standard',
+          ),
         ],
       ),
     );
@@ -445,7 +677,7 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
             icon: Icons.flag_outlined,
             label: 'Report a Problem',
             onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => const _ReportFlowScreen())),
+                builder: (_) => const ReportFlowScreen())),
           ),
           const Divider(height: 1, indent: 16, endIndent: 16),
           _menuItem(
@@ -510,14 +742,14 @@ enum _ElecScenario {
 
 /// Dedicated flow for reporting a problem — moved off the profile screen so
 /// account details stay focused on identity.
-class _ReportFlowScreen extends StatefulWidget {
-  const _ReportFlowScreen();
+class ReportFlowScreen extends StatefulWidget {
+  const ReportFlowScreen({super.key});
 
   @override
-  State<_ReportFlowScreen> createState() => _ReportFlowScreenState();
+  State<ReportFlowScreen> createState() => _ReportFlowScreenState();
 }
 
-class _ReportFlowScreenState extends State<_ReportFlowScreen> {
+class _ReportFlowScreenState extends State<ReportFlowScreen> {
   String _selectedState = 'Selangor';
   bool _isWater = true;
   LeakScenario? _pendingWater;

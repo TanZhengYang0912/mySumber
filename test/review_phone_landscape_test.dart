@@ -13,6 +13,38 @@ import 'package:mysumber/modules/leakage/services/simulation_service.dart';
 import 'package:mysumber/modules/leakage/state/app_state.dart';
 
 void main() {
+  testWidgets(
+      'phone portrait review keeps location labels outside dropdown borders',
+      (tester) async {
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final appState = _ReviewFixtureState([
+      _alert(id: 1, facility: 'Aman Central'),
+    ]);
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AppState>.value(
+        value: appState,
+        child: const MaterialApp(
+          home: ReviewManagementScreen(),
+        ),
+      ),
+    );
+
+    final dropdowns = tester.widgetList<DropdownButtonFormField<String>>(
+      find.byType(DropdownButtonFormField<String>),
+    );
+    expect(dropdowns, hasLength(3));
+    expect(
+      dropdowns.every((dropdown) => dropdown.decoration?.labelText == null),
+      isTrue,
+    );
+    expect(find.text('State / Federal Territory'), findsOneWidget);
+    expect(find.text('Shopping Mall'), findsOneWidget);
+    expect(find.text('Equipment'), findsOneWidget);
+  });
+
   testWidgets('phone landscape review uses a grid and opens full detail',
       (tester) async {
     tester.view.physicalSize = const Size(914, 411);

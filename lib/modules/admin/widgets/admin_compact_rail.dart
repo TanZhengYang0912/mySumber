@@ -1,3 +1,5 @@
+import 'dart:ui' show DisplayFeatureType;
+
 import 'package:flutter/material.dart';
 
 import '../../../theme/tokens.dart';
@@ -14,8 +16,13 @@ class AdminCompactRail extends StatelessWidget {
   final ValueChanged<int> onDestinationSelected;
   final VoidCallback onLogout;
 
+  static const _cutoutClearance = 8.0;
+
   @override
   Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final protectedCutout = _leftRailCutout(mediaQuery);
+
     return Container(
       width: 56,
       color: Colors.white,
@@ -24,64 +31,90 @@ class AdminCompactRail extends StatelessWidget {
         right: false,
         child: Column(
           children: [
-            const SizedBox(height: 8),
-            _RailDestination(
-              icon: Icons.grid_view_outlined,
-              tooltip: 'Dashboard',
-              selected: currentIndex == 0,
-              onTap: () => onDestinationSelected(0),
-            ),
-            const SizedBox(height: 8),
-            _RailDestination(
-              icon: Icons.notifications_outlined,
-              tooltip: 'Alerts',
-              selected: currentIndex == 2,
-              onTap: () => onDestinationSelected(2),
-            ),
-            const SizedBox(height: 8),
-            _RailDestination(
-              icon: Icons.analytics_outlined,
-              tooltip: 'AI Review',
-              selected: currentIndex == 4,
-              onTap: () => onDestinationSelected(4),
-            ),
+            ..._primaryDestinations(protectedCutout),
             const Spacer(),
-            MenuAnchor(
-              style: const MenuStyle(
-                alignment: AlignmentDirectional.centerEnd,
-                elevation: WidgetStatePropertyAll(4),
-              ),
-              alignmentOffset: const Offset(8, 0),
-              menuChildren: [
-                MenuItemButton(
-                  leadingIcon: const Icon(Icons.inventory_2_outlined),
-                  onPressed: () => onDestinationSelected(1),
-                  child: const Text('Inventory'),
-                ),
-                MenuItemButton(
-                  leadingIcon: const Icon(Icons.shield_outlined),
-                  onPressed: () => onDestinationSelected(3),
-                  child: const Text('Oversight'),
-                ),
-                const Divider(height: 1),
-                MenuItemButton(
-                  leadingIcon: const Icon(Icons.logout_outlined),
-                  onPressed: onLogout,
-                  child: const Text('Logout'),
-                ),
-              ],
-              builder: (context, controller, child) => _RailDestination(
-                icon: Icons.more_horiz,
-                tooltip: 'More',
-                selected: currentIndex == 1 || currentIndex == 3,
-                onTap: controller.isOpen ? controller.close : controller.open,
-              ),
+            _RailDestination(
+              icon: Icons.logout_outlined,
+              tooltip: 'Logout',
+              selected: false,
+              onTap: onLogout,
             ),
             const SizedBox(height: 8),
           ],
         ),
       ),
     );
+  }
+
+  Rect? _leftRailCutout(MediaQueryData mediaQuery) {
+    for (final feature in mediaQuery.displayFeatures) {
+      if (feature.type != DisplayFeatureType.cutout ||
+          feature.bounds.right <= 0 ||
+          feature.bounds.left >= 56) {
+        continue;
+      }
+
+      return feature.bounds.translate(0, -mediaQuery.padding.top);
+    }
+    return null;
+  }
+
+  List<Widget> _primaryDestinations(Rect? protectedCutout) {
+    final destinations = <_RailDestination>[
+      _RailDestination(
+        icon: Icons.grid_view_outlined,
+        tooltip: 'Dashboard',
+        selected: currentIndex == 0,
+        onTap: () => onDestinationSelected(0),
+      ),
+      _RailDestination(
+        icon: Icons.notifications_outlined,
+        tooltip: 'Alerts',
+        selected: currentIndex == 2,
+        onTap: () => onDestinationSelected(2),
+      ),
+      _RailDestination(
+        icon: Icons.analytics_outlined,
+        tooltip: 'AI Review',
+        selected: currentIndex == 4,
+        onTap: () => onDestinationSelected(4),
+      ),
+      _RailDestination(
+        icon: Icons.inventory_2_outlined,
+        tooltip: 'Inventory',
+        selected: currentIndex == 1,
+        onTap: () => onDestinationSelected(1),
+      ),
+      _RailDestination(
+        icon: Icons.shield_outlined,
+        tooltip: 'Oversight',
+        selected: currentIndex == 3,
+        onTap: () => onDestinationSelected(3),
+      ),
+    ];
+
+    final children = <Widget>[];
+    children.add(const SizedBox(height: 8));
+    var nextTop = 8.0;
+    for (var index = 0; index < destinations.length; index++) {
+      final nextBounds = Rect.fromLTWH(6, nextTop, 44, 44);
+      if (protectedCutout != null &&
+          protectedCutout.contains(nextBounds.center)) {
+        final shift = protectedCutout.bottom + _cutoutClearance - nextTop;
+        if (shift > 0) {
+          children.add(SizedBox(height: shift));
+          nextTop += shift;
+        }
+      }
+
+      children.add(destinations[index]);
+      nextTop += 44;
+      if (index != destinations.length - 1) {
+        children.add(const SizedBox(height: 8));
+        nextTop += 8;
+      }
+    }
+    return children;
   }
 }
 

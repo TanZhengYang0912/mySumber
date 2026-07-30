@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
+import '../../admin/services/admin_tablet_layout.dart';
+import '../../admin/widgets/landscape_filter_menu.dart';
 import '../state/dataset_state.dart';
 import '../models/models.dart';
 import '../services/inventory_filter.dart';
@@ -62,6 +64,19 @@ class _InventoryScreenState extends State<InventoryScreen> {
     final locationCount = filterResult.utilityCounts.values
         .fold<int>(0, (sum, count) => sum + count);
     final displayNodes = filterResult.nodes;
+    final isPhoneLandscape = adminLayoutModeFor(MediaQuery.sizeOf(context)) ==
+        AdminLayoutMode.phoneLandscape;
+
+    if (isPhoneLandscape && !state.isLoading) {
+      return _phoneLandscapeLayout(
+        context: context,
+        state: state,
+        stateOptions: stateOptions,
+        facilityOptions: facilityOptions,
+        locationCount: locationCount,
+        displayNodes: displayNodes,
+      );
+    }
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -93,6 +108,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           value: _selectedState,
                           items: stateOptions,
                           displayAll: 'All States',
+                          showFloatingLabel: false,
                           onChanged: (value) {
                             setState(() {
                               _selectedState = value ?? 'All';
@@ -108,6 +124,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           value: _selectedFacility,
                           items: facilityOptions,
                           displayAll: 'All Shopping Malls',
+                          showFloatingLabel: false,
                           onChanged: (value) => setState(
                               () => _selectedFacility = value ?? 'All'),
                         ),
@@ -156,6 +173,211 @@ class _InventoryScreenState extends State<InventoryScreen> {
         },
         child: const Icon(Icons.add),
       ),
+    );
+  }
+
+  Widget _phoneLandscapeLayout({
+    required BuildContext context,
+    required DatasetState state,
+    required List<String> stateOptions,
+    required List<String> facilityOptions,
+    required int locationCount,
+    required List<EquipmentNode> displayNodes,
+  }) {
+    return Scaffold(
+      backgroundColor: AppColors.canvas,
+      body: SafeArea(
+        child: Column(
+          key: const PageStorageKey('phone-landscape-inventory'),
+          children: [
+            SizedBox(
+              height: 60,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    const Text(
+                      'Inventory',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '$locationCount equipment',
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    LandscapeFilterMenu(
+                      tooltip: 'Filter equipment',
+                      activeCount: _activeLandscapeFilterCount,
+                      child: _landscapeFilterControls(
+                        stateOptions: stateOptions,
+                        facilityOptions: facilityOptions,
+                      ),
+                    ),
+                    MenuAnchor(
+                      menuChildren: [
+                        MenuItemButton(
+                          leadingIcon: const Icon(Icons.upload_outlined),
+                          onPressed: () => _importData(context),
+                          child: const Text('Import'),
+                        ),
+                      ],
+                      builder: (context, controller, _) => IconButton(
+                        tooltip: 'More inventory actions',
+                        onPressed: controller.isOpen
+                            ? controller.close
+                            : controller.open,
+                        icon: const Icon(Icons.more_horiz),
+                      ),
+                    ),
+                    IconButton.filled(
+                      tooltip: 'Add equipment',
+                      style: IconButton.styleFrom(
+                        backgroundColor: AppColors.adminPrimary,
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                            builder: (_) => const NodeFormScreen()),
+                      ),
+                      icon: const Icon(Icons.add),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                children: [
+                  _searchField(),
+                  const SizedBox(height: 12),
+                  Text(
+                    _landscapeListLabel(),
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  if (displayNodes.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 32),
+                      child: Center(
+                        child: Text(
+                          'No equipment found matching your criteria.',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                      ),
+                    )
+                  else
+                    ...displayNodes.map((node) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: _equipmentCard(node, state),
+                        )),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  int get _activeLandscapeFilterCount {
+    var count = 0;
+    if (_selectedUtility != 'All') count++;
+    if (_selectedState != 'All') count++;
+    if (_selectedFacility != 'All') count++;
+    if (_selectedStatus != 'All') count++;
+    return count;
+  }
+
+  String _landscapeListLabel() {
+    if (_selectedStatus != 'All') return '$_selectedStatus equipment';
+    return 'All equipment';
+  }
+
+  Widget _landscapeFilterControls({
+    required List<String> stateOptions,
+    required List<String> facilityOptions,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            const Expanded(child: SectionLabel('Filter equipment')),
+          ],
+        ),
+        const SizedBox(height: 8),
+        const Text('Utility', style: TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: ['All', 'Water', 'Electricity']
+              .map((value) => ChoiceChip(
+                    label: Text(value),
+                    selected: _selectedUtility == value,
+                    onSelected: (_) => setState(() => _selectedUtility = value),
+                  ))
+              .toList(),
+        ),
+        const SizedBox(height: 12),
+        _locationDropdown(
+          label: 'State / Federal Territory',
+          value: _selectedState,
+          items: stateOptions,
+          displayAll: 'All States',
+          showFloatingLabel: false,
+          onChanged: (value) => setState(() {
+            _selectedState = value ?? 'All';
+            _selectedFacility = 'All';
+          }),
+        ),
+        const SizedBox(height: 10),
+        _locationDropdown(
+          label: 'Shopping Mall',
+          value: _selectedFacility,
+          items: facilityOptions,
+          displayAll: 'All Shopping Malls',
+          showFloatingLabel: false,
+          onChanged: (value) =>
+              setState(() => _selectedFacility = value ?? 'All'),
+        ),
+        const SizedBox(height: 12),
+        const Text('Status', style: TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: inventoryStatusFilters
+              .map((value) => ChoiceChip(
+                    label: Text(value),
+                    selected: _selectedStatus == value,
+                    onSelected: (_) => setState(() => _selectedStatus = value),
+                  ))
+              .toList(),
+        ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: _clearFilters,
+            child: const Text('Clear filters'),
+          ),
+        ),
+      ],
     );
   }
 
@@ -344,13 +566,14 @@ Backup Generator 2,Electricity,Kelantan,Kota Bharu,AEON Mall Kota Bharu,Honda,Ac
     required List<String> items,
     required String displayAll,
     required ValueChanged<String?> onChanged,
+    bool showFloatingLabel = true,
   }) {
-    return DropdownButtonFormField<String>(
+    final dropdown = DropdownButtonFormField<String>(
       key: ValueKey('$label-$value'),
       initialValue: value,
       isExpanded: true,
       decoration: InputDecoration(
-        labelText: label,
+        labelText: showFloatingLabel ? label : null,
         isDense: true,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
@@ -365,6 +588,19 @@ Backup Generator 2,Electricity,Kelantan,Kota Bharu,AEON Mall Kota Bharu,Honda,Ac
               ))
           .toList(),
       onChanged: onChanged,
+    );
+    if (showFloatingLabel) return dropdown;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textSecondary)),
+        const SizedBox(height: 5),
+        dropdown,
+      ],
     );
   }
 

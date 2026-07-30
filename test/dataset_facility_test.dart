@@ -90,6 +90,38 @@ void main() {
     expect(find.text('All Shopping Malls'), findsOneWidget);
   });
 
+  testWidgets(
+      'inventory keeps portrait location labels outside dropdown borders',
+      (tester) async {
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final datasetState = DatasetState(repository: DatasetRepository());
+    datasetState.stateWaterSupply['Malaysia'] = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChangeNotifierProvider<DatasetState>.value(
+          value: datasetState,
+          child: const InventoryScreen(),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(seconds: 1));
+
+    final stateDropdown = tester.widget<DropdownButtonFormField<String>>(
+      find.byKey(const ValueKey('State / Federal Territory-All')),
+    );
+    final mallDropdown = tester.widget<DropdownButtonFormField<String>>(
+      find.byKey(const ValueKey('Shopping Mall-All')),
+    );
+
+    expect(stateDropdown.decoration?.labelText, isNull);
+    expect(mallDropdown.decoration?.labelText, isNull);
+    expect(find.text('State / Federal Territory'), findsOneWidget);
+    expect(find.text('Shopping Mall'), findsOneWidget);
+  });
+
   testWidgets('dashboard keeps full details below its landscape summary',
       (tester) async {
     tester.view.physicalSize = const Size(914, 411);
@@ -237,6 +269,50 @@ void main() {
     expect(find.text('All States'), findsOneWidget);
     expect(find.text('All Shopping Malls'), findsOneWidget);
     expect(find.text('All (78)'), findsNWidgets(2));
+  });
+
+  testWidgets('inventory uses a compact filter workspace in phone landscape',
+      (tester) async {
+    tester.view.physicalSize = const Size(914, 411);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final datasetState = _StaticDatasetState()
+      ..nodes = const [
+        EquipmentNode(
+          nodeName: 'Main Water Pump A1',
+          utilityType: 'Water',
+          zoneId: 'Selangor',
+          status: 'Critical',
+        ),
+        EquipmentNode(
+          nodeName: 'Cooling Tower Valve',
+          utilityType: 'Water',
+          zoneId: 'Selangor',
+          status: 'Active',
+        ),
+      ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChangeNotifierProvider<DatasetState>.value(
+          value: datasetState,
+          child: const InventoryScreen(),
+        ),
+      ),
+    );
+
+    expect(
+      find.byKey(const PageStorageKey('phone-landscape-inventory')),
+      findsOneWidget,
+    );
+    expect(find.byTooltip('Filter equipment'), findsOneWidget);
+    expect(find.byTooltip('Add equipment'), findsOneWidget);
+    expect(find.text('State / Federal Territory'), findsNothing);
+    expect(find.byType(FloatingActionButton), findsNothing);
+
+    await tester.tap(find.byTooltip('Filter equipment'));
+    await tester.pumpAndSettle();
+    expect(find.text('State / Federal Territory'), findsOneWidget);
   });
 }
 

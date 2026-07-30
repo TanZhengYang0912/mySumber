@@ -2,35 +2,32 @@ import 'package:flutter/material.dart';
 
 import '../../../theme/tokens.dart';
 
-class LandscapeFilterMenu extends StatelessWidget {
-  const LandscapeFilterMenu({
+/// A compact, side-anchored filter menu for Worker phone-landscape screens.
+class WorkerLandscapeFilterMenu extends StatelessWidget {
+  const WorkerLandscapeFilterMenu({
     super.key,
     required this.child,
-    this.label = 'Filter',
-    this.tooltip = 'Filter anomalies',
     this.activeCount = 0,
   });
 
   final Widget child;
-  final String label;
-  final String tooltip;
   final int activeCount;
 
   @override
   Widget build(BuildContext context) {
     return MenuAnchor(
       style: const MenuStyle(
-        alignment: AlignmentDirectional.centerEnd,
-        elevation: WidgetStatePropertyAll(4),
+        alignment: AlignmentDirectional.bottomEnd,
+        elevation: WidgetStatePropertyAll(5),
       ),
-      alignmentOffset: const Offset(8, 0),
+      alignmentOffset: const Offset(0, 6),
       menuChildren: [
         Builder(
           builder: (context) {
             final maxHeight =
-                (MediaQuery.sizeOf(context).height * 0.58).clamp(220.0, 300.0);
+                (MediaQuery.sizeOf(context).height * 0.66).clamp(250.0, 320.0);
             return SizedBox(
-              width: 360,
+              width: 340,
               height: maxHeight,
               child: SingleChildScrollView(
                 primary: false,
@@ -42,14 +39,14 @@ class LandscapeFilterMenu extends StatelessWidget {
         ),
       ],
       builder: (context, controller, _) => Tooltip(
-        message: tooltip,
+        message: 'Filter alerts',
         child: TextButton.icon(
           onPressed: controller.isOpen ? controller.close : controller.open,
           icon: const Icon(Icons.tune, size: 18),
           label: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(label),
+              const Text('Filter'),
               if (activeCount > 0) ...[
                 const SizedBox(width: 6),
                 Container(
@@ -57,7 +54,7 @@ class LandscapeFilterMenu extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                   decoration: BoxDecoration(
-                    color: AppColors.adminPrimary,
+                    color: AppColors.workerPrimary,
                     borderRadius: BorderRadius.circular(99),
                   ),
                   alignment: Alignment.center,
@@ -74,8 +71,8 @@ class LandscapeFilterMenu extends StatelessWidget {
             ],
           ),
           style: TextButton.styleFrom(
-            foregroundColor: AppColors.adminPrimary,
-            backgroundColor: AppColors.adminSurface,
+            foregroundColor: AppColors.workerPrimary,
+            backgroundColor: AppColors.workerSurface,
           ),
         ),
       ),

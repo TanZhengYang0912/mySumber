@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../theme/tokens.dart';
+import '../services/admin_tablet_layout.dart';
 import 'admin_alert_detail_screen.dart';
 import '../../leakage/models/ai_anomaly_analysis.dart';
 import '../../leakage/models/alert.dart';
@@ -20,14 +21,22 @@ class AnomalyReviewDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isPhoneLandscape =
+        adminLayoutModeFor(MediaQuery.sizeOf(context)) ==
+            AdminLayoutMode.phoneLandscape;
     return Scaffold(
       backgroundColor: AppColors.canvas,
-      appBar: AppBar(
-        title: const Text('AI Anomaly Review'),
-        backgroundColor: AppColors.adminPrimary,
-        foregroundColor: Colors.white,
+      appBar: isPhoneLandscape
+          ? null
+          : AppBar(
+              title: const Text('AI Anomaly Review'),
+              backgroundColor: AppColors.adminPrimary,
+              foregroundColor: Colors.white,
+            ),
+      body: AnomalyReviewDetailContent(
+        alertId: alertId,
+        phoneLandscape: isPhoneLandscape,
       ),
-      body: AnomalyReviewDetailContent(alertId: alertId),
     );
   }
 }
@@ -35,11 +44,13 @@ class AnomalyReviewDetailScreen extends StatelessWidget {
 class AnomalyReviewDetailContent extends StatefulWidget {
   final int alertId;
   final bool pane;
+  final bool phoneLandscape;
 
   const AnomalyReviewDetailContent({
     super.key,
     required this.alertId,
     this.pane = false,
+    this.phoneLandscape = false,
   });
 
   @override
@@ -79,6 +90,18 @@ class _AnomalyReviewDetailContentState
     final equipment = alert.equipmentName ?? 'Equipment not linked';
     final explanation = _reviewExplanation(alert.explanation);
 
+    if (widget.phoneLandscape) {
+      return _phoneLandscapeLayout(
+        context,
+        app,
+        alert,
+        facility,
+        equipment,
+        city,
+        explanation,
+      );
+    }
+
     return ListView(
       key: const Key('anomaly-review-detail-content'),
       padding: widget.pane ? EdgeInsets.zero : const EdgeInsets.all(14),
@@ -107,11 +130,143 @@ class _AnomalyReviewDetailContentState
     );
   }
 
+  Widget _phoneLandscapeLayout(
+    BuildContext context,
+    AppState app,
+    Alert alert,
+    String facility,
+    String equipment,
+    String? city,
+    String explanation,
+  ) {
+    return SafeArea(
+      child: Column(
+        key: const Key('anomaly-review-landscape-layout'),
+        children: [
+          SizedBox(
+            height: 60,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  IconButton(
+                    tooltip: 'Back to AI Review',
+                    onPressed: () => Navigator.of(context).maybePop(),
+                    icon: const Icon(Icons.arrow_back),
+                  ),
+                  const SizedBox(width: 6),
+                  const Expanded(
+                    child: Text(
+                      'AI Review detail',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  Pill(
+                    AlertStatus.label(alert.status),
+                    color: statusColor(alert.status),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: ListView(
+                      children: [
+                        _analysisSection(
+                          context,
+                          app,
+                          alert,
+                          explanation,
+                          showAction: false,
+                        ),
+                        const SizedBox(height: 10),
+                        _headerCard(alert, facility, equipment, city),
+                        const SizedBox(height: 10),
+                        _evidenceCard(alert),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    width: 210,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Text(
+                          'NEXT ACTION',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.1,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        _generateAction(context, app, alert),
+                        const SizedBox(height: 8),
+                        OutlinedButton.icon(
+                          onPressed: alert.id == null
+                              ? null
+                              : () => Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => AdminAlertDetailScreen(
+                                          alertId: alert.id!),
+                                    ),
+                                  ),
+                          icon: const Icon(Icons.open_in_new, size: 18),
+                          label: const Text('Open in Oversight'),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(48),
+                            foregroundColor: AppColors.adminPrimary,
+                            side: const BorderSide(
+                                color: AppColors.adminPrimary),
+                          ),
+                        ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.warningSurface,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text(
+                            'Actions stay visible while you review the evidence.',
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 12,
+                              height: 1.35,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _analysisSection(
     BuildContext context,
     AppState app,
     Alert alert,
     String explanation,
+    {bool showAction = true}
   ) {
     final savedAnalysis = _savedAnalysis(alert);
     final persistenceFailed =
@@ -119,8 +274,6 @@ class _AnomalyReviewDetailContentState
     final analysis = persistenceFailed
         ? _sessionAnalysis
         : savedAnalysis ?? _sessionAnalysis;
-    final isRunning = _generating ||
-        (alert.id != null && app.isGeneratingAnomalyAnalysis(alert.id!));
     final hasError = _errorMessage != null;
 
     return _card(
@@ -180,26 +333,34 @@ class _AnomalyReviewDetailContentState
             Text(explanation, style: const TextStyle(height: 1.45)),
             const SizedBox(height: 14),
           ],
-          FilledButton.icon(
-            onPressed: isRunning ? null : () => _generate(context, alert),
-            icon: Icon(
-              isRunning ? Icons.hourglass_top : Icons.auto_awesome,
-            ),
-            label: Text(
-              isRunning
-                  ? 'Generating...'
-                  : hasError
-                      ? 'Retry AI Analysis'
-                      : analysis == null
-                          ? 'Generate AI Analysis'
-                          : 'Regenerate AI Analysis',
-            ),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.adminPrimary,
-              minimumSize: const Size.fromHeight(48),
-            ),
-          ),
+          if (showAction) _generateAction(context, app, alert),
         ],
+      ),
+    );
+  }
+
+  Widget _generateAction(BuildContext context, AppState app, Alert alert) {
+    final savedAnalysis = _savedAnalysis(alert);
+    final analysis = savedAnalysis ?? _sessionAnalysis;
+    final isRunning = _generating ||
+        (alert.id != null && app.isGeneratingAnomalyAnalysis(alert.id!));
+    final hasError = _errorMessage != null;
+
+    return FilledButton.icon(
+      onPressed: isRunning ? null : () => _generate(context, alert),
+      icon: Icon(isRunning ? Icons.hourglass_top : Icons.auto_awesome),
+      label: Text(
+        isRunning
+            ? 'Generating...'
+            : hasError
+                ? 'Retry AI Analysis'
+                : analysis == null
+                    ? 'Generate AI Analysis'
+                    : 'Regenerate AI Analysis',
+      ),
+      style: FilledButton.styleFrom(
+        backgroundColor: AppColors.adminPrimary,
+        minimumSize: const Size.fromHeight(48),
       ),
     );
   }
