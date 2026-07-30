@@ -59,6 +59,37 @@ void main() {
     expect(analysis.severityAssessment, 'High');
   });
 
+  test('normalizes descriptive severity values from Groq', () {
+    final analysis = AiAnomalyAnalysis.fromJson({
+      'summary': 'Water use is above the normal baseline.',
+      'possible_cause': 'Abnormal demand around the main pump.',
+      'severity_assessment': 'High severity due to sustained loss.',
+      'confidence': 0.85,
+      'recommendation': 'Continue monitoring the equipment record.',
+    });
+
+    expect(analysis.severityAssessment, 'High');
+  });
+
+  test('reports the invalid AI response fields', () {
+    expect(
+      () => AiAnomalyAnalysis.fromJson({
+        'summary': 'Summary',
+        'possible_cause': 'Cause',
+        'severity_assessment': 'Unknown',
+        'confidence': 'not available',
+        'recommendation': 'Monitor',
+      }),
+      throwsA(
+        isA<AiAnomalyFormatException>().having(
+          (error) => error.message,
+          'message',
+          allOf(contains('severity_assessment'), contains('confidence')),
+        ),
+      ),
+    );
+  });
+
   test('rejects invalid confidence and severity', () {
     expect(
       () => AiAnomalyAnalysis.fromJson({

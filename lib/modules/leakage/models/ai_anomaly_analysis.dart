@@ -27,43 +27,49 @@ class AiAnomalyAnalysis {
   });
 
   factory AiAnomalyAnalysis.fromJson(Map<String, dynamic> json) {
-    final summary = (json['summary'] as String?)?.trim() ?? '';
-    final cause = (json['possible_cause'] as String?)?.trim() ?? '';
+    final summary = _textValue(json['summary']);
+    final cause = _textValue(json['possible_cause']);
     final severity = _normalizeSeverity(json['severity_assessment']);
-    final recommendation = (json['recommendation'] as String?)?.trim() ?? '';
+    final recommendation = _textValue(json['recommendation']);
     final confidence = _parseConfidence(json['confidence']);
 
-    if (summary.isEmpty ||
-        cause.isEmpty ||
-        recommendation.isEmpty ||
-        !_allowedSeverities.contains(severity) ||
-        confidence == null ||
-        confidence < 0 ||
-        confidence > 1) {
-      throw const AiAnomalyFormatException('Invalid AI response fields');
+    final invalidFields = <String>[];
+    if (summary.isEmpty) invalidFields.add('summary');
+    if (cause.isEmpty) invalidFields.add('possible_cause');
+    if (!_allowedSeverities.contains(severity)) {
+      invalidFields.add('severity_assessment');
+    }
+    if (recommendation.isEmpty) invalidFields.add('recommendation');
+    if (confidence == null || confidence < 0 || confidence > 1) {
+      invalidFields.add('confidence');
+    }
+    if (invalidFields.isNotEmpty) {
+      throw AiAnomalyFormatException(
+        'Invalid AI response fields: ${invalidFields.join(', ')}',
+      );
     }
 
     return AiAnomalyAnalysis(
       summary: summary,
       possibleCause: cause,
       severityAssessment: severity,
-      confidence: confidence,
+      confidence: confidence!,
       recommendation: recommendation,
       generatedAt: DateTime.now(),
     );
   }
 
+  static String _textValue(Object? value) =>
+      value is String ? value.trim() : '';
+
   static String _normalizeSeverity(Object? value) {
-    switch (value?.toString().trim().toLowerCase()) {
-      case 'low':
-        return 'Low';
-      case 'medium':
-        return 'Medium';
-      case 'high':
-        return 'High';
-      default:
-        return '';
+    final normalized = value?.toString().trim().toLowerCase() ?? '';
+    for (final severity in _allowedSeverities) {
+      if (RegExp('\\b${severity.toLowerCase()}\\b').hasMatch(normalized)) {
+        return severity;
+      }
     }
+    return '';
   }
 
   static double? _parseConfidence(Object? value) {
