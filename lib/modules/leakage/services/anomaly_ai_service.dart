@@ -55,6 +55,9 @@ class AnomalyAiService {
           'content': 'You analyze Malaysian water and electricity equipment anomalies. '
               'Return only valid JSON with exactly these keys: summary, '
               'possible_cause, severity_assessment, confidence, recommendation. '
+              'severity_assessment must be exactly Low, Medium, or High. '
+              'confidence must be a JSON number from 0 to 1, for example 0.85; '
+              'do not use a string, percentage, word, or label. '
               'Do not change system status or system severity. Do not recommend '
               'a Worker visit, photo upload, or repair result.',
         },

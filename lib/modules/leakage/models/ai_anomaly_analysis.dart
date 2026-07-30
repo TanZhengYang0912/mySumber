@@ -82,11 +82,12 @@ class AiAnomalyAnalysis {
 
     if (value is! String) return null;
     final text = value.trim();
-    final isPercentage = text.endsWith('%');
-    final parsed = double.tryParse(
-      isPercentage ? text.substring(0, text.length - 1).trim() : text,
-    );
+    final normalized = text.toLowerCase();
+    final number = RegExp(r'[-+]?\d*\.?\d+').firstMatch(normalized)?.group(0);
+    final parsed = number == null ? null : double.tryParse(number);
     if (parsed == null) return null;
+    final isPercentage =
+        normalized.contains('%') || normalized.contains('percent');
     return isPercentage || (parsed > 1 && parsed <= 100)
         ? parsed / 100
         : parsed;

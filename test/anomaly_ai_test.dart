@@ -47,6 +47,18 @@ void main() {
     expect(analysis.confidence, 0.85);
   });
 
+  test('parses confidence when Groq includes a percentage label', () {
+    final analysis = AiAnomalyAnalysis.fromJson({
+      'summary': 'Water use is above the normal baseline.',
+      'possible_cause': 'Abnormal demand around the main pump.',
+      'severity_assessment': 'High',
+      'confidence': '85% confidence',
+      'recommendation': 'Continue monitoring the equipment record.',
+    });
+
+    expect(analysis.confidence, 0.85);
+  });
+
   test('normalizes case-insensitive severity values from Groq', () {
     final analysis = AiAnomalyAnalysis.fromJson({
       'summary': 'Water use is above the normal baseline.',
@@ -184,6 +196,9 @@ void main() {
     expect(result.summary, 'Pump usage is abnormal.');
     expect(requestBody['model'], AnomalyAiService.model);
     expect(requestBody['response_format'], {'type': 'json_object'});
+    final messages = requestBody['messages'] as List<dynamic>;
+    final systemMessage = messages.first as Map<String, dynamic>;
+    expect(systemMessage['content'], contains('JSON number from 0 to 1'));
     expect(requestBody.toString(), contains('Main Water Pump A1'));
   });
 
