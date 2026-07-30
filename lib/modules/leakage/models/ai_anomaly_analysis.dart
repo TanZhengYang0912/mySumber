@@ -31,7 +31,12 @@ class AiAnomalyAnalysis {
     final cause = (json['possible_cause'] as String?)?.trim() ?? '';
     final severity = (json['severity_assessment'] as String?)?.trim() ?? '';
     final recommendation = (json['recommendation'] as String?)?.trim() ?? '';
-    final confidence = (json['confidence'] as num?)?.toDouble();
+    final rawConfidence = json['confidence'];
+    final confidence = rawConfidence is num
+        ? rawConfidence.toDouble()
+        : rawConfidence is String
+            ? double.tryParse(rawConfidence.trim())
+            : null;
 
     if (summary.isEmpty ||
         cause.isEmpty ||

@@ -23,6 +23,18 @@ void main() {
     expect(analysis.confidence, 0.92);
   });
 
+  test('parses confidence when Groq returns it as a numeric string', () {
+    final analysis = AiAnomalyAnalysis.fromJson({
+      'summary': 'Water use is above the normal baseline.',
+      'possible_cause': 'Abnormal demand around the main pump.',
+      'severity_assessment': 'High',
+      'confidence': '0.85',
+      'recommendation': 'Continue monitoring the equipment record.',
+    });
+
+    expect(analysis.confidence, 0.85);
+  });
+
   test('rejects invalid confidence and severity', () {
     expect(
       () => AiAnomalyAnalysis.fromJson({
