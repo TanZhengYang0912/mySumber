@@ -3,12 +3,12 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../theme/tokens.dart';
-import '../../auth/state/auth_state.dart';
 import '../../electricity/models/electricity_models.dart';
 import '../../leakage/models/alert.dart';
 import '../../leakage/screens/network_error.dart';
 import '../../leakage/services/nrw_service.dart';
 import '../../leakage/state/app_state.dart';
+import '../services/abnormal_production_layout.dart';
 
 class AbnormalProductionScreen extends StatefulWidget {
   const AbnormalProductionScreen({super.key});
@@ -22,28 +22,32 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tab;
   String? _busyKey;
-  int _waterPage = 0;
-  int _elecPage = 0;
-
-  static const _perPage = 5;
+  String? _selectedWaterState;
+  String? _selectedElectricityState;
 
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 2, vsync: this);
-    _tab.addListener(() {
-      if (mounted) setState(() {});
-    });
+    _tab = TabController(length: 2, vsync: this)..addListener(_refresh);
+  }
+
+  void _refresh() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
-    _tab.dispose();
+    _tab
+      ..removeListener(_refresh)
+      ..dispose();
     super.dispose();
   }
 
   Future<void> _run(
-      String busyKey, String label, Future<bool> Function() action) async {
+    String busyKey,
+    String label,
+    Future<bool> Function() action,
+  ) async {
     setState(() => _busyKey = busyKey);
     try {
       final reported = await action();
@@ -52,8 +56,7 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
         content: Text(reported
             ? 'Reported $label to the worker queue.'
             : '$label was already reported.'),
-        backgroundColor:
-            reported ? AppColors.adminPrimary : Colors.blueGrey,
+        backgroundColor: reported ? AppColors.adminPrimary : Colors.blueGrey,
       ));
     } catch (_) {
       if (mounted) showNetworkErrorSnackBar(context);
@@ -67,12 +70,15 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
     final app = context.watch<AppState>();
     if (app.loading) {
       return const Scaffold(
-          body: Center(child: CircularProgressIndicator()));
+        body: Center(child: CircularProgressIndicator()),
+      );
     }
 
-    final water = app.nrw.analyse();
-    final electricity = app.electricityLoss.analyse();
-    final tampering = app.tamperingCandidates
+    final water = [...app.nrw.analyse()]
+      ..sort((a, b) => b.lossPct.compareTo(a.lossPct));
+    final electricity = [...app.electricityLoss.analyse()]
+      ..sort((a, b) => b.lossPct.compareTo(a.lossPct));
+    final tampering = [...app.tamperingCandidates]
       ..sort((a, b) => b.date.compareTo(a.date));
 
     return Scaffold(
@@ -80,7 +86,7 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
       body: Column(
         children: [
           _buildHeader(context),
-          _buildTabBar(),
+          _buildTabBar(water.length, electricity.length),
           Expanded(
             child: TabBarView(
               controller: _tab,
@@ -101,62 +107,29 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
       color: AppColors.adminPrimary,
       padding: EdgeInsets.fromLTRB(
         20,
-        MediaQuery.of(context).padding.top + 16,
+        MediaQuery.paddingOf(context).top + 14,
         20,
-        20,
+        16,
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'mySumber · ADMIN',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Abnormal Production',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                    height: 1.2,
-                  ),
-                ),
-              ],
+          Text(
+            'mySumber · ADMIN',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
             ),
           ),
-          Material(
-            color: Colors.white.withValues(alpha: 0.16),
-            borderRadius: BorderRadius.circular(999),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(999),
-              onTap: () => context.read<RoleState>().logout(),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.logout, size: 15, color: Colors.white),
-                    SizedBox(width: 6),
-                    Text(
-                      'Logout',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+          SizedBox(height: 3),
+          Text(
+            'Abnormal Production',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              height: 1.15,
             ),
           ),
         ],
@@ -164,407 +137,621 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
     );
   }
 
-  Widget _buildTabBar() {
+  Widget _buildTabBar(int waterCount, int electricityCount) {
     return Container(
       color: Colors.white,
       child: TabBar(
         controller: _tab,
         labelColor: AppColors.adminPrimary,
         unselectedLabelColor: AppColors.textSecondary,
-        labelStyle:
-            const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+        labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
         unselectedLabelStyle:
-            const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+            const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
         indicatorColor: AppColors.adminPrimary,
-        indicatorWeight: 2.5,
+        indicatorWeight: 3,
         dividerColor: AppColors.divider,
-        tabs: const [
-          Tab(text: 'Water'),
-          Tab(text: 'Electricity'),
+        tabs: [
+          Tab(text: 'Water $waterCount'),
+          Tab(text: 'Electricity $electricityCount'),
         ],
       ),
     );
   }
 
   Widget _waterTab(AppState app, List<NrwResult> water) {
-    final totalPages = (water.length / _perPage).ceil().clamp(1, 9999);
-    final page = _waterPage.clamp(0, totalPages - 1);
-    final pageItems =
-        water.skip(page * _perPage).take(_perPage).toList();
-
-    return Column(
-      children: [
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            children: [
-              _sectionDescription(
-                'Production vs. Consumption',
-                "States where treated water production doesn't match "
-                    'billed consumption (real data.gov.my figures).',
-              ),
-              const SizedBox(height: 16),
-              if (water.isEmpty)
-                _emptyCard('No abnormal water states detected.')
-              else
-                ...pageItems.map((r) => _lossCard(
-                      result: r,
-                      reported:
-                          app.reportedWaterStates.contains(r.state),
-                      unit: 'MLD',
-                      busyKey: 'W-${r.state}',
-                      onReport: () => _run('W-${r.state}', r.state,
-                          () => app.reportAbnormalState(r)),
-                    )),
-            ],
-          ),
-        ),
-        if (water.length > _perPage)
-          _paginationBar(
-            page: page,
-            totalPages: totalPages,
-            onPrev: page > 0
-                ? () => setState(() => _waterPage = page - 1)
-                : null,
-            onNext: page < totalPages - 1
-                ? () => setState(() => _waterPage = page + 1)
-                : null,
-          ),
-      ],
+    return _anomalyWorkspace(
+      results: water,
+      unit: 'MLD',
+      reportedStates: app.reportedWaterStates,
+      selectedState: _selectedWaterState,
+      onSelected: (state) => setState(() => _selectedWaterState = state),
+      onReport: (result) => _run(
+        'W-${result.state}',
+        result.state,
+        () => app.reportAbnormalState(result),
+      ),
+      busyKeyFor: (result) => 'W-${result.state}',
     );
   }
 
-  Widget _electricityTab(AppState app, List<NrwResult> electricity,
-      List<ElectricityRecord> tampering) {
-    final totalPages =
-        (electricity.length / _perPage).ceil().clamp(1, 9999);
-    final page = _elecPage.clamp(0, totalPages - 1);
-    final pageItems =
-        electricity.skip(page * _perPage).take(_perPage).toList();
-
-    return Column(
-      children: [
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            children: [
-              _sectionDescription(
-                'Supply vs. Consumption',
-                'States where electricity supply exceeds metered '
-                    'consumption by more than the national average.',
-              ),
-              const SizedBox(height: 16),
-              if (electricity.isEmpty)
-                _emptyCard('No abnormal electricity states detected.')
-              else
-                ...pageItems.map((r) => _lossCard(
-                      result: r,
-                      reported: app.reportedElectricityStates
-                          .contains(r.state),
-                      unit: 'GWh',
-                      busyKey: 'E-${r.state}',
-                      onReport: () => _run('E-${r.state}', r.state,
-                          () => app.reportElectricityState(r)),
-                    )),
-              if (tampering.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                const Divider(),
-                const SizedBox(height: 12),
-                _sectionDescription(
-                  'Tampering Spikes',
-                  'Months where national electricity losses spiked '
-                      'abnormally (z-score) versus the surrounding period.',
-                ),
-                const SizedBox(height: 16),
-                ...tampering.map((rec) {
-                  final key = AppState.monthKey(rec.date);
-                  return _tamperingCard(
-                    record: rec,
-                    reported:
-                        app.reportedTamperingKeys.contains(key),
-                    onReport: () => _run(
-                        'T-$key',
-                        DateFormat('MMM y').format(rec.date),
-                        () => app.reportElectricityTampering(rec)),
-                  );
-                }),
-              ],
-            ],
-          ),
-        ),
-        if (electricity.length > _perPage)
-          _paginationBar(
-            page: page,
-            totalPages: totalPages,
-            onPrev: page > 0
-                ? () => setState(() => _elecPage = page - 1)
-                : null,
-            onNext: page < totalPages - 1
-                ? () => setState(() => _elecPage = page + 1)
-                : null,
-          ),
-      ],
+  Widget _electricityTab(
+    AppState app,
+    List<NrwResult> electricity,
+    List<ElectricityRecord> tampering,
+  ) {
+    return _anomalyWorkspace(
+      results: electricity,
+      unit: 'GWh',
+      reportedStates: app.reportedElectricityStates,
+      selectedState: _selectedElectricityState,
+      onSelected: (state) => setState(() => _selectedElectricityState = state),
+      onReport: (result) => _run(
+        'E-${result.state}',
+        result.state,
+        () => app.reportElectricityState(result),
+      ),
+      busyKeyFor: (result) => 'E-${result.state}',
+      tampering: tampering,
+      onReportTampering: (record) {
+        final key = AppState.monthKey(record.date);
+        return _run(
+          'T-$key',
+          DateFormat('MMM y').format(record.date),
+          () => app.reportElectricityTampering(record),
+        );
+      },
+      isTamperingReported: (record) =>
+          app.reportedTamperingKeys.contains(AppState.monthKey(record.date)),
     );
   }
 
-  Widget _sectionDescription(String title, String subtitle) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title,
-            style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary)),
-        const SizedBox(height: 4),
-        Text(subtitle,
-            style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.textSecondary,
-                height: 1.5)),
-      ],
-    );
-  }
-
-  Widget _emptyCard(String text) => AppCard(
-        child: Text(text,
-            style: const TextStyle(color: AppColors.textSecondary)),
-      );
-
-  Widget _lossCard({
-    required NrwResult result,
-    required bool reported,
+  Widget _anomalyWorkspace({
+    required List<NrwResult> results,
     required String unit,
-    required String busyKey,
-    required VoidCallback onReport,
+    required Set<String> reportedStates,
+    required String? selectedState,
+    required ValueChanged<String> onSelected,
+    required Future<void> Function(NrwResult result) onReport,
+    required String Function(NrwResult result) busyKeyFor,
+    List<ElectricityRecord> tampering = const [],
+    Future<void> Function(ElectricityRecord record)? onReportTampering,
+    bool Function(ElectricityRecord record)? isTamperingReported,
   }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: AppCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(result.state,
-                      style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary)),
-                ),
-                const SizedBox(width: 8),
-                _severityBadge(result.severity),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text.rich(
-              TextSpan(
-                style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textSecondary,
-                    height: 1.5),
-                children: [
-                  TextSpan(
-                    text: 'Produced ${result.producedMld.round()} $unit · '
-                        'Consumed ${result.billedMld.round()} $unit · Loss ',
-                  ),
-                  TextSpan(
-                    text: '${result.lossPct.toStringAsFixed(1)}%',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary),
-                  ),
-                  TextSpan(text: ' (${result.year})'),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-            _actionButton(reported, busyKey, onReport),
-          ],
-        ),
-      ),
-    );
-  }
+    final selected = _selectedResult(results, selectedState);
+    final split = usesAbnormalProductionSplitView(MediaQuery.sizeOf(context));
+    final summary = _summaryStrip(results, reportedStates);
 
-  Widget _tamperingCard({
-    required ElectricityRecord record,
-    required bool reported,
-    required VoidCallback onReport,
-  }) {
-    final lossPct =
-        record.supply == 0 ? 0.0 : record.losses / record.supply * 100;
-    final severity = lossPct > 10
-        ? Severity.high
-        : lossPct > 6
-            ? Severity.medium
-            : Severity.low;
-    final key = AppState.monthKey(record.date);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: AppCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(DateFormat('MMMM y').format(record.date),
-                      style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary)),
-                ),
-                const SizedBox(width: 8),
-                _severityBadge(severity),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text.rich(
-              TextSpan(
-                style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textSecondary,
-                    height: 1.5),
-                children: [
-                  TextSpan(
-                      text:
-                          'National · Losses ${record.losses.round()} GWh · '),
-                  TextSpan(
-                    text: '${lossPct.toStringAsFixed(1)}%',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary),
-                  ),
-                  const TextSpan(text: ' of supply'),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-            _actionButton(reported, 'T-$key', onReport),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _severityBadge(String severity) {
-    final Color color;
-    final Color bg;
-    final String label;
-    if (severity == Severity.high) {
-      color = AppColors.critical;
-      bg = AppColors.criticalSurface;
-      label = 'High Severity';
-    } else if (severity == Severity.medium) {
-      color = AppColors.warning;
-      bg = AppColors.warningSurface;
-      label = 'Medium Severity';
-    } else {
-      color = AppColors.success;
-      bg = AppColors.successSurface;
-      label = 'Low Severity';
-    }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(label,
-          style: TextStyle(
-              color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.w600)),
-    );
-  }
-
-  Widget _actionButton(
-      bool reported, String busyKey, VoidCallback onReport) {
-    final busy = _busyKey == busyKey;
-    if (reported) {
-      return SizedBox(
-        width: double.infinity,
-        height: 44,
-        child: OutlinedButton.icon(
-          onPressed: null,
-          style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.textSecondary,
-            disabledForegroundColor: AppColors.textSecondary,
-            side: const BorderSide(color: AppColors.divider),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10)),
-          ),
-          icon: const Icon(Icons.check_circle_outline, size: 18),
-          label: const Text('Already Reported'),
-        ),
+    if (results.isEmpty) {
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        children: [summary, const SizedBox(height: 16), _emptyCard(unit)],
       );
     }
-    return SizedBox(
-      width: double.infinity,
-      height: 44,
-      child: FilledButton.icon(
-        onPressed: busy ? null : onReport,
-        style: FilledButton.styleFrom(
-          backgroundColor: AppColors.adminPrimary,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10)),
-        ),
-        icon: busy
-            ? const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2, color: Colors.white))
-            : const Icon(Icons.notifications_outlined, size: 18),
-        label: const Text('Report to Worker Queue'),
-      ),
-    );
-  }
 
-  Widget _paginationBar({
-    required int page,
-    required int totalPages,
-    required VoidCallback? onPrev,
-    required VoidCallback? onNext,
-  }) {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+    final listChildren = _rankedChildren(
+      results: results,
+      unit: unit,
+      reportedStates: reportedStates,
+      selectedState: selected?.state,
+      onSelected: onSelected,
+      onReport: onReport,
+      busyKeyFor: busyKeyFor,
+      tampering: tampering,
+      onReportTampering: onReportTampering,
+      isTamperingReported: isTamperingReported,
+    );
+
+    if (!split) {
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+        children: [summary, const SizedBox(height: 16), ...listChildren],
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
         children: [
-          IconButton(
-            onPressed: onPrev,
-            icon: const Icon(Icons.chevron_left, size: 22),
-            style: IconButton.styleFrom(
-              foregroundColor: onPrev != null
-                  ? AppColors.adminPrimary
-                  : AppColors.textTertiary,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            'Page ${page + 1} of $totalPages',
-            style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary),
-          ),
-          const SizedBox(width: 8),
-          IconButton(
-            onPressed: onNext,
-            icon: const Icon(Icons.chevron_right, size: 22),
-            style: IconButton.styleFrom(
-              foregroundColor: onNext != null
-                  ? AppColors.adminPrimary
-                  : AppColors.textTertiary,
+          summary,
+          const SizedBox(height: 12),
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.divider),
+              ),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 330,
+                    child: ListView(children: listChildren),
+                  ),
+                  const VerticalDivider(width: 1, color: AppColors.divider),
+                  Expanded(
+                    child: _detailPanel(
+                      result: selected!,
+                      unit: unit,
+                      reported: reportedStates.contains(selected.state),
+                      busyKey: busyKeyFor(selected),
+                      onReport: () => onReport(selected),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
       ),
     );
   }
+
+  NrwResult? _selectedResult(List<NrwResult> results, String? selectedState) {
+    if (results.isEmpty) return null;
+    return results.firstWhere(
+      (result) => result.state == selectedState,
+      orElse: () => results.first,
+    );
+  }
+
+  Widget _summaryStrip(List<NrwResult> results, Set<String> reportedStates) {
+    final critical =
+        results.where((result) => result.severity == Severity.high).length;
+    final high =
+        results.where((result) => result.severity == Severity.medium).length;
+    final reported =
+        results.where((result) => reportedStates.contains(result.state)).length;
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        _summaryPill('$critical Critical', AppColors.critical,
+            AppColors.criticalSurface),
+        _summaryPill('$high High', AppColors.warning, AppColors.warningSurface),
+        _summaryPill('$reported Reported', AppColors.waterAccent,
+            AppColors.waterSurface),
+        const Padding(
+          padding: EdgeInsets.only(left: 4),
+          child: Text(
+            'Sorted by highest loss',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _summaryPill(String text, Color color, Color surface) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        style:
+            TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w800),
+      ),
+    );
+  }
+
+  List<Widget> _rankedChildren({
+    required List<NrwResult> results,
+    required String unit,
+    required Set<String> reportedStates,
+    required String? selectedState,
+    required ValueChanged<String> onSelected,
+    required Future<void> Function(NrwResult result) onReport,
+    required String Function(NrwResult result) busyKeyFor,
+    required List<ElectricityRecord> tampering,
+    required Future<void> Function(ElectricityRecord record)? onReportTampering,
+    required bool Function(ElectricityRecord record)? isTamperingReported,
+  }) {
+    return [
+      const Padding(
+        padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+        child: Text(
+          'Ranked by loss',
+          style: TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            letterSpacing: .2,
+          ),
+        ),
+      ),
+      ...results.map(
+        (result) => _anomalyRow(
+          result: result,
+          unit: unit,
+          selected: selectedState == result.state,
+          reported: reportedStates.contains(result.state),
+          onTap: () => _showResult(
+            result,
+            unit,
+            reportedStates.contains(result.state),
+            busyKeyFor(result),
+            () => onReport(result),
+          ),
+          onSelect: () => onSelected(result.state),
+        ),
+      ),
+      if (tampering.isNotEmpty) ...[
+        const Divider(height: 28, color: AppColors.divider),
+        const Padding(
+          padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Text(
+            'Tampering spikes',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        ...tampering.map(
+          (record) => _tamperingRow(
+            record,
+            isTamperingReported?.call(record) ?? false,
+            () => onReportTampering?.call(record),
+          ),
+        ),
+      ],
+    ];
+  }
+
+  Widget _anomalyRow({
+    required NrwResult result,
+    required String unit,
+    required bool selected,
+    required bool reported,
+    required VoidCallback onTap,
+    required VoidCallback onSelect,
+  }) {
+    final severity = _severityStyle(result.severity);
+    return Material(
+      color: selected ? AppColors.adminSurface : Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          onSelect();
+          if (!usesAbnormalProductionSplitView(MediaQuery.sizeOf(context))) {
+            onTap();
+          }
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(
+              left: BorderSide(
+                color: selected ? AppColors.adminPrimary : Colors.transparent,
+                width: 4,
+              ),
+              bottom: const BorderSide(color: AppColors.divider),
+            ),
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+          child: Row(
+            children: [
+              Container(
+                width: 24,
+                height: 24,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                    color: severity.surface, shape: BoxShape.circle),
+                child: Text(
+                  '${result.lossPct.round()}',
+                  style: TextStyle(
+                      color: severity.color,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(result.state,
+                              style: const TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800)),
+                        ),
+                        _statusPill(
+                            reported ? 'Reported' : severity.label,
+                            reported ? AppColors.waterAccent : severity.color,
+                            reported
+                                ? AppColors.waterSurface
+                                : severity.surface),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      '${result.lossPct.toStringAsFixed(1)}% loss · '
+                      '${(result.producedMld - result.billedMld).round()} $unit gap',
+                      style: const TextStyle(
+                          color: AppColors.textSecondary, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 2),
+              const Icon(Icons.chevron_right, color: AppColors.textTertiary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showResult(
+    NrwResult result,
+    String unit,
+    bool reported,
+    String busyKey,
+    VoidCallback onReport,
+  ) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        builder: (sheetContext) => SafeArea(
+          child: SizedBox(
+            height: MediaQuery.sizeOf(sheetContext).height * .78,
+            child: _detailPanel(
+              result: result,
+              unit: unit,
+              reported: reported,
+              busyKey: busyKey,
+              onReport: onReport,
+            ),
+          ),
+        ),
+      );
+    });
+  }
+
+  Widget _detailPanel({
+    required NrwResult result,
+    required String unit,
+    required bool reported,
+    required String busyKey,
+    required VoidCallback onReport,
+  }) {
+    final severity = _severityStyle(result.severity);
+    final gap = result.producedMld - result.billedMld;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(result.state,
+              style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800)),
+          const SizedBox(height: 10),
+          _statusPill(severity.label, severity.color, severity.surface),
+          const SizedBox(height: 14),
+          RichText(
+            text: TextSpan(
+              children: [
+                TextSpan(
+                  text: '${result.lossPct.toStringAsFixed(1)}%',
+                  style: TextStyle(
+                      color: severity.color,
+                      fontSize: 42,
+                      fontWeight: FontWeight.w800),
+                ),
+                const TextSpan(
+                  text: ' loss',
+                  style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${result.year} · production does not match billed consumption.',
+            style:
+                const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+          ),
+          const SizedBox(height: 24),
+          _metricRow(result, unit, gap),
+          const SizedBox(height: 28),
+          _comparisonChart(result, unit),
+          const SizedBox(height: 28),
+          _actionButton(reported, busyKey, onReport),
+        ],
+      ),
+    );
+  }
+
+  Widget _metricRow(NrwResult result, String unit, double gap) {
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      children: [
+        _metric('Produced', result.producedMld, unit, AppColors.waterAccent),
+        _metric('Billed', result.billedMld, unit, AppColors.adminPrimary),
+        _metric('Estimated gap', gap, unit, AppColors.critical),
+      ],
+    );
+  }
+
+  Widget _metric(String label, double value, String unit, Color color) {
+    return Container(
+      width: 138,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .07),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: 11)),
+          const SizedBox(height: 4),
+          Text('${value.round()} $unit',
+              style: TextStyle(
+                  color: color, fontSize: 17, fontWeight: FontWeight.w800)),
+        ],
+      ),
+    );
+  }
+
+  Widget _comparisonChart(NrwResult result, String unit) {
+    final produced = result.producedMld;
+    final billed = result.billedMld;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Production vs. billed consumption ($unit)',
+            style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 14,
+                fontWeight: FontWeight.w800)),
+        const SizedBox(height: 12),
+        _comparisonBar(
+            'Produced', produced, produced, unit, AppColors.waterAccent),
+        const SizedBox(height: 10),
+        _comparisonBar(
+            'Billed', billed, produced, unit, AppColors.adminPrimary),
+      ],
+    );
+  }
+
+  Widget _comparisonBar(
+      String label, double value, double maximum, String unit, Color color) {
+    final fraction = maximum == 0 ? 0.0 : (value / maximum).clamp(0.0, 1.0);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+                child: Text(label,
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: 12))),
+            Text('${value.round()} $unit',
+                style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700)),
+          ],
+        ),
+        const SizedBox(height: 5),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            value: fraction,
+            minHeight: 10,
+            color: color,
+            backgroundColor: AppColors.divider,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _tamperingRow(
+      ElectricityRecord record, bool reported, VoidCallback onReport) {
+    final lossPct =
+        record.supply == 0 ? 0.0 : record.losses / record.supply * 100;
+    return ListTile(
+      dense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+      title: Text(DateFormat('MMM y').format(record.date),
+          style: const TextStyle(
+              fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+      subtitle: Text('${lossPct.toStringAsFixed(1)}% of supply',
+          style: const TextStyle(color: AppColors.textSecondary)),
+      trailing: TextButton(
+        onPressed: reported ? null : onReport,
+        child: Text(reported ? 'Reported' : 'Report'),
+      ),
+    );
+  }
+
+  Widget _emptyCard(String unit) => AppCard(
+        child: Text(
+          'No abnormal $unit production states detected.',
+          style: const TextStyle(color: AppColors.textSecondary),
+        ),
+      );
+
+  Widget _statusPill(String text, Color color, Color surface) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+          color: surface, borderRadius: BorderRadius.circular(999)),
+      child: Text(text,
+          style: TextStyle(
+              color: color, fontSize: 11, fontWeight: FontWeight.w800)),
+    );
+  }
+
+  _SeverityStyle _severityStyle(String severity) {
+    if (severity == Severity.high) {
+      return const _SeverityStyle(
+          'Critical', AppColors.critical, AppColors.criticalSurface);
+    }
+    if (severity == Severity.medium) {
+      return const _SeverityStyle(
+          'High', AppColors.warning, AppColors.warningSurface);
+    }
+    return const _SeverityStyle(
+        'Monitor', AppColors.success, AppColors.successSurface);
+  }
+
+  Widget _actionButton(bool reported, String busyKey, VoidCallback onReport) {
+    final busy = _busyKey == busyKey;
+    return SizedBox(
+      width: double.infinity,
+      height: 46,
+      child: reported
+          ? OutlinedButton.icon(
+              onPressed: null,
+              icon: const Icon(Icons.check_circle_outline, size: 18),
+              label: const Text('Already reported'),
+            )
+          : FilledButton.icon(
+              onPressed: busy ? null : onReport,
+              style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.adminPrimary),
+              icon: busy
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.person_add_alt_1_outlined, size: 18),
+              label: const Text('Send to worker queue'),
+            ),
+    );
+  }
+}
+
+class _SeverityStyle {
+  final String label;
+  final Color color;
+  final Color surface;
+
+  const _SeverityStyle(this.label, this.color, this.surface);
 }
