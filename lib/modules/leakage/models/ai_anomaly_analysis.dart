@@ -29,14 +29,9 @@ class AiAnomalyAnalysis {
   factory AiAnomalyAnalysis.fromJson(Map<String, dynamic> json) {
     final summary = (json['summary'] as String?)?.trim() ?? '';
     final cause = (json['possible_cause'] as String?)?.trim() ?? '';
-    final severity = (json['severity_assessment'] as String?)?.trim() ?? '';
+    final severity = _normalizeSeverity(json['severity_assessment']);
     final recommendation = (json['recommendation'] as String?)?.trim() ?? '';
-    final rawConfidence = json['confidence'];
-    final confidence = rawConfidence is num
-        ? rawConfidence.toDouble()
-        : rawConfidence is String
-            ? double.tryParse(rawConfidence.trim())
-            : null;
+    final confidence = _parseConfidence(json['confidence']);
 
     if (summary.isEmpty ||
         cause.isEmpty ||
@@ -56,6 +51,39 @@ class AiAnomalyAnalysis {
       recommendation: recommendation,
       generatedAt: DateTime.now(),
     );
+  }
+
+  static String _normalizeSeverity(Object? value) {
+    switch (value?.toString().trim().toLowerCase()) {
+      case 'low':
+        return 'Low';
+      case 'medium':
+        return 'Medium';
+      case 'high':
+        return 'High';
+      default:
+        return '';
+    }
+  }
+
+  static double? _parseConfidence(Object? value) {
+    if (value is num) {
+      final confidence = value.toDouble();
+      return confidence > 1 && confidence <= 100
+          ? confidence / 100
+          : confidence;
+    }
+
+    if (value is! String) return null;
+    final text = value.trim();
+    final isPercentage = text.endsWith('%');
+    final parsed = double.tryParse(
+      isPercentage ? text.substring(0, text.length - 1).trim() : text,
+    );
+    if (parsed == null) return null;
+    return isPercentage || (parsed > 1 && parsed <= 100)
+        ? parsed / 100
+        : parsed;
   }
 
   Map<String, Object?> toAlertFields() => {
