@@ -1,23 +1,32 @@
+import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'theme/tokens.dart';
+import 'config.dart';
 
 import 'modules/admin/screens/abnormal_production_screen.dart';
 import 'modules/admin/screens/oversight_screen.dart';
 import 'modules/admin/screens/review_management_screen.dart';
+import 'modules/admin/screens/worker_accounts_screen.dart';
+import 'modules/admin/services/admin_tablet_layout.dart';
+import 'modules/admin/widgets/admin_compact_rail.dart';
 
 import 'modules/auth/screens/landing_screen.dart';
+import 'modules/auth/screens/reset_password_screen.dart';
 import 'modules/auth/state/auth_state.dart' show RoleState;
 
 import 'modules/leakage/data/leakage_repository.dart';
 import 'modules/leakage/models/alert.dart' show Utility;
 import 'modules/leakage/screens/home_screen.dart';
 import 'modules/leakage/services/baseline_service.dart';
+import 'modules/leakage/services/anomaly_ai_service.dart';
 import 'modules/leakage/services/nrw_service.dart';
 import 'modules/leakage/services/simulation_service.dart';
+import 'modules/leakage/services/worker_compact_layout.dart';
 import 'modules/leakage/state/app_state.dart';
+import 'modules/leakage/widgets/worker_compact_rail.dart';
 
 import 'modules/dataset/data/dataset_repository.dart';
 import 'modules/dataset/screens/dashboard_screen.dart';
@@ -28,7 +37,9 @@ import 'modules/usage/screens/customer_home_screen.dart';
 import 'modules/usage/screens/compare_usage_screen.dart';
 import 'modules/usage/screens/profile_setup_screen.dart';
 import 'modules/usage/screens/report_problem_screen.dart';
+import 'modules/usage/services/customer_compact_layout.dart';
 import 'modules/usage/state/usage_state.dart';
+import 'modules/usage/widgets/customer_compact_rail.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -62,11 +73,16 @@ class MySumberApp extends StatelessWidget {
               baseline: baseline,
               repository: repository,
             );
+            final anomalyAi = AnomalyAiService(
+              client: http.Client(),
+              apiKey: GroqConfig.apiKey,
+            );
             final state = AppState(
               baseline: baseline,
               nrw: nrw,
               repository: repository,
               simulation: simulation,
+              anomalyAi: anomalyAi,
             );
             state.init();
             return state;
@@ -145,6 +161,9 @@ class MySumberApp extends StatelessWidget {
         ),
         home: Consumer<RoleState>(
           builder: (BuildContext context, RoleState authState, Widget? _) {
+            if (authState.requiresPasswordReset) {
+              return const ResetPasswordScreen();
+            }
             if (authState.isLoggedIn) {
               // Authoritative regardless of how the session arrived — a
               // cold app start via the email-link deep link never has
@@ -198,13 +217,15 @@ class _AppShellState extends State<AppShell> {
           const AbnormalProductionScreen(),
           const OversightScreen(),
           const ReviewManagementScreen(),
+          const WorkerAccountsScreen(),
         ];
         _navItems = const [
           _NavItem(icon: Icons.grid_view_outlined, label: 'Dashboard'),
           _NavItem(icon: Icons.inventory_2_outlined, label: 'Inventory'),
           _NavItem(icon: Icons.notifications_outlined, label: 'Alerts'),
           _NavItem(icon: Icons.shield_outlined, label: 'Oversight'),
-          _NavItem(icon: Icons.article_outlined, label: 'Review'),
+          _NavItem(icon: Icons.analytics_outlined, label: 'AI Review'),
+          _NavItem(icon: Icons.manage_accounts_outlined, label: 'Workers'),
         ];
         break;
       case 'worker':
@@ -219,7 +240,8 @@ class _AppShellState extends State<AppShell> {
         break;
       default:
         _screens = [
-          CustomerHomeScreen(onUsageTap: () => setState(() => _currentIndex = 1)),
+          CustomerHomeScreen(
+              onUsageTap: () => setState(() => _currentIndex = 1)),
           const CompareUsageScreen(),
           const ReportProblemScreen(),
         ];
@@ -241,52 +263,144 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     final primary = rolePrimary(widget.userRole);
-    return Scaffold(
-      backgroundColor: AppColors.canvas,
-      body: _screens[_currentIndex],
-      bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          border: Border(
-            top: BorderSide(color: AppColors.divider, width: 1),
-          ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isAdmin = widget.userRole == 'admin';
+        final isWorker = widget.userRole == 'worker';
+        final isCustomer = widget.userRole == 'user';
+        final mode = isAdmin
+            ? adminLayoutModeFor(
+                Size(constraints.maxWidth, constraints.maxHeight),
+              )
+            : null;
+        final useCompactRail = mode == AdminLayoutMode.phoneLandscape;
+        final useTabletRail = mode == AdminLayoutMode.tabletLandscape;
+        final usesAdminRail = useCompactRail || useTabletRail;
+        final usesCustomerCompactRail = isCustomer &&
+            usesCustomerPhoneLandscape(
+              Size(constraints.maxWidth, constraints.maxHeight),
+            );
+        final usesWorkerCompactRail = isWorker &&
+            usesWorkerPhoneLandscape(
+              Size(constraints.maxWidth, constraints.maxHeight),
+            );
+        final usesRoleRail =
+            usesAdminRail || usesCustomerCompactRail || usesWorkerCompactRail;
+        final screenStack = IndexedStack(
+          index: _currentIndex,
+          children: _screens,
+        );
+
+        return Scaffold(
+          backgroundColor: AppColors.canvas,
+          body: usesRoleRail
+              ? Row(
+                  children: [
+                    if (useCompactRail)
+                      AdminCompactRail(
+                        currentIndex: _currentIndex,
+                        onDestinationSelected: (index) =>
+                            setState(() => _currentIndex = index),
+                        onLogout: () => context.read<RoleState>().logout(),
+                      )
+                    else if (useTabletRail)
+                      NavigationRail(
+                        selectedIndex: _currentIndex,
+                        onDestinationSelected: (index) =>
+                            setState(() => _currentIndex = index),
+                        labelType: NavigationRailLabelType.all,
+                        backgroundColor: Colors.white,
+                        indicatorColor: AppColors.adminSurface,
+                        selectedIconTheme:
+                            const IconThemeData(color: AppColors.adminPrimary),
+                        selectedLabelTextStyle: const TextStyle(
+                          color: AppColors.adminPrimary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        unselectedIconTheme:
+                            const IconThemeData(color: AppColors.textTertiary),
+                        unselectedLabelTextStyle: const TextStyle(
+                          color: AppColors.textTertiary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        destinations: [
+                          for (final item in _navItems)
+                            NavigationRailDestination(
+                              icon: Icon(item.icon),
+                              selectedIcon: Icon(item.icon),
+                              label: Text(item.label),
+                            ),
+                        ],
+                      )
+                    else if (usesWorkerCompactRail)
+                      WorkerCompactRail(
+                        currentIndex: _currentIndex,
+                        onDestinationSelected: (index) =>
+                            setState(() => _currentIndex = index),
+                        onLogout: () => context.read<RoleState>().logout(),
+                      )
+                    else
+                      CustomerCompactRail(
+                        currentIndex: _currentIndex,
+                        onDestinationSelected: (index) =>
+                            setState(() => _currentIndex = index),
+                        onLogout: () => context.read<RoleState>().logout(),
+                      ),
+                    const VerticalDivider(width: 1),
+                    Expanded(child: screenStack),
+                  ],
+                )
+              : screenStack,
+          bottomNavigationBar:
+              usesRoleRail ? null : _buildBottomNavigation(primary),
+        );
+      },
+    );
+  }
+
+  Widget _buildBottomNavigation(Color primary) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          top: BorderSide(color: AppColors.divider, width: 1),
         ),
-        child: SafeArea(
-          top: false,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(_navItems.length, (i) {
-              final item = _navItems[i];
-              final selected = i == _currentIndex;
-              return Expanded(
-                child: InkWell(
-                  onTap: () => setState(() => _currentIndex = i),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          item.icon,
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: List.generate(_navItems.length, (i) {
+            final item = _navItems[i];
+            final selected = i == _currentIndex;
+            return Expanded(
+              child: InkWell(
+                onTap: () => setState(() => _currentIndex = i),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        item.icon,
+                        color: selected ? primary : AppColors.textTertiary,
+                        size: 24,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        item.label,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
                           color: selected ? primary : AppColors.textTertiary,
-                          size: 24,
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          item.label,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: selected ? primary : AppColors.textTertiary,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
-              );
-            }),
-          ),
+              ),
+            );
+          }),
         ),
       ),
     );

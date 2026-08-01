@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
+import '../../admin/services/admin_tablet_layout.dart';
 import '../state/dataset_state.dart';
 import '../models/models.dart';
 
@@ -17,6 +18,12 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   String _selectedPeriod = 'Monthly';
+  final _stateBarController = ScrollController();
+  final _standardDashboardController = ScrollController();
+  final _landscapeDashboardController = ScrollController();
+  final _fullDashboardKey = GlobalKey();
+  AdminLayoutMode? _lastDashboardMode;
+  double _dashboardScrollOffset = 0;
 
   @override
   void initState() {
@@ -24,6 +31,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<DatasetState>().loadNodes();
     });
+  }
+
+  @override
+  void dispose() {
+    _stateBarController.dispose();
+    _standardDashboardController.dispose();
+    _landscapeDashboardController.dispose();
+    super.dispose();
   }
 
   @override
@@ -38,29 +53,352 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final sortedByHealth = [...nodes]
       ..sort((a, b) => a.healthScore.compareTo(b.healthScore));
     final healthPreview = sortedByHealth.take(3).toList();
+    final priority = healthPreview.isEmpty ? null : healthPreview.first;
+    final mode = adminLayoutModeFor(MediaQuery.sizeOf(context));
+    _syncDashboardScrollMode(mode);
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
       body: state.isLoading
           ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: EdgeInsets.zero,
+          : mode == AdminLayoutMode.phoneLandscape
+              ? _phoneLandscapeDashboard(
+                  state: state,
+                  total: total,
+                  active: active,
+                  warning: warning,
+                  critical: critical,
+                  priority: priority,
+                  healthPreview: healthPreview,
+                )
+              : ListView(
+                  controller: _standardDashboardController,
+                  key: const PageStorageKey('admin-dashboard-standard-list'),
+                  padding: EdgeInsets.zero,
+                  children: [
+                    _header(context),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child:
+                          _systemOverviewCard(total, active, warning, critical),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                      child: _usageComparisonCard(state),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                      child: _equipmentHealthCard(healthPreview),
+                    ),
+                  ],
+                ),
+    );
+  }
+
+  Widget _phoneLandscapeDashboard({
+    required DatasetState state,
+    required int total,
+    required int active,
+    required int warning,
+    required int critical,
+    required EquipmentNode? priority,
+    required List<EquipmentNode> healthPreview,
+  }) {
+    return SafeArea(
+      child: ListView(
+        controller: _landscapeDashboardController,
+        key: const PageStorageKey('phone-landscape-dashboard'),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        children: [
+          SizedBox(
+            height: 56,
+            child: Row(
               children: [
-                _header(context),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  child: _systemOverviewCard(total, active, warning, critical),
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: AppColors.adminSurface,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(
+                    Icons.grid_view_outlined,
+                    color: AppColors.adminPrimary,
+                  ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                  child: _usageComparisonCard(state),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Dashboard',
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Text(
+                        'Priority system status',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                  child: _equipmentHealthCard(healthPreview),
+                Tooltip(
+                  message: 'View full dashboard',
+                  child: TextButton(
+                    onPressed: _scrollToFullDashboard,
+                    child: const Text('View full'),
+                  ),
                 ),
               ],
             ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 200,
+            child: Row(
+              children: [
+                Expanded(
+                  child: _landscapeStatusPanel(
+                    active: active,
+                    critical: critical,
+                    warning: warning,
+                    total: total,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(child: _landscapePriorityPanel(priority)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          KeyedSubtree(
+            key: _fullDashboardKey,
+            child: _usageComparisonCard(state),
+          ),
+          const SizedBox(height: 16),
+          _equipmentHealthCard(healthPreview),
+        ],
+      ),
+    );
+  }
+
+  void _syncDashboardScrollMode(AdminLayoutMode mode) {
+    final isLandscape = mode == AdminLayoutMode.phoneLandscape;
+    final previousMode = _lastDashboardMode;
+    final wasLandscape = previousMode == AdminLayoutMode.phoneLandscape;
+    _lastDashboardMode = mode;
+
+    if (previousMode == null || wasLandscape == isLandscape) return;
+
+    final source = wasLandscape
+        ? _landscapeDashboardController
+        : _standardDashboardController;
+    if (source.hasClients) {
+      _dashboardScrollOffset = source.offset;
+    }
+    final target = isLandscape
+        ? _landscapeDashboardController
+        : _standardDashboardController;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !target.hasClients) return;
+      final maxOffset = target.position.maxScrollExtent;
+      target.jumpTo(_dashboardScrollOffset.clamp(0, maxOffset));
+    });
+  }
+
+  void _scrollToFullDashboard() {
+    final targetContext = _fullDashboardKey.currentContext;
+    if (targetContext == null) return;
+    Scrollable.ensureVisible(
+      targetContext,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+      alignment: 0,
+    );
+  }
+
+  Widget _landscapeStatusPanel({
+    required int active,
+    required int critical,
+    required int warning,
+    required int total,
+  }) {
+    return AppCard(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SectionLabel('System health'),
+          const Spacer(),
+          Row(
+            children: [
+              Expanded(
+                child: _landscapeStat(
+                  label: 'Active',
+                  value: active,
+                  color: AppColors.success,
+                  background: AppColors.successSurface,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _landscapeStat(
+                  label: 'Critical',
+                  value: critical,
+                  color: AppColors.critical,
+                  background: AppColors.criticalSurface,
+                ),
+              ),
+            ],
+          ),
+          const Spacer(),
+          Text(
+            '$total monitored · $warning warning${warning == 1 ? '' : 's'}',
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _landscapeStat({
+    required String label,
+    required int value,
+    required Color color,
+    required Color background,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            value.toString(),
+            style: TextStyle(
+              color: color,
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _landscapePriorityPanel(EquipmentNode? priority) {
+    if (priority == null) {
+      return const AppCard(
+        child: Center(
+          child: Text(
+            'No equipment available.',
+            style: TextStyle(color: AppColors.textSecondary),
+          ),
+        ),
+      );
+    }
+
+    final location = [priority.facilityName, priority.zoneId]
+        .whereType<String>()
+        .where((value) => value.isNotEmpty)
+        .join(' · ');
+    final scoreColor = priority.healthScore < 70
+        ? AppColors.critical
+        : priority.healthScore < 85
+            ? AppColors.warning
+            : AppColors.success;
+
+    return AppCard(
+      key: const ValueKey('priority-equipment'),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SectionLabel('Priority equipment'),
+          const Spacer(),
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: scoreColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                alignment: Alignment.center,
+                child: Icon(Icons.monitor_heart_outlined, color: scoreColor),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  priority.nodeName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              Text(
+                '${priority.healthScore}%',
+                style: TextStyle(
+                  color: scoreColor,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            location.isEmpty
+                ? priority.status
+                : '$location · ${priority.status}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const Spacer(),
+          const Text(
+            'Open Inventory for full equipment health.',
+            style: TextStyle(
+              color: AppColors.textTertiary,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -456,8 +794,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         SizedBox(
           height: scrollHeight,
           child: Scrollbar(
+            controller: _stateBarController,
             thumbVisibility: true,
             child: ListView.builder(
+              controller: _stateBarController,
               padding: const EdgeInsets.only(right: 8),
               physics: const ClampingScrollPhysics(),
               itemCount: states.length,

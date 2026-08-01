@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../data/account_repository.dart';
+import '../models/account_profile.dart';
+
 /// Must match the intent-filter scheme/host registered in
 /// AndroidManifest.xml and the redirect URL configured in the Supabase
 /// dashboard's Google provider settings.
@@ -12,15 +15,31 @@ const googleOAuthRedirect = 'io.supabase.mysumber://login-callback';
 // second-factor link while the team is testing the rest of the app.
 const enableEmailSecondFactor = false;
 
-/// Hardcoded staff email -> role lookup. Anyone not listed here signs in
-/// as a normal user. Fix first; swap for a `profiles` table once role
-/// management needs to be self-service.
-const Map<String, String> _staffRoles = {
-  'admin@mysumber.my': 'admin',
-  'worker@mysumber.my': 'worker',
-};
+bool hasPendingPasswordSetup(User user) =>
+    user.userMetadata?['must_set_password'] == true;
 
 class RoleState extends ChangeNotifier {
+  RoleState({AccountRepository? accountRepository})
+      : _accountRepository = accountRepository ?? AccountRepository() {
+    _authSubscription =
+        Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+      final session = data.session;
+      if (data.event == AuthChangeEvent.passwordRecovery) {
+        _requiresPasswordReset = true;
+        notifyListeners();
+      }
+      if (session != null && !_verifyingCredentials) {
+        if (hasPendingPasswordSetup(session.user)) {
+          _requiresPasswordReset = true;
+          notifyListeners();
+        }
+        unawaited(_applyProfile(session.user));
+      }
+    });
+  }
+
+  final AccountRepository _accountRepository;
+  AccountProfile? _profile;
   String? _userRole;
   String? _email;
   bool _isLoading = false;
@@ -28,6 +47,7 @@ class RoleState extends ChangeNotifier {
   bool _awaitingSecondFactor = false;
   String? _pendingEmail;
   bool _profileSetupSkipped = false;
+  bool _requiresPasswordReset = false;
   late final StreamSubscription<AuthState> _authSubscription;
 
   /// True for the brief window in [login] between the factor-1 password
@@ -37,24 +57,6 @@ class RoleState extends ChangeNotifier {
   /// session as a real login just before it gets signed out.
   bool _verifyingCredentials = false;
 
-  RoleState() {
-    // Google sign-in and the email-link second factor both complete
-    // asynchronously via an external browser + deep link, so there's no
-    // Future to await the way plain email/password login has — this is
-    // what actually updates state once either one lands back.
-    _authSubscription =
-        Supabase.instance.client.auth.onAuthStateChange.listen((data) {
-      final session = data.session;
-      if (session != null && !_verifyingCredentials) {
-        _awaitingSecondFactor = false;
-        _pendingEmail = null;
-        _email = session.user.email;
-        _userRole = _resolveRole(_email);
-        notifyListeners();
-      }
-    });
-  }
-
   @override
   void dispose() {
     _authSubscription.cancel();
@@ -62,6 +64,7 @@ class RoleState extends ChangeNotifier {
   }
 
   String? get userRole => _userRole;
+  AccountProfile? get profile => _profile;
   String? get email => _email;
   bool get isLoggedIn => _userRole != null;
   bool get isLoading => _isLoading;
@@ -71,6 +74,7 @@ class RoleState extends ChangeNotifier {
   /// link (second factor) hasn't been clicked yet.
   bool get awaitingSecondFactor => _awaitingSecondFactor;
   String? get pendingEmail => _pendingEmail;
+  bool get requiresPasswordReset => _requiresPasswordReset;
 
   Map<String, dynamic>? get _metadata =>
       Supabase.instance.client.auth.currentUser?.userMetadata;
@@ -169,21 +173,97 @@ class RoleState extends ChangeNotifier {
     }
   }
 
-  String _resolveRole(String? email) =>
-      _staffRoles[email?.toLowerCase()] ?? 'user';
+  Future<bool> _applyProfile(User user) async {
+    try {
+      final profile = await _accountRepository.currentProfile(user.id);
+      if (profile == null) {
+        _errorMessage = 'Your account profile is not ready yet.';
+        _userRole = null;
+      } else if (profile.role == 'worker' && !profile.isActive) {
+        _errorMessage =
+            'Your worker account is currently inactive. Please contact your administrator.';
+        _userRole = null;
+        await Supabase.instance.client.auth.signOut(scope: SignOutScope.local);
+      } else {
+        _profile = profile;
+        _email = profile.email;
+        _userRole = profile.role == 'customer' ? 'user' : profile.role;
+        _awaitingSecondFactor = false;
+        _pendingEmail = null;
+      }
+      notifyListeners();
+      return _userRole != null;
+    } catch (e) {
+      _errorMessage = 'Could not load account profile';
+      _userRole = null;
+      notifyListeners();
+      return false;
+    }
+  }
 
   void clearError() {
     _errorMessage = null;
     notifyListeners();
   }
 
+  Future<bool> sendPasswordRecovery(String email) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      await Supabase.instance.client.auth.resetPasswordForEmail(
+        email,
+        redirectTo: googleOAuthRedirect,
+      );
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } on AuthException catch (e) {
+      _errorMessage = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = 'Could not send password reset email';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> updateRecoveredPassword(String password) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      await Supabase.instance.client.auth.updateUser(
+        UserAttributes(
+          password: password,
+          data: {'must_set_password': false},
+        ),
+      );
+      _requiresPasswordReset = false;
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } on AuthException catch (e) {
+      _errorMessage = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = 'Could not update password';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<void> checkExistingSession() async {
     try {
       final session = Supabase.instance.client.auth.currentSession;
       if (session != null) {
-        _email = session.user.email;
-        _userRole = _resolveRole(_email);
-        notifyListeners();
+        await _applyProfile(session.user);
       }
     } catch (e) {
       // No existing session
@@ -216,11 +296,10 @@ class RoleState extends ChangeNotifier {
 
       if (response.session != null) {
         // Confirmation isn't required — account is immediately usable.
-        _email = email;
-        _userRole = _resolveRole(email);
+        final profileReady = await _applyProfile(response.user!);
         _isLoading = false;
         notifyListeners();
-        return true;
+        return profileReady;
       }
 
       _pendingEmail = email;
@@ -290,11 +369,10 @@ class RoleState extends ChangeNotifier {
         _verifyingCredentials = false;
         _awaitingSecondFactor = false;
         _pendingEmail = null;
-        _email = response.user!.email ?? email;
-        _userRole = _resolveRole(_email);
+        final profileReady = await _applyProfile(response.user!);
         _isLoading = false;
         notifyListeners();
-        return true;
+        return profileReady;
       }
 
       await Supabase.instance.client.auth.signOut();
@@ -356,8 +434,10 @@ class RoleState extends ChangeNotifier {
       await Supabase.instance.client.auth.signOut();
       _userRole = null;
       _email = null;
+      _profile = null;
       _errorMessage = null;
       _profileSetupSkipped = false;
+      _requiresPasswordReset = false;
       _isLoading = false;
       notifyListeners();
     } catch (e) {

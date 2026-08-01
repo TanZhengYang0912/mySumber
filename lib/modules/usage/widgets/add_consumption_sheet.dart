@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../../theme/tokens.dart';
 import '../models/utility_entry.dart';
+import '../services/customer_compact_layout.dart';
 import '../state/usage_state.dart';
 
 Color _accentFor(UtilityType utility) => utility == UtilityType.water
@@ -138,9 +139,12 @@ class _ValueEntryDialogState extends State<_ValueEntryDialog> {
 
   Future<void> _pickMonth() async {
     var picked = _selectedMonth;
+    final isPhoneLandscape =
+        usesCustomerPhoneLandscape(MediaQuery.sizeOf(context));
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.white,
+      isScrollControlled: isPhoneLandscape,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -149,7 +153,12 @@ class _ValueEntryDialogState extends State<_ValueEntryDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 8, 4),
+              padding: EdgeInsets.fromLTRB(
+                20,
+                isPhoneLandscape ? 10 : 16,
+                8,
+                isPhoneLandscape ? 0 : 4,
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -166,7 +175,7 @@ class _ValueEntryDialogState extends State<_ValueEntryDialog> {
               ),
             ),
             SizedBox(
-              height: 216,
+              height: isPhoneLandscape ? 176 : 216,
               child: CupertinoDatePicker(
                 mode: CupertinoDatePickerMode.monthYear,
                 initialDateTime: _selectedMonth,
@@ -182,6 +191,49 @@ class _ValueEntryDialogState extends State<_ValueEntryDialog> {
     if (mounted) setState(() => _selectedMonth = picked);
   }
 
+  Future<void> _save() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    final value = double.parse(_controller.text.trim());
+    final month = _selectedMonth;
+    final usage = context.read<UsageState>();
+    final rootContext = context;
+    Navigator.of(context).pop();
+    try {
+      await usage.addEntry(
+        utility: widget.utility,
+        value: value,
+        month: month,
+      );
+      if (rootContext.mounted) {
+        ScaffoldMessenger.of(rootContext).showSnackBar(SnackBar(
+          content: Text(
+            '${widget.utility.label} usage for ${_monthYearLabel(month)} saved: '
+            '${value.toStringAsFixed(1)} ${widget.utility.unit}',
+          ),
+          backgroundColor: AppColors.success,
+        ));
+      }
+    } catch (e) {
+      if (rootContext.mounted) {
+        ScaffoldMessenger.of(rootContext).showSnackBar(SnackBar(
+          content: Text('Could not save reading: $e'),
+          backgroundColor: AppColors.critical,
+        ));
+      }
+    }
+  }
+
+  Widget _saveButton(Color accent, bool isDuplicate, {bool compact = false}) {
+    return FilledButton(
+      style: FilledButton.styleFrom(
+        backgroundColor: accent,
+        minimumSize: compact ? const Size(0, 40) : null,
+      ),
+      onPressed: isDuplicate ? null : _save,
+      child: const Text('Save'),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final utility = widget.utility;
@@ -189,9 +241,23 @@ class _ValueEntryDialogState extends State<_ValueEntryDialog> {
     final existing =
         context.watch<UsageState>().entryForMonth(utility, _selectedMonth);
     final isDuplicate = existing != null;
+    final isPhoneLandscape =
+        usesCustomerPhoneLandscape(MediaQuery.sizeOf(context));
 
     return AlertDialog(
+      insetPadding: isPhoneLandscape
+          ? const EdgeInsets.symmetric(horizontal: 24, vertical: 12)
+          : null,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      titlePadding: isPhoneLandscape
+          ? const EdgeInsets.fromLTRB(20, 14, 20, 0)
+          : null,
+      contentPadding: isPhoneLandscape
+          ? const EdgeInsets.fromLTRB(20, 8, 20, 4)
+          : null,
+      actionsPadding: isPhoneLandscape
+          ? const EdgeInsets.fromLTRB(12, 0, 12, 10)
+          : null,
       title: Row(
         children: [
           Icon(_iconFor(utility), color: accent, size: 20),
@@ -210,7 +276,7 @@ class _ValueEntryDialogState extends State<_ValueEntryDialog> {
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textSecondary)),
-            const SizedBox(height: 6),
+            SizedBox(height: isPhoneLandscape ? 4 : 6),
             Material(
               color: accent.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(12),
@@ -218,8 +284,10 @@ class _ValueEntryDialogState extends State<_ValueEntryDialog> {
                 borderRadius: BorderRadius.circular(12),
                 onTap: _pickMonth,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 12),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: isPhoneLandscape ? 8 : 12,
+                  ),
                   child: Row(
                     children: [
                       Icon(Icons.calendar_month_outlined,
@@ -271,14 +339,26 @@ class _ValueEntryDialogState extends State<_ValueEntryDialog> {
                 ),
               ),
             ] else ...[
-              const SizedBox(height: 16),
+              SizedBox(height: isPhoneLandscape ? 10 : 16),
+              if (isPhoneLandscape) ...[
+                const Text(
+                  'Usage',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+              ],
               TextFormField(
                 controller: _controller,
                 autofocus: true,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
                 decoration: InputDecoration(
-                  labelText: 'Usage',
+                  labelText: isPhoneLandscape ? null : 'Usage',
+                  hintText: isPhoneLandscape ? 'Enter usage' : null,
                   suffixText: utility.unit,
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -297,42 +377,27 @@ class _ValueEntryDialogState extends State<_ValueEntryDialog> {
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: accent),
-          onPressed: isDuplicate
-              ? null
-              : () async {
-                  if (!(_formKey.currentState?.validate() ?? false)) return;
-                  final value = double.parse(_controller.text.trim());
-                  final month = _selectedMonth;
-                  final usage = context.read<UsageState>();
-                  final rootContext = context;
-                  Navigator.of(context).pop();
-                  try {
-                    await usage.addEntry(
-                        utility: utility, value: value, month: month);
-                    if (rootContext.mounted) {
-                      ScaffoldMessenger.of(rootContext).showSnackBar(SnackBar(
-                        content: Text(
-                            '${utility.label} usage for ${_monthYearLabel(month)} saved: ${value.toStringAsFixed(1)} ${utility.unit}'),
-                        backgroundColor: AppColors.success,
-                      ));
-                    }
-                  } catch (e) {
-                    if (rootContext.mounted) {
-                      ScaffoldMessenger.of(rootContext).showSnackBar(SnackBar(
-                        content: Text('Could not save reading: $e'),
-                        backgroundColor: AppColors.critical,
-                      ));
-                    }
-                  }
-                },
-          child: const Text('Save'),
-        ),
+        if (isPhoneLandscape)
+          Row(
+            children: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              const Spacer(),
+              SizedBox(
+                width: 112,
+                child: _saveButton(accent, isDuplicate, compact: true),
+              ),
+            ],
+          )
+        else ...[
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          _saveButton(accent, isDuplicate),
+        ],
       ],
     );
   }

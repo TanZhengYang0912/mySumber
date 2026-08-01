@@ -78,7 +78,7 @@ lib/
     │
     └── leakage/                       Module 3: Water Leakage Detection (worker) — also carries electricity loss logic
         ├── data/                      LeakageRepository (Supabase CRUD)
-        ├── models/                    Alert, Reading, Report, AiSummary, ServiceReview
+        ├── models/                    Alert, Reading, Report, AiAnomalyAnalysis
         ├── screens/                   Home, alert queue/detail/evidence, reports
         ├── services/                  Detection, baseline, explainer, NRW, simulation, electricity_loss_service
         └── state/                     AppState (Provider)
@@ -99,7 +99,7 @@ assets/
 | Module | Owner | Purpose | Storage | Status |
 |--------|-------|---------|---------|--------|
 | 0. Auth | Assigned | Landing + role-based login (Admin/Worker/Customer) | Supabase auth | ✅ Complete |
-| Admin | Chun Jie Tan | Oversight, abnormal production, review management | Local CSV + Supabase | ✅ Active |
+| Admin | Chun Jie Tan | Oversight, abnormal production, AI anomaly review | Local CSV + Supabase | ✅ Active |
 | 1. Equipment | Chun Jie Tan | Dataset management & state variance | Local CSV | ✅ Active |
 | 2. Comparison | Unassigned | Household vs. state usage, reports, notifications | Local CSV | ✅ Active (built out) |
 | 3. Leakage | Worker X | Water anomaly detection + electricity loss | Supabase + CSV | ✅ Active |

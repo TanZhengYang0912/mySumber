@@ -11,6 +11,10 @@ import '../../leakage/screens/style.dart';
 import '../../leakage/state/app_state.dart';
 import 'abnormal_production_screen.dart';
 import 'admin_alert_detail_screen.dart';
+import '../services/admin_tablet_layout.dart';
+import '../services/anomaly_review_filter.dart';
+import '../widgets/landscape_filter_menu.dart';
+import '../widgets/oversight_landscape_workspace.dart';
 
 enum OversightSection { alerts, reports }
 
@@ -30,6 +34,10 @@ class _OversightScreenState extends State<OversightScreen>
   Utility? _reportUtility;
   String? _reportOutcome;
   String? _reportState;
+  Set<String> _landscapeStatuses = {AlertStatus.pending};
+  Utility? _landscapeUtility;
+  bool _landscapeHighSeverityOnly = false;
+  final _landscapeAlertController = ScrollController();
   final _reportSearch = TextEditingController();
 
   @override
@@ -38,8 +46,7 @@ class _OversightScreenState extends State<OversightScreen>
     _outerTab = TabController(
       length: 2,
       vsync: this,
-      initialIndex:
-          widget.initialSection == OversightSection.alerts ? 0 : 1,
+      initialIndex: widget.initialSection == OversightSection.alerts ? 0 : 1,
     );
     _outerTab.addListener(() => setState(() {}));
   }
@@ -47,15 +54,101 @@ class _OversightScreenState extends State<OversightScreen>
   @override
   void dispose() {
     _outerTab.dispose();
+    _landscapeAlertController.dispose();
     _reportSearch.dispose();
     super.dispose();
+  }
+
+  AnomalyReviewQuery _oversightAlertQuery() => AnomalyReviewQuery(
+        statuses: _landscapeStatuses,
+        utility: _landscapeUtility,
+        highSeverityOnly: _landscapeHighSeverityOnly,
+      );
+
+  int get _activeLandscapeFilterCount {
+    var count = 0;
+    if (!_landscapeStatuses.contains(AlertStatus.pending) ||
+        _landscapeStatuses.length != 1) {
+      count++;
+    }
+    if (_landscapeUtility != null) count++;
+    if (_landscapeHighSeverityOnly) count++;
+    return count;
+  }
+
+  void _clearLandscapeAlertFilters() {
+    setState(() {
+      _landscapeStatuses = {AlertStatus.pending};
+      _landscapeUtility = null;
+      _landscapeHighSeverityOnly = false;
+    });
+  }
+
+  int get _activeLandscapeReportFilterCount {
+    var count = 0;
+    if (_reportState != null) count++;
+    if (_reportUtility != null) count++;
+    if (_reportOutcome != null) count++;
+    return count;
+  }
+
+  void _clearLandscapeReportFilters() {
+    setState(() {
+      _reportState = null;
+      _reportUtility = null;
+      _reportOutcome = null;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
+    final mode = adminLayoutModeFor(MediaQuery.sizeOf(context));
+    final isPhoneLandscape = mode == AdminLayoutMode.phoneLandscape;
     final isAlertsTab = _outerTab.index == 0;
-    final pendingCount = app.pendingAlerts(_alertUtility).length;
+    final pendingCount = app.pendingAlerts().length;
+
+    if (isPhoneLandscape) {
+      final landscapeAlerts =
+          AnomalyReviewFilter.apply(app.alerts, _oversightAlertQuery());
+      final landscapeFilterMenu = isAlertsTab
+          ? LandscapeFilterMenu(
+              activeCount: _activeLandscapeFilterCount,
+              footer: TextButton(
+                onPressed: _clearLandscapeAlertFilters,
+                child: const Text('Clear'),
+              ),
+              child: _landscapeFilterControls(),
+            )
+          : LandscapeFilterMenu(
+              tooltip: 'Filter reports',
+              activeCount: _activeLandscapeReportFilterCount,
+              footer: TextButton(
+                onPressed: _clearLandscapeReportFilters,
+                child: const Text('Clear'),
+              ),
+              child: _landscapeReportFilterControls(app.alerts),
+            );
+      return Scaffold(
+        backgroundColor: AppColors.canvas,
+        body: OversightLandscapeWorkspace(
+          sectionIndex: _outerTab.index,
+          pendingCount: pendingCount,
+          queueLabel: _landscapeQueueLabel(),
+          alerts: landscapeAlerts,
+          alertController: _landscapeAlertController,
+          filterMenu: landscapeFilterMenu,
+          onSectionChanged: (index) => setState(() => _outerTab.index = index),
+          onAlertTap: (alert) {
+            if (alert.id == null) return;
+            Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => AdminAlertDetailScreen(alertId: alert.id!)));
+          },
+          onClearFilters: _clearLandscapeAlertFilters,
+          reportsBody: _reportsTab(app, compact: true),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -70,17 +163,20 @@ class _OversightScreenState extends State<OversightScreen>
               unselectedLabelColor: AppColors.textSecondary,
               indicatorColor: AppColors.adminPrimary,
               indicatorWeight: 3,
-              labelStyle: const TextStyle(
-                  fontWeight: FontWeight.w700, fontSize: 14),
+              labelStyle:
+                  const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
               tabs: [
                 Tab(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('Alert Queue'),
-                      const SizedBox(width: 6),
-                      _countBadge(pendingCount),
-                    ],
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('Alert Queue'),
+                        const SizedBox(width: 6),
+                        _countBadge(pendingCount),
+                      ],
+                    ),
                   ),
                 ),
                 const Tab(text: 'Reports'),
@@ -110,6 +206,179 @@ class _OversightScreenState extends State<OversightScreen>
           : null,
     );
   }
+
+  String _landscapeQueueLabel() {
+    if (_landscapeStatuses.length == 1 &&
+        _landscapeStatuses.contains(AlertStatus.pending)) {
+      return 'Pending alerts';
+    }
+    if (_landscapeStatuses.length == 2 &&
+        _landscapeStatuses.contains(AlertStatus.investigating) &&
+        _landscapeStatuses.contains(AlertStatus.notFixed)) {
+      return 'Ongoing alerts';
+    }
+    if (_landscapeStatuses.length == 1 &&
+        _landscapeStatuses.contains(AlertStatus.resolved)) {
+      return 'Solved alerts';
+    }
+    if (_landscapeStatuses.length == 1 &&
+        _landscapeStatuses.contains(AlertStatus.faults)) {
+      return 'Fault alerts';
+    }
+    return 'Filtered alerts';
+  }
+
+  Widget _landscapeFilterControls() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            const Expanded(child: SectionLabel('Filter anomalies')),
+          ],
+        ),
+        const SizedBox(height: 8),
+        const Text('Status', style: TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _landscapeStatusChip('Pending', {AlertStatus.pending}),
+            _landscapeStatusChip(
+              'Ongoing',
+              {AlertStatus.investigating, AlertStatus.notFixed},
+            ),
+            _landscapeStatusChip('Solved', {AlertStatus.resolved}),
+            _landscapeStatusChip('Faults', {AlertStatus.faults}),
+          ],
+        ),
+        const SizedBox(height: 12),
+        const Text('Utility', style: TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            ChoiceChip(
+              label: const Text('All utilities'),
+              selected: _landscapeUtility == null,
+              onSelected: (_) => setState(() => _landscapeUtility = null),
+            ),
+            ChoiceChip(
+              label: const Text('Water'),
+              selected: _landscapeUtility == Utility.water,
+              onSelected: (_) =>
+                  setState(() => _landscapeUtility = Utility.water),
+            ),
+            ChoiceChip(
+              label: const Text('Electricity'),
+              selected: _landscapeUtility == Utility.electricity,
+              onSelected: (_) =>
+                  setState(() => _landscapeUtility = Utility.electricity),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        FilterChip(
+          label: const Text('High severity'),
+          selected: _landscapeHighSeverityOnly,
+          selectedColor: AppColors.criticalSurface,
+          checkmarkColor: AppColors.critical,
+          labelStyle: TextStyle(
+            color: _landscapeHighSeverityOnly
+                ? AppColors.critical
+                : AppColors.textPrimary,
+            fontWeight: FontWeight.w600,
+          ),
+          onSelected: (selected) =>
+              setState(() => _landscapeHighSeverityOnly = selected),
+        ),
+      ],
+    );
+  }
+
+  Widget _landscapeReportFilterControls(List<Alert> alerts) {
+    final states = alerts.map((alert) => alert.state).toSet().toList()..sort();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            const Expanded(child: SectionLabel('Filter reports')),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _dropdown(
+          value: _reportState,
+          hint: 'All States',
+          items: [
+            const DropdownMenuItem(value: null, child: Text('All States')),
+            ...states.map((state) => DropdownMenuItem(
+                  value: state,
+                  child: Text(state),
+                )),
+          ],
+          onChanged: (value) => setState(() => _reportState = value),
+        ),
+        const SizedBox(height: 8),
+        _dropdown(
+          value: _reportUtility?.name,
+          hint: 'All Types',
+          items: const [
+            DropdownMenuItem(value: null, child: Text('All Types')),
+            DropdownMenuItem(value: 'water', child: Text('Water')),
+            DropdownMenuItem(value: 'electricity', child: Text('Electricity')),
+          ],
+          onChanged: (value) => setState(() {
+            _reportUtility = value == null
+                ? null
+                : Utility.values.firstWhere((utility) => utility.name == value);
+          }),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _outcomeToggle(
+                'All',
+                _reportOutcome == null,
+                () => setState(() => _reportOutcome = null),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: _outcomeToggle(
+                'Fixed',
+                _reportOutcome == ReportOutcome.fixed,
+                () => setState(() => _reportOutcome = ReportOutcome.fixed),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: _outcomeToggle(
+                'Not Fixed',
+                _reportOutcome == ReportOutcome.notFixed,
+                () => setState(() => _reportOutcome = ReportOutcome.notFixed),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _landscapeStatusChip(String label, Set<String> statuses) {
+    final selected = _sameStatuses(_landscapeStatuses, statuses);
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => setState(() => _landscapeStatuses = {...statuses}),
+    );
+  }
+
+  bool _sameStatuses(Set<String> left, Set<String> right) =>
+      left.length == right.length && left.containsAll(right);
 
   Widget _header(BuildContext context) {
     return Container(
@@ -210,8 +479,8 @@ class _OversightScreenState extends State<OversightScreen>
               unselectedLabelColor: AppColors.textSecondary,
               indicatorColor: AppColors.adminPrimary,
               indicatorWeight: 3,
-              labelStyle: const TextStyle(
-                  fontWeight: FontWeight.w700, fontSize: 13),
+              labelStyle:
+                  const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
               tabs: [
                 _statusTab('Pending', pending.length),
                 _statusTab('Ongoing', ongoing.length),
@@ -224,8 +493,8 @@ class _OversightScreenState extends State<OversightScreen>
           Container(
             color: AppColors.canvas,
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-            child: _utilityToggle(_alertUtility,
-                (u) => setState(() => _alertUtility = u)),
+            child: _utilityToggle(
+                _alertUtility, (u) => setState(() => _alertUtility = u)),
           ),
           Expanded(
             child: TabBarView(
@@ -270,7 +539,7 @@ class _OversightScreenState extends State<OversightScreen>
 
   // --- Reports tab ---
 
-  Widget _reportsTab(AppState app) {
+  Widget _reportsTab(AppState app, {bool compact = false}) {
     final states = app.alerts.map((a) => a.state).toSet().toList()..sort();
     final query = _reportSearch.text.trim().toLowerCase();
     var reports = app.reportsFiltered(
@@ -302,40 +571,15 @@ class _OversightScreenState extends State<OversightScreen>
         .length;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+      padding: compact
+          ? const EdgeInsets.fromLTRB(16, 8, 16, 12)
+          : const EdgeInsets.fromLTRB(12, 12, 12, 24),
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: StatCell(
-                icon: Icons.description_outlined,
-                iconColor: AppColors.textPrimary,
-                value: total.toString(),
-                label: 'Total',
-                background: const Color(0xFFF3F4F6),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: StatCell(
-                icon: Icons.check_circle_outline,
-                iconColor: AppColors.success,
-                value: fixed.toString(),
-                label: 'Fixed',
-                background: AppColors.successSurface,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: StatCell(
-                icon: Icons.warning_amber_outlined,
-                iconColor: AppColors.warning,
-                value: notFixed.toString(),
-                label: 'Not Fixed',
-                background: AppColors.warningSurface,
-              ),
-            ),
-          ],
+        _reportSummaryRow(
+          compact: compact,
+          total: total,
+          fixed: fixed,
+          notFixed: notFixed,
         ),
         const SizedBox(height: 12),
         TextField(
@@ -360,63 +604,66 @@ class _OversightScreenState extends State<OversightScreen>
             ),
           ),
         ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: _dropdown(
-                  value: _reportState,
-                  hint: 'All States',
-                  items: [
-                    const DropdownMenuItem(
-                        value: null, child: Text('All States')),
-                    ...states.map(
-                        (s) => DropdownMenuItem(value: s, child: Text(s))),
-                  ],
-                  onChanged: (v) => setState(() => _reportState = v)),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _dropdown(
-                  value: _reportUtility?.name,
-                  hint: 'All Types',
-                  items: const [
-                    DropdownMenuItem(value: null, child: Text('All Types')),
-                    DropdownMenuItem(value: 'water', child: Text('Water')),
-                    DropdownMenuItem(
-                        value: 'electricity', child: Text('Electricity')),
-                  ],
-                  onChanged: (v) => setState(() {
-                        _reportUtility = v == null
-                            ? null
-                            : Utility.values.firstWhere((u) => u.name == v);
-                      })),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: _outcomeToggle('All', _reportOutcome == null,
-                  () => setState(() => _reportOutcome = null)),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _outcomeToggle('Fixed',
-                  _reportOutcome == ReportOutcome.fixed,
-                  () => setState(() => _reportOutcome = ReportOutcome.fixed)),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _outcomeToggle(
-                  'Not Fixed',
-                  _reportOutcome == ReportOutcome.notFixed,
-                  () => setState(
-                      () => _reportOutcome = ReportOutcome.notFixed)),
-            ),
-          ],
-        ),
+        if (!compact) ...[
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _dropdown(
+                    value: _reportState,
+                    hint: 'All States',
+                    items: [
+                      const DropdownMenuItem(
+                          value: null, child: Text('All States')),
+                      ...states.map(
+                          (s) => DropdownMenuItem(value: s, child: Text(s))),
+                    ],
+                    onChanged: (v) => setState(() => _reportState = v)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _dropdown(
+                    value: _reportUtility?.name,
+                    hint: 'All Types',
+                    items: const [
+                      DropdownMenuItem(value: null, child: Text('All Types')),
+                      DropdownMenuItem(value: 'water', child: Text('Water')),
+                      DropdownMenuItem(
+                          value: 'electricity', child: Text('Electricity')),
+                    ],
+                    onChanged: (v) => setState(() {
+                          _reportUtility = v == null
+                              ? null
+                              : Utility.values.firstWhere((u) => u.name == v);
+                        })),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _outcomeToggle('All', _reportOutcome == null,
+                    () => setState(() => _reportOutcome = null)),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _outcomeToggle(
+                    'Fixed',
+                    _reportOutcome == ReportOutcome.fixed,
+                    () => setState(() => _reportOutcome = ReportOutcome.fixed)),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _outcomeToggle(
+                    'Not Fixed',
+                    _reportOutcome == ReportOutcome.notFixed,
+                    () => setState(
+                        () => _reportOutcome = ReportOutcome.notFixed)),
+              ),
+            ],
+          ),
+        ],
         const SizedBox(height: 14),
         if (reports.isEmpty)
           const Padding(
@@ -427,7 +674,63 @@ class _OversightScreenState extends State<OversightScreen>
             ),
           )
         else
-          ...reports.map((r) => _ReportCard(report: r, app: app)),
+          ...reports
+              .map((r) => _ReportCard(report: r, app: app, landscape: compact)),
+      ],
+    );
+  }
+
+  Widget _reportSummaryRow({
+    required bool compact,
+    required int total,
+    required int fixed,
+    required int notFixed,
+  }) {
+    final cells = [
+      StatCell(
+        icon: Icons.description_outlined,
+        iconColor: AppColors.textPrimary,
+        value: total.toString(),
+        label: 'Total',
+        background: const Color(0xFFF3F4F6),
+        compact: compact,
+      ),
+      StatCell(
+        icon: Icons.check_circle_outline,
+        iconColor: AppColors.success,
+        value: fixed.toString(),
+        label: 'Fixed',
+        background: AppColors.successSurface,
+        compact: compact,
+      ),
+      StatCell(
+        icon: Icons.warning_amber_outlined,
+        iconColor: AppColors.warning,
+        value: notFixed.toString(),
+        label: 'Not Fixed',
+        background: AppColors.warningSurface,
+        compact: compact,
+      ),
+    ];
+
+    if (compact) {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          for (var index = 0; index < cells.length; index++) ...[
+            if (index > 0) const SizedBox(width: 10),
+            SizedBox(width: 164, child: cells[index]),
+          ],
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        for (var index = 0; index < cells.length; index++) ...[
+          if (index > 0) const SizedBox(width: 10),
+          Expanded(child: cells[index]),
+        ],
       ],
     );
   }
@@ -491,14 +794,14 @@ class _OversightScreenState extends State<OversightScreen>
   // --- Shared controls ---
 
   Widget _utilityToggle(Utility? current, ValueChanged<Utility?> onChanged) {
-    return Row(
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
       children: [
         _utilityChip('All', current == null, () => onChanged(null)),
-        const SizedBox(width: 8),
-        _utilityChip('Water', current == Utility.water,
-            () => onChanged(Utility.water),
+        _utilityChip(
+            'Water', current == Utility.water, () => onChanged(Utility.water),
             icon: Icons.water_drop_outlined),
-        const SizedBox(width: 8),
         _utilityChip('Electricity', current == Utility.electricity,
             () => onChanged(Utility.electricity),
             icon: Icons.electric_bolt_outlined),
@@ -540,6 +843,172 @@ class _OversightScreenState extends State<OversightScreen>
       ),
     );
   }
+
+  static Widget _landscapeContent({
+    required bool isFixed,
+    required Color outcomeColor,
+    required Color outcomeBg,
+    required String state,
+    required Color utilityColor,
+    required Color utilityBg,
+    required IconData utilityIcon,
+    required String utilityLabel,
+    required String date,
+    required String description,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          flex: 2,
+          child: Row(
+            children: [
+              Icon(
+                isFixed ? Icons.check_circle : Icons.warning_amber_rounded,
+                color: outcomeColor,
+                size: 22,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      state,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: utilityBg,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(utilityIcon, size: 12, color: utilityColor),
+                          const SizedBox(width: 4),
+                          Text(
+                            utilityLabel,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: utilityColor,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        _landscapeDivider(),
+        Expanded(
+          flex: 4,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _landscapeMetricColumn(
+              label: 'Details',
+              value: Text(
+                description,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                  height: 1.35,
+                ),
+              ),
+            ),
+          ),
+        ),
+        _landscapeDivider(),
+        SizedBox(
+          width: 136,
+          child: _landscapeMetricColumn(
+            label: 'Outcome',
+            value: Pill(
+              isFixed ? 'Fixed' : 'Not Fixed',
+              color: outcomeColor,
+              background: outcomeBg,
+            ),
+          ),
+        ),
+        _landscapeDivider(),
+        SizedBox(
+          width: 126,
+          child: _landscapeMetricColumn(
+            label: 'Updated',
+            value: Text(
+              date,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 6),
+        const Icon(Icons.chevron_right, color: AppColors.textTertiary),
+      ],
+    );
+  }
+
+  static Widget _landscapeMetricColumn({
+    required String label,
+    required Widget value,
+  }) {
+    const labelStyle = TextStyle(
+      fontSize: 11,
+      fontWeight: FontWeight.w700,
+      color: AppColors.textTertiary,
+    );
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 18,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(label, style: labelStyle),
+          ),
+        ),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: 38,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: value,
+          ),
+        ),
+        const SizedBox(height: 6),
+        const SizedBox(height: 6),
+      ],
+    );
+  }
+
+  static Widget _landscapeDivider() {
+    return Container(
+      width: 1,
+      height: 48,
+      color: AppColors.divider,
+    );
+  }
 }
 
 class _AlertCard extends StatelessWidget {
@@ -564,8 +1033,7 @@ class _AlertCard extends StatelessWidget {
     final metric = usesLossPct
         ? '${alert.lossPct!.toStringAsFixed(1)}%'
         : '${alert.ratio.toStringAsFixed(1)}x';
-    final metricUnit =
-        usesLossPct ? 'of supply lost' : 'of state average';
+    final metricUnit = usesLossPct ? 'of supply lost' : 'of state average';
 
     final typeLabel = _typeLabel(alert.alertType);
 
@@ -593,109 +1061,110 @@ class _AlertCard extends StatelessWidget {
               children: [
                 Container(width: 4, color: sevColor),
                 Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 8, 12),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: Wrap(
-                                    spacing: 8,
-                                    runSpacing: 6,
-                                    crossAxisAlignment:
-                                        WrapCrossAlignment.center,
-                                    children: [
-                                      Text(
-                                        alert.title,
-                                        style: const TextStyle(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w700,
-                                          color: AppColors.textPrimary,
-                                        ),
-                                      ),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 8, vertical: 3),
-                                        decoration: BoxDecoration(
-                                          color: utilityBg,
-                                          borderRadius:
-                                              BorderRadius.circular(999),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(utilityIcon,
-                                                size: 12, color: utilityColor),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              utilityLabel,
-                                              style: TextStyle(
-                                                fontSize: 11,
-                                                color: utilityColor,
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Pill(
-                                  Severity.label(alert.severity),
-                                  color: sevColor,
-                                  background:
-                                      sevColor.withValues(alpha: 0.12),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              '$typeLabel · Flagged $date',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                            if (alert.baselineL > 0 ||
-                                alert.lossPct != null) ...[
-                              const SizedBox(height: 4),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 12, 8, 12),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
                               Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Icon(Icons.trending_up,
-                                      size: 14, color: sevColor),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    '$metric $metricUnit',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: sevColor,
-                                      fontWeight: FontWeight.w700,
+                                  Expanded(
+                                    child: Wrap(
+                                      spacing: 8,
+                                      runSpacing: 6,
+                                      crossAxisAlignment:
+                                          WrapCrossAlignment.center,
+                                      children: [
+                                        Text(
+                                          alert.title,
+                                          style: const TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w700,
+                                            color: AppColors.textPrimary,
+                                          ),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 8, vertical: 3),
+                                          decoration: BoxDecoration(
+                                            color: utilityBg,
+                                            borderRadius:
+                                                BorderRadius.circular(999),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(utilityIcon,
+                                                  size: 12,
+                                                  color: utilityColor),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                utilityLabel,
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: utilityColor,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
                                     ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Pill(
+                                    Severity.label(alert.severity),
+                                    color: sevColor,
+                                    background:
+                                        sevColor.withValues(alpha: 0.12),
                                   ),
                                 ],
                               ),
+                              const SizedBox(height: 6),
+                              Text(
+                                '$typeLabel · Flagged $date',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                              if (alert.baselineL > 0 ||
+                                  alert.lossPct != null) ...[
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Icon(Icons.trending_up,
+                                        size: 14, color: sevColor),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '$metric $metricUnit',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: sevColor,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 4),
-                      const Icon(Icons.chevron_right,
-                          color: AppColors.textTertiary, size: 20),
-                    ],
+                        const SizedBox(width: 4),
+                        const Icon(Icons.chevron_right,
+                            color: AppColors.textTertiary, size: 20),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
           ),
         ),
       ),
@@ -719,7 +1188,13 @@ class _AlertCard extends StatelessWidget {
 class _ReportCard extends StatelessWidget {
   final Report report;
   final AppState app;
-  const _ReportCard({required this.report, required this.app});
+  final bool landscape;
+
+  const _ReportCard({
+    required this.report,
+    required this.app,
+    this.landscape = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -740,12 +1215,14 @@ class _ReportCard extends StatelessWidget {
     final utilityLabel = isWater ? 'Water' : 'Electricity';
     final date = DateFormat('d MMM y, HH:mm').format(report.updatedAt);
     final description = report.findings.isEmpty
-        ? (isFixed ? 'No findings. Sensor reading normalized.' : 'No findings recorded.')
+        ? (isFixed
+            ? 'No findings. Sensor reading normalized.'
+            : 'No findings recorded.')
         : report.findings;
 
     return GestureDetector(
-      onTap: () => Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => ReportViewScreen(report: report))),
+      onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => ReportViewScreen(report: report))),
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(14),
@@ -760,110 +1237,124 @@ class _ReportCard extends StatelessWidget {
             ),
           ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  isFixed
-                      ? Icons.check_circle
-                      : Icons.warning_amber_rounded,
-                  color: outcomeColor,
-                  size: 22,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  state,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Pill(
-                  isFixed ? 'Fixed' : 'Not Fixed',
-                  color: outcomeColor,
-                  background: outcomeBg,
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              description,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.textSecondary,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: utilityBg,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+        key: landscape ? const Key('oversight-landscape-report-card') : null,
+        child: landscape
+            ? _OversightScreenState._landscapeContent(
+                isFixed: isFixed,
+                outcomeColor: outcomeColor,
+                outcomeBg: outcomeBg,
+                state: state,
+                utilityColor: utilityColor,
+                utilityBg: utilityBg,
+                utilityIcon: utilityIcon,
+                utilityLabel: utilityLabel,
+                date: date,
+                description: description,
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Icon(utilityIcon, size: 12, color: utilityColor),
-                      const SizedBox(width: 4),
-                      Text(
-                        utilityLabel,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: utilityColor,
-                          fontWeight: FontWeight.w700,
-                        ),
+                      Icon(
+                        isFixed
+                            ? Icons.check_circle
+                            : Icons.warning_amber_rounded,
+                        color: outcomeColor,
+                        size: 22,
                       ),
-                    ],
-                  ),
-                ),
-                Text(
-                  date,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textTertiary,
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: AppColors.customerSurface,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.person_outline,
-                          size: 12, color: AppColors.customerPrimary),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 8),
                       Text(
-                        report.workerName,
+                        state,
                         style: const TextStyle(
-                          fontSize: 11,
-                          color: AppColors.customerPrimary,
+                          fontSize: 15,
                           fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Pill(
+                        isFixed ? 'Fixed' : 'Not Fixed',
+                        color: outcomeColor,
+                        background: outcomeBg,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    description,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: utilityBg,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(utilityIcon, size: 12, color: utilityColor),
+                            const SizedBox(width: 4),
+                            Text(
+                              utilityLabel,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: utilityColor,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        date,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textTertiary,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.customerSurface,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.person_outline,
+                                size: 12, color: AppColors.customerPrimary),
+                            const SizedBox(width: 4),
+                            Text(
+                              report.workerName,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppColors.customerPrimary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
-                ),
-              ],
-            ),
-          ],
-        ),
+                ],
+              ),
       ),
     );
   }

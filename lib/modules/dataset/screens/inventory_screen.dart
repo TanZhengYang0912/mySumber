@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
+import '../../admin/services/admin_tablet_layout.dart';
+import '../../admin/widgets/landscape_filter_menu.dart';
 import '../state/dataset_state.dart';
 import '../models/models.dart';
 import '../services/inventory_filter.dart';
@@ -62,6 +64,19 @@ class _InventoryScreenState extends State<InventoryScreen> {
     final locationCount = filterResult.utilityCounts.values
         .fold<int>(0, (sum, count) => sum + count);
     final displayNodes = filterResult.nodes;
+    final isPhoneLandscape = adminLayoutModeFor(MediaQuery.sizeOf(context)) ==
+        AdminLayoutMode.phoneLandscape;
+
+    if (isPhoneLandscape && !state.isLoading) {
+      return _phoneLandscapeLayout(
+        context: context,
+        state: state,
+        stateOptions: stateOptions,
+        facilityOptions: facilityOptions,
+        locationCount: locationCount,
+        displayNodes: displayNodes,
+      );
+    }
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -93,6 +108,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           value: _selectedState,
                           items: stateOptions,
                           displayAll: 'All States',
+                          showFloatingLabel: false,
                           onChanged: (value) {
                             setState(() {
                               _selectedState = value ?? 'All';
@@ -108,6 +124,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           value: _selectedFacility,
                           items: facilityOptions,
                           displayAll: 'All Shopping Malls',
+                          showFloatingLabel: false,
                           onChanged: (value) => setState(
                               () => _selectedFacility = value ?? 'All'),
                         ),
@@ -156,6 +173,211 @@ class _InventoryScreenState extends State<InventoryScreen> {
         },
         child: const Icon(Icons.add),
       ),
+    );
+  }
+
+  Widget _phoneLandscapeLayout({
+    required BuildContext context,
+    required DatasetState state,
+    required List<String> stateOptions,
+    required List<String> facilityOptions,
+    required int locationCount,
+    required List<EquipmentNode> displayNodes,
+  }) {
+    return Scaffold(
+      backgroundColor: AppColors.canvas,
+      body: SafeArea(
+        child: Column(
+          key: const PageStorageKey('phone-landscape-inventory'),
+          children: [
+            SizedBox(
+              height: 60,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    const Text(
+                      'Inventory',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '$locationCount equipment',
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    LandscapeFilterMenu(
+                      tooltip: 'Filter equipment',
+                      activeCount: _activeLandscapeFilterCount,
+                      child: _landscapeFilterControls(
+                        stateOptions: stateOptions,
+                        facilityOptions: facilityOptions,
+                      ),
+                    ),
+                    MenuAnchor(
+                      menuChildren: [
+                        MenuItemButton(
+                          leadingIcon: const Icon(Icons.upload_outlined),
+                          onPressed: () => _importData(context),
+                          child: const Text('Import'),
+                        ),
+                      ],
+                      builder: (context, controller, _) => IconButton(
+                        tooltip: 'More inventory actions',
+                        onPressed: controller.isOpen
+                            ? controller.close
+                            : controller.open,
+                        icon: const Icon(Icons.more_horiz),
+                      ),
+                    ),
+                    IconButton.filled(
+                      tooltip: 'Add equipment',
+                      style: IconButton.styleFrom(
+                        backgroundColor: AppColors.adminPrimary,
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                            builder: (_) => const NodeFormScreen()),
+                      ),
+                      icon: const Icon(Icons.add),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                children: [
+                  _searchField(),
+                  const SizedBox(height: 12),
+                  Text(
+                    _landscapeListLabel(),
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  if (displayNodes.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 32),
+                      child: Center(
+                        child: Text(
+                          'No equipment found matching your criteria.',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                      ),
+                    )
+                  else
+                    ...displayNodes.map((node) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: _equipmentCard(node, state),
+                        )),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  int get _activeLandscapeFilterCount {
+    var count = 0;
+    if (_selectedUtility != 'All') count++;
+    if (_selectedState != 'All') count++;
+    if (_selectedFacility != 'All') count++;
+    if (_selectedStatus != 'All') count++;
+    return count;
+  }
+
+  String _landscapeListLabel() {
+    if (_selectedStatus != 'All') return '$_selectedStatus equipment';
+    return 'All equipment';
+  }
+
+  Widget _landscapeFilterControls({
+    required List<String> stateOptions,
+    required List<String> facilityOptions,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            const Expanded(child: SectionLabel('Filter equipment')),
+          ],
+        ),
+        const SizedBox(height: 8),
+        const Text('Utility', style: TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: ['All', 'Water', 'Electricity']
+              .map((value) => ChoiceChip(
+                    label: Text(value),
+                    selected: _selectedUtility == value,
+                    onSelected: (_) => setState(() => _selectedUtility = value),
+                  ))
+              .toList(),
+        ),
+        const SizedBox(height: 12),
+        _locationDropdown(
+          label: 'State / Federal Territory',
+          value: _selectedState,
+          items: stateOptions,
+          displayAll: 'All States',
+          showFloatingLabel: false,
+          onChanged: (value) => setState(() {
+            _selectedState = value ?? 'All';
+            _selectedFacility = 'All';
+          }),
+        ),
+        const SizedBox(height: 10),
+        _locationDropdown(
+          label: 'Shopping Mall',
+          value: _selectedFacility,
+          items: facilityOptions,
+          displayAll: 'All Shopping Malls',
+          showFloatingLabel: false,
+          onChanged: (value) =>
+              setState(() => _selectedFacility = value ?? 'All'),
+        ),
+        const SizedBox(height: 12),
+        const Text('Status', style: TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: inventoryStatusFilters
+              .map((value) => ChoiceChip(
+                    label: Text(value),
+                    selected: _selectedStatus == value,
+                    onSelected: (_) => setState(() => _selectedStatus = value),
+                  ))
+              .toList(),
+        ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: _clearFilters,
+            child: const Text('Clear filters'),
+          ),
+        ),
+      ],
     );
   }
 
@@ -344,13 +566,14 @@ Backup Generator 2,Electricity,Kelantan,Kota Bharu,AEON Mall Kota Bharu,Honda,Ac
     required List<String> items,
     required String displayAll,
     required ValueChanged<String?> onChanged,
+    bool showFloatingLabel = true,
   }) {
-    return DropdownButtonFormField<String>(
+    final dropdown = DropdownButtonFormField<String>(
       key: ValueKey('$label-$value'),
       initialValue: value,
       isExpanded: true,
       decoration: InputDecoration(
-        labelText: label,
+        labelText: showFloatingLabel ? label : null,
         isDense: true,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
@@ -365,6 +588,19 @@ Backup Generator 2,Electricity,Kelantan,Kota Bharu,AEON Mall Kota Bharu,Honda,Ac
               ))
           .toList(),
       onChanged: onChanged,
+    );
+    if (showFloatingLabel) return dropdown;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textSecondary)),
+        const SizedBox(height: 5),
+        dropdown,
+      ],
     );
   }
 
@@ -525,118 +761,33 @@ Backup Generator 2,Electricity,Kelantan,Kota Bharu,AEON Mall Kota Bharu,Honda,Ac
                 ],
               ),
               padding: const EdgeInsets.fromLTRB(18, 14, 14, 14),
-              child: Row(
-                children: [
-                  Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: surface,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          isWater
-                              ? Icons.water_drop_outlined
-                              : Icons.electric_bolt,
-                          color: accent,
-                        ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  void onEdit() {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => NodeFormScreen(node: node),
                       ),
-                      Positioned(
-                        right: -2,
-                        bottom: -2,
-                        child: Container(
-                          width: 14,
-                          height: 14,
-                          decoration: BoxDecoration(
-                            color: statusColor,
-                            shape: BoxShape.circle,
-                            border:
-                                Border.all(color: AppColors.surface, width: 2),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          node.facilityName ?? 'Unassigned facility',
-                          style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.adminPrimary),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          node.nodeName,
-                          style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${node.zoneId ?? '—'} · ${node.facilityCity ?? '—'} · ${node.manufacturer ?? 'Unknown'}',
-                          style: const TextStyle(
-                              fontSize: 12, color: AppColors.textSecondary),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Text(
-                              node.status,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: statusColor,
-                              ),
-                            ),
-                            const Spacer(),
-                            Text(
-                              '${node.healthScore}%',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: statusColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: (node.healthScore / 100).clamp(0.0, 1.0),
-                            minHeight: 6,
-                            backgroundColor:
-                                statusColor.withValues(alpha: 0.15),
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(statusColor),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.edit_outlined, size: 18),
-                    color: AppColors.textSecondary,
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => NodeFormScreen(node: node),
-                        ),
-                      );
-                    },
-                  ),
-                ],
+                    );
+                  }
+
+                  if (constraints.maxWidth >= 720) {
+                    return _wideEquipmentCardContent(
+                      node: node,
+                      accent: accent,
+                      surface: surface,
+                      statusColor: statusColor,
+                      onEdit: onEdit,
+                    );
+                  }
+                  return _compactEquipmentCardContent(
+                    node: node,
+                    accent: accent,
+                    surface: surface,
+                    statusColor: statusColor,
+                    onEdit: onEdit,
+                  );
+                },
               ),
             ),
             Positioned(
@@ -657,6 +808,286 @@ Backup Generator 2,Electricity,Kelantan,Kota Bharu,AEON Mall Kota Bharu,Honda,Ac
           ],
         ),
       ),
+    );
+  }
+
+  Widget _wideEquipmentCardContent({
+    required EquipmentNode node,
+    required Color accent,
+    required Color surface,
+    required Color statusColor,
+    required VoidCallback onEdit,
+  }) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 58,
+          child: Center(
+            child: _equipmentIcon(
+              node: node,
+              accent: accent,
+              surface: surface,
+              statusColor: statusColor,
+            ),
+          ),
+        ),
+        _cardDivider(),
+        const SizedBox(width: 16),
+        Expanded(flex: 6, child: _equipmentDetails(node)),
+        _cardDivider(),
+        SizedBox(
+          width: 84,
+          child: _labelledMetric(
+            label: 'Status',
+            value: node.status,
+            color: statusColor,
+          ),
+        ),
+        _cardDivider(),
+        SizedBox(
+          width: 128,
+          child: _healthMetric(node.healthScore, statusColor),
+        ),
+        _cardDivider(),
+        SizedBox(
+          width: 64,
+          child: _operationMetric(onEdit),
+        ),
+      ],
+    );
+  }
+
+  Widget _compactEquipmentCardContent({
+    required EquipmentNode node,
+    required Color accent,
+    required Color surface,
+    required Color statusColor,
+    required VoidCallback onEdit,
+  }) {
+    return Row(
+      children: [
+        _equipmentIcon(
+          node: node,
+          accent: accent,
+          surface: surface,
+          statusColor: statusColor,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _equipmentDetails(node),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Text(
+                    node.status,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: statusColor,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${node.healthScore}%',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: statusColor,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              _healthBar(node.healthScore, statusColor),
+            ],
+          ),
+        ),
+        IconButton(
+          tooltip: 'Edit equipment',
+          icon: const Icon(Icons.edit_outlined, size: 18),
+          color: AppColors.textSecondary,
+          onPressed: onEdit,
+        ),
+      ],
+    );
+  }
+
+  Widget _equipmentIcon({
+    required EquipmentNode node,
+    required Color accent,
+    required Color surface,
+    required Color statusColor,
+  }) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: surface,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            node.utilityType == 'Water'
+                ? Icons.water_drop_outlined
+                : Icons.electric_bolt,
+            color: accent,
+          ),
+        ),
+        Positioned(
+          right: -2,
+          bottom: -2,
+          child: Container(
+            width: 14,
+            height: 14,
+            decoration: BoxDecoration(
+              color: statusColor,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.surface, width: 2),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _equipmentDetails(EquipmentNode node) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          node.facilityName ?? 'Unassigned facility',
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: AppColors.adminPrimary,
+          ),
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 2),
+        Text(
+          node.nodeName,
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: AppColors.textPrimary,
+          ),
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 2),
+        Text(
+          '${node.zoneId ?? '—'} · ${node.facilityCity ?? '—'} · ${node.manufacturer ?? 'Unknown'}',
+          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
+    );
+  }
+
+  Widget _labelledMetric({
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return _metricColumn(
+      label: label,
+      value: Text(
+        value,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w800,
+          color: color,
+        ),
+      ),
+    );
+  }
+
+  Widget _healthMetric(int score, Color color) {
+    return _metricColumn(
+      label: 'Health',
+      value: Text(
+        '$score%',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w800,
+          color: color,
+        ),
+      ),
+      footer: SizedBox(
+        width: double.infinity,
+        child: _healthBar(score, color),
+      ),
+    );
+  }
+
+  Widget _operationMetric(VoidCallback onEdit) {
+    return _metricColumn(
+      label: 'Operation',
+      value: IconButton(
+        tooltip: 'Edit equipment',
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+        icon: const Icon(Icons.edit_outlined, size: 18),
+        color: AppColors.textSecondary,
+        onPressed: onEdit,
+      ),
+    );
+  }
+
+  Widget _metricColumn({
+    required String label,
+    required Widget value,
+    Widget? footer,
+  }) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        SizedBox(
+          height: 18,
+          child: Center(
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        SizedBox(height: 28, child: Center(child: value)),
+        const SizedBox(height: 4),
+        SizedBox(height: 6, child: footer ?? const SizedBox.shrink()),
+      ],
+    );
+  }
+
+  Widget _healthBar(int score, Color color) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(4),
+      child: LinearProgressIndicator(
+        value: (score / 100).clamp(0.0, 1.0),
+        minHeight: 6,
+        backgroundColor: color.withValues(alpha: 0.15),
+        valueColor: AlwaysStoppedAnimation<Color>(color),
+      ),
+    );
+  }
+
+  Widget _cardDivider() {
+    return Container(
+      width: 1,
+      height: 56,
+      color: AppColors.divider,
     );
   }
 }

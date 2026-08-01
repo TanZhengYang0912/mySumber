@@ -4,10 +4,11 @@ import 'package:provider/provider.dart';
 
 import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
-import '../../leakage/state/app_state.dart';
 import '../models/utility_entry.dart';
+import '../services/customer_compact_layout.dart';
 import '../state/usage_state.dart';
 import '../widgets/add_consumption_sheet.dart';
+import '../widgets/logout_confirmation_dialog.dart';
 
 class CustomerHomeScreen extends StatelessWidget {
   final VoidCallback? onUsageTap;
@@ -16,11 +17,12 @@ class CustomerHomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final role = context.watch<RoleState>();
-    final app = context.watch<AppState>();
     final usage = context.watch<UsageState>();
     final displayName = role.displayName;
 
-    final summary = app.latestSummary;
+    if (usesCustomerPhoneLandscape(MediaQuery.sizeOf(context))) {
+      return _phoneLandscapeHome(context, displayName, usage);
+    }
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -40,12 +42,6 @@ class CustomerHomeScreen extends StatelessWidget {
               child: _myUsageCard(usage),
             ),
           ),
-          if (summary != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
-              child: _aiSummaryCard(context, summary.summaryText,
-                  summary.pros, summary.cons, summary.reviewCount),
-            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
             child: _stateSelector(context, usage),
@@ -90,6 +86,382 @@ class CustomerHomeScreen extends StatelessWidget {
           ),
           const SizedBox(height: 88),
         ],
+      ),
+    );
+  }
+
+  Widget _phoneLandscapeHome(
+    BuildContext context,
+    String displayName,
+    UsageState usage,
+  ) {
+    return Scaffold(
+      backgroundColor: AppColors.canvas,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
+          child: Column(
+            key: const PageStorageKey('customer-phone-landscape-home'),
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'GOOD MORNING',
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                        Text(
+                          displayName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 21,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _notificationButton(),
+                  const SizedBox(width: 8),
+                  FilledButton.icon(
+                    onPressed: () => showAddConsumptionFlow(context),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.customerPrimary,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(0, 40),
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                    ),
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Add reading'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              _landscapeStatusBanner(),
+              const SizedBox(height: 12),
+              Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(child: _landscapeUsageOverview(usage)),
+                    const SizedBox(width: 12),
+                    SizedBox(width: 238, child: _landscapeSidePanel(usage)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _notificationButton() {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(color: AppColors.divider),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(
+            Icons.notifications_outlined,
+            color: AppColors.textSecondary,
+            size: 21,
+          ),
+        ),
+        Positioned(
+          top: -4,
+          right: -4,
+          child: Container(
+            width: 17,
+            height: 17,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.critical,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.canvas, width: 2),
+            ),
+            child: const Text(
+              '2',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _landscapeStatusBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.successSurface,
+        border: Border.all(color: AppColors.success.withValues(alpha: 0.28)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.check_circle_outline, color: AppColors.success, size: 20),
+          SizedBox(width: 8),
+          Text(
+            'All systems normal',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'No anomalies detected this month',
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _landscapeUsageOverview(UsageState usage) {
+    final monthLabel = _monthLabel(DateTime.now()).toUpperCase();
+    return GestureDetector(
+      onTap: onUsageTap,
+      child: AppCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                SectionLabel('MY USAGE · $monthLabel'),
+                const Spacer(),
+                const Icon(
+                  Icons.arrow_forward,
+                  size: 17,
+                  color: AppColors.customerPrimary,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _landscapeUsageCell(usage, UtilityType.water),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _landscapeUsageCell(usage, UtilityType.electricity),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _landscapeUsageCell(UsageState usage, UtilityType utility) {
+    final color = utility == UtilityType.water
+        ? AppColors.waterAccent
+        : AppColors.electricityAccent;
+    final background = utility == UtilityType.water
+        ? AppColors.waterSurface
+        : AppColors.electricitySurface;
+    final icon = utility == UtilityType.water
+        ? Icons.water_drop_outlined
+        : Icons.electric_bolt_outlined;
+    final current = usage.currentMonthEntry(utility);
+    final percent = usage.percentVsLastMonth(utility);
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 19),
+          const SizedBox(height: 6),
+          Text(
+            utility.label.toUpperCase(),
+            style: TextStyle(
+              color: color,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.6,
+            ),
+          ),
+          const Spacer(),
+          Text(
+            current == null ? 'N/A' : current.value.toStringAsFixed(1),
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+              height: 1,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            current == null ? 'No reading yet' : '${utility.unit} this month',
+            overflow: TextOverflow.ellipsis,
+            style:
+                const TextStyle(color: AppColors.textSecondary, fontSize: 10),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            percent == null
+                ? 'No prior month'
+                : '${percent.toStringAsFixed(1)}% vs last month',
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: percent != null && percent <= 0
+                  ? AppColors.success
+                  : AppColors.textSecondary,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _landscapeSidePanel(UsageState usage) {
+    return Column(
+      children: [
+        Expanded(
+          child: AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SectionLabel('QUICK ACTIONS'),
+                const SizedBox(height: 10),
+                _landscapeAction(
+                  icon: Icons.bar_chart_outlined,
+                  title: 'Compare usage',
+                  subtitle: 'View your household trend',
+                  onTap: onUsageTap,
+                ),
+                const Divider(height: 20),
+                _landscapeAction(
+                  icon: Icons.account_balance_outlined,
+                  title: usage.selectedState,
+                  subtitle: 'Government comparison area',
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF7ED),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+          ),
+          child: const Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.lightbulb_outline, size: 18, color: Color(0xFFC2410C)),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Turn off the tap while brushing to save up to 12 L per day.',
+                  style: TextStyle(color: Color(0xFF9A3412), fontSize: 10),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _landscapeAction({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: AppColors.customerSurface,
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Icon(icon, color: AppColors.customerPrimary, size: 18),
+            ),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (onTap != null)
+              const Icon(
+                Icons.chevron_right,
+                size: 18,
+                color: AppColors.textTertiary,
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -147,57 +519,6 @@ class CustomerHomeScreen extends StatelessWidget {
               color: active ? AppColors.success : AppColors.textTertiary,
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _aiSummaryCard(BuildContext context, String summaryText,
-      List<String> pros, List<String> cons, int reviewCount) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0F766E), Color(0xFF1E40AF)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.auto_awesome,
-                  color: Colors.white, size: 16),
-              const SizedBox(width: 8),
-              const Text('AI Service Insights',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800)),
-              const Spacer(),
-              Text('$reviewCount reviews',
-                  style: const TextStyle(
-                      color: Colors.white60, fontSize: 11)),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(summaryText,
-              style: const TextStyle(
-                  color: Colors.white, fontSize: 13, height: 1.5)),
-          if (pros.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                ...pros.map((p) => _SummaryPill(label: '+ $p', positive: true)),
-                ...cons.map((c) => _SummaryPill(label: '- $c', positive: false)),
-              ],
-            ),
-          ],
         ],
       ),
     );
@@ -292,8 +613,12 @@ class CustomerHomeScreen extends StatelessWidget {
                   ],
                 ),
                 IconButton(
-                  icon: const Icon(Icons.logout, color: Colors.white70, size: 20),
-                  onPressed: () => context.read<RoleState>().logout(),
+                  icon:
+                      const Icon(Icons.logout, color: Colors.white70, size: 20),
+                  onPressed: () => showLogoutConfirmation(
+                    context,
+                    onConfirm: () => context.read<RoleState>().logout(),
+                  ),
                 ),
               ],
             ),
@@ -478,9 +803,7 @@ class CustomerHomeScreen extends StatelessWidget {
             children: [
               Icon(
                 hasTrend
-                    ? (trendPositive
-                        ? Icons.trending_down
-                        : Icons.trending_up)
+                    ? (trendPositive ? Icons.trending_down : Icons.trending_up)
                     : Icons.remove,
                 size: 14,
                 color: trendColor,
@@ -593,8 +916,7 @@ class CustomerHomeScreen extends StatelessWidget {
                 children: [
                   _legendDot(accent, 'You'),
                   if (hasGovData)
-                    _legendDot(
-                        AppColors.textTertiary, 'Govt · $baselineYear'),
+                    _legendDot(AppColors.textTertiary, 'Govt · $baselineYear'),
                 ],
               ),
             ],
@@ -616,8 +938,8 @@ class CustomerHomeScreen extends StatelessWidget {
                 child: Text(
                   'No readings yet — tap "Add +" to log your first month.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                      fontSize: 13, color: AppColors.textSecondary),
+                  style:
+                      TextStyle(fontSize: 13, color: AppColors.textSecondary),
                 ),
               ),
             )
@@ -736,8 +1058,18 @@ class CustomerHomeScreen extends StatelessWidget {
 
   String _monthLabel(DateTime d) {
     const names = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return names[d.month - 1];
   }
@@ -799,28 +1131,6 @@ class CustomerHomeScreen extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _SummaryPill extends StatelessWidget {
-  final String label;
-  final bool positive;
-  const _SummaryPill({required this.label, required this.positive});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: positive
-            ? Colors.white.withValues(alpha: 0.2)
-            : Colors.red.withValues(alpha: 0.25),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(label,
-          style: const TextStyle(
-              color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
     );
   }
 }

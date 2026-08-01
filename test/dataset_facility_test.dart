@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import 'package:mysumber/modules/dataset/data/dataset_repository.dart';
 import 'package:mysumber/modules/dataset/models/models.dart';
+import 'package:mysumber/modules/dataset/screens/dashboard_screen.dart';
 import 'package:mysumber/modules/dataset/screens/inventory_screen.dart';
 import 'package:mysumber/modules/dataset/services/inventory_filter.dart';
 import 'package:mysumber/modules/dataset/state/dataset_state.dart';
@@ -87,6 +88,79 @@ void main() {
     await tester.pump();
 
     expect(find.text('All Shopping Malls'), findsOneWidget);
+  });
+
+  testWidgets(
+      'inventory keeps portrait location labels outside dropdown borders',
+      (tester) async {
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final datasetState = DatasetState(repository: DatasetRepository());
+    datasetState.stateWaterSupply['Malaysia'] = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChangeNotifierProvider<DatasetState>.value(
+          value: datasetState,
+          child: const InventoryScreen(),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(seconds: 1));
+
+    final stateDropdown = tester.widget<DropdownButtonFormField<String>>(
+      find.byKey(const ValueKey('State / Federal Territory-All')),
+    );
+    final mallDropdown = tester.widget<DropdownButtonFormField<String>>(
+      find.byKey(const ValueKey('Shopping Mall-All')),
+    );
+
+    expect(stateDropdown.decoration?.labelText, isNull);
+    expect(mallDropdown.decoration?.labelText, isNull);
+    expect(find.text('State / Federal Territory'), findsOneWidget);
+    expect(find.text('Shopping Mall'), findsOneWidget);
+  });
+
+  testWidgets('dashboard keeps full details below its landscape summary',
+      (tester) async {
+    tester.view.physicalSize = const Size(914, 411);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final datasetState = _StaticDatasetState()
+      ..nodes = const [
+        EquipmentNode(
+          nodeName: 'Cooling Tower Valve',
+          utilityType: 'Water',
+          zoneId: 'Selangor',
+          status: 'Critical',
+          healthScore: 58,
+        ),
+        EquipmentNode(
+          nodeName: 'Main Water Pump A1',
+          utilityType: 'Water',
+          zoneId: 'Selangor',
+          status: 'Active',
+          healthScore: 92,
+        ),
+      ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChangeNotifierProvider<DatasetState>.value(
+          value: datasetState,
+          child: const DashboardScreen(),
+        ),
+      ),
+    );
+
+    expect(
+      find.byKey(const PageStorageKey('phone-landscape-dashboard')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('priority-equipment')), findsOneWidget);
+    expect(find.text('Usage Comparison'), findsOneWidget);
+    expect(find.byTooltip('View full dashboard'), findsOneWidget);
   });
 
   test('filters Selangor to its nine equipment nodes', () async {
@@ -196,4 +270,119 @@ void main() {
     expect(find.text('All Shopping Malls'), findsOneWidget);
     expect(find.text('All (78)'), findsNWidgets(2));
   });
+
+  testWidgets('inventory uses a compact filter workspace in phone landscape',
+      (tester) async {
+    tester.view.physicalSize = const Size(914, 411);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final datasetState = _StaticDatasetState()
+      ..nodes = const [
+        EquipmentNode(
+          nodeName: 'Main Water Pump A1',
+          utilityType: 'Water',
+          zoneId: 'Selangor',
+          status: 'Critical',
+        ),
+        EquipmentNode(
+          nodeName: 'Cooling Tower Valve',
+          utilityType: 'Water',
+          zoneId: 'Selangor',
+          status: 'Active',
+        ),
+      ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChangeNotifierProvider<DatasetState>.value(
+          value: datasetState,
+          child: const InventoryScreen(),
+        ),
+      ),
+    );
+
+    expect(
+      find.byKey(const PageStorageKey('phone-landscape-inventory')),
+      findsOneWidget,
+    );
+    expect(find.byTooltip('Filter equipment'), findsOneWidget);
+    expect(find.byTooltip('Add equipment'), findsOneWidget);
+    expect(find.text('State / Federal Territory'), findsNothing);
+    expect(find.byType(FloatingActionButton), findsNothing);
+
+    await tester.tap(find.byTooltip('Filter equipment'));
+    await tester.pumpAndSettle();
+    expect(find.text('State / Federal Territory'), findsOneWidget);
+  });
+
+  testWidgets('inventory aligns equipment details into four wide-card zones',
+      (tester) async {
+    tester.view.physicalSize = const Size(1024, 768);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final datasetState = _StaticDatasetState()
+      ..nodes = const [
+        EquipmentNode(
+          nodeName: 'Main Water Pump A1',
+          utilityType: 'Water',
+          zoneId: 'W.P. Kuala Lumpur',
+          facilityName: 'Suria KLCC',
+          facilityCity: 'Kuala Lumpur',
+          manufacturer: 'Grundfos',
+          status: 'Active',
+          healthScore: 96,
+        ),
+      ];
+
+    await tester.pumpWidget(MaterialApp(
+      home: ChangeNotifierProvider<DatasetState>.value(
+        value: datasetState,
+        child: const InventoryScreen(),
+      ),
+    ));
+    await tester.pump();
+
+    expect(find.text('Status'), findsOneWidget);
+    expect(find.text('Health'), findsOneWidget);
+    expect(find.text('Operation'), findsOneWidget);
+    expect(find.text('96%'), findsOneWidget);
+    expect(find.byTooltip('Edit equipment'), findsOneWidget);
+
+    final statusColumn = tester.widget<Column>(
+      find
+          .ancestor(
+            of: find.text('Status'),
+            matching: find.byType(Column),
+          )
+          .first,
+    );
+    final healthColumn = tester.widget<Column>(
+      find
+          .ancestor(
+            of: find.text('Health'),
+            matching: find.byType(Column),
+          )
+          .first,
+    );
+    expect(statusColumn.crossAxisAlignment, CrossAxisAlignment.center);
+    expect(healthColumn.crossAxisAlignment, CrossAxisAlignment.center);
+
+    final statusLabelY = tester.getCenter(find.text('Status')).dy;
+    final healthLabelY = tester.getCenter(find.text('Health')).dy;
+    final operationLabelY = tester.getCenter(find.text('Operation')).dy;
+    final statusValueY = tester.getCenter(find.text('Active')).dy;
+    final healthValueY = tester.getCenter(find.text('96%')).dy;
+    final operationY = tester.getCenter(find.byTooltip('Edit equipment')).dy;
+    expect(statusLabelY, closeTo(healthLabelY, 1));
+    expect(statusLabelY, closeTo(operationLabelY, 1));
+    expect(statusValueY, closeTo(healthValueY, 1));
+    expect(statusValueY, closeTo(operationY, 1));
+  });
+}
+
+class _StaticDatasetState extends DatasetState {
+  _StaticDatasetState() : super(repository: DatasetRepository());
+
+  @override
+  Future<void> loadNodes() async {}
 }

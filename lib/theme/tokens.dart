@@ -257,6 +257,7 @@ class StatCell extends StatelessWidget {
   final String value;
   final String label;
   final Color? background;
+  final bool compact;
 
   const StatCell({
     super.key,
@@ -265,12 +266,17 @@ class StatCell extends StatelessWidget {
     required this.value,
     required this.label,
     this.background,
+    this.compact = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+      height: compact ? 76 : null,
+      padding: EdgeInsets.symmetric(
+        vertical: compact ? 6 : 14,
+        horizontal: 8,
+      ),
       decoration: BoxDecoration(
         color: background ?? const Color(0xFFF3F4F6),
         borderRadius: BorderRadius.circular(14),
@@ -278,23 +284,23 @@ class StatCell extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(icon, color: iconColor, size: 20),
-          const SizedBox(height: 8),
+          Icon(icon, color: iconColor, size: compact ? 16 : 20),
+          SizedBox(height: compact ? 4 : 8),
           Text(
             value,
-            style: const TextStyle(
-              fontSize: 26,
+            style: TextStyle(
+              fontSize: compact ? 22 : 26,
               fontWeight: FontWeight.w800,
               color: AppColors.textPrimary,
               height: 1.0,
             ),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: compact ? 2 : 4),
           Text(
             label,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 12,
+            style: TextStyle(
+              fontSize: compact ? 11 : 12,
               color: AppColors.textSecondary,
               fontWeight: FontWeight.w500,
             ),

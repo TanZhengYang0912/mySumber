@@ -15,7 +15,7 @@ without stepping on each other.
 | Module | Description | Storage | Status |
 |---|---|---|---|
 | 1. Equipment Management | Import/version government datasets, dual-bar variance chart, anomaly detection | Local CSV | ✅ Complete |
-| 2. Customer Experience | Personal usage comparison, repair report flow, service review & AI insights | Local + Cloud (Supabase) | ✅ Complete |
+| 2. Customer Experience | Personal usage comparison and repair report flow | Local + Cloud (Supabase) | ✅ Complete |
 | 3. Water Leakage Detection | Detect leakage from real NRW data + simulated household readings, worker alert queue | Cloud (Supabase) + Local CSV | ✅ Complete |
 | 4. Electricity Anomaly Detection | Detect meter tampering patterns, electricity loss hotspot analysis | Local CSV + Cloud (Supabase) | ✅ Complete |
 
@@ -25,9 +25,9 @@ without stepping on each other.
 
 | Role | Login | Access |
 |---|---|---|
-| **Admin** | Password: `admin` | Equipment dashboard, alerts oversight, reports, service reviews & AI insights |
-| **Worker** | Password: `worker` | Water alert queue, electricity alert queue, field report submission |
-| **Customer** | Email + password (Supabase Auth) | Home dashboard, usage comparison, repair history, AI service summary |
+| **Admin** | Password: `admin` | Equipment dashboard, alerts oversight, reports, and AI anomaly review |
+| **Worker** | Password: `worker` | Water alert queue and electricity alert queue |
+| **Customer** | Email + password (Supabase Auth) | Home dashboard, usage comparison, and repair history |
 
 ---
 
@@ -42,11 +42,6 @@ mysumber/
 │   ├── water_production.csv      data.gov.my — water production by state
 │   ├── electricity_consumption.csv
 │   └── electricity_supply.csv
-│
-├── supabase/
-│   └── functions/
-│       └── generate-ai-summary/  (unused — AI now called directly from Flutter)
-│           └── index.ts
 │
 ├── lib/
 │   ├── main.dart                 App entry point, role-based navigation shell
@@ -71,26 +66,25 @@ mysumber/
 │       │
 │       ├── usage/                Module 2 — Customer Experience
 │       │   └── screens/
-│       │       ├── customer_home_screen.dart    Home: usage overview, AI summary card, pending review banner
+│       │       ├── customer_home_screen.dart    Home: usage overview and utility status
 │       │       ├── compare_usage_screen.dart    Water/electricity monthly history + daily bar chart
 │       │       ├── report_problem_screen.dart   Profile + Report a Problem flow
-│       │       └── my_reports_screen.dart       Resolved repairs list + star/tag/comment rating sheet
+│       │       └── my_reports_screen.dart       Resolved repairs list
 │       │
 │       ├── leakage/              Module 3 — Water Leakage Detection
 │       │   ├── data/
-│       │   │   └── leakage_repository.dart      Supabase CRUD: alerts, reports, readings, reviews, summaries
+│       │   │   └── leakage_repository.dart      Supabase CRUD: alerts, reports, and readings
 │       │   ├── models/
 │       │   │   ├── alert.dart
 │       │   │   ├── report.dart
 │       │   │   ├── reading.dart
-│       │   │   ├── service_review.dart          Customer repair rating (stars + tags + comment)
-│       │   │   └── ai_summary.dart              AI-generated service quality summary
+│       │   │   └── ai_anomaly_analysis.dart     Validated Admin anomaly analysis model
 │       │   ├── screens/          home_screen.dart, alert_queue_screen.dart, alert_detail_screen.dart,
 │       │   │                     report_history_screen.dart, network_error.dart
 │       │   ├── services/         baseline_service, nrw_service, simulation_service, explainer,
 │       │   │                     electricity_loss_service
 │       │   └── state/
-│       │       └── app_state.dart               Central Provider: alerts, reports, reviews, AI summary
+│       │       └── app_state.dart               Central Provider: alerts and reports
 │       │
 │       ├── electricity/          Module 4 — Electricity Anomaly Detection
 │       │   ├── models/           ElectricityRecord
@@ -102,7 +96,8 @@ mysumber/
 │               ├── oversight_screen.dart         Alerts + reports oversight (tabs)
 │               ├── admin_alert_detail_screen.dart
 │               ├── abnormal_production_screen.dart
-│               └── review_management_screen.dart  All reviews + ✨ Generate AI Insights button
+│               ├── review_management_screen.dart  AI anomaly queue and filters
+│               └── anomaly_review_detail_screen.dart  Alert evidence + AI explanation
 │
 ├── pubspec.yaml                  Shared dependencies
 └── README.md                     This file
@@ -110,74 +105,59 @@ mysumber/
 
 ---
 
-## Feature: AI-Powered Service Reviews
+## Feature: AI Anomaly Review
 
-Customers rate completed repairs (1–5 stars + tags + comment). Admins click
-"✨ Generate AI Insights" to send all reviews to the Groq API (Llama 3 8B),
-which returns a structured summary (pros, cons, overall assessment) stored in
-Supabase and displayed to both customers and admins.
+The system detects abnormal water and electricity patterns and automatically
+creates an alert. Admins use **AI Anomaly Review** to inspect the same alert
+records shown in Oversight. Each record is linked to the concrete hierarchy:
 
-### Review tags
-
-| Positive | Negative |
-|---|---|
-| Fast Response | Still Leaking |
-| Perfectly Fixed | Slow Response |
-| Great Attitude | Overcharged |
-| Professional | Unprofessional |
-| Thorough Check | Poor Fix |
-
-### Supabase tables required
-
-Run this SQL once in Supabase → SQL Editor:
-
-```sql
-CREATE TABLE service_reviews (
-  id             SERIAL PRIMARY KEY,
-  alert_id       INTEGER,
-  consumer_email TEXT NOT NULL,
-  stars          INTEGER NOT NULL CHECK (stars BETWEEN 1 AND 5),
-  tags           TEXT[] DEFAULT '{}',
-  comment        TEXT DEFAULT '',
-  created_at     TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE ai_summaries (
-  id             SERIAL PRIMARY KEY,
-  summary_text   TEXT NOT NULL,
-  pros           TEXT[] DEFAULT '{}',
-  cons           TEXT[] DEFAULT '{}',
-  review_count   INTEGER NOT NULL DEFAULT 0,
-  generated_at   TIMESTAMPTZ DEFAULT NOW()
-);
+```text
+State → Shopping Mall → Equipment → Alert
 ```
+
+Review defaults to `Pending` and `Ongoing` alerts and supports filtering by
+utility, state, shopping mall, equipment, and status. Each detail view shows
+the detected evidence, actual value versus baseline when available, and the
+system severity. Admin can then tap `Generate AI Analysis` for one selected
+alert. The app calls Groq model `llama-3.1-8b-instant`, validates the JSON
+response locally, and saves the result on the same `alerts` row. Reopening the
+detail page displays the saved result without another request; `Regenerate AI
+Analysis` starts a new request explicitly. Status and system severity remain
+unchanged by AI output, and status operations continue through the existing
+Oversight flow.
+
+This feature does not summarize customer ratings and does not require Worker
+field inspections, photo uploads, or repair-result submissions.
 
 ### Groq API key
 
 1. Register free at [console.groq.com](https://console.groq.com).
 2. Copy the key (`gsk_xxx...`).
-3. Paste it into `lib/config.dart`:
+3. Copy `lib/config.example.dart` to the local, gitignored file
+   `lib/config.dart`, then paste the key:
    ```dart
    static const String apiKey = 'gsk_your_key_here';
    ```
+
+The Admin AI Anomaly Review calls the external API only after an Admin taps the
+button for one alert. Customer repair ratings, comments, and the old review
+summary flow have been removed. Never commit `lib/config.dart` or any
+Supabase `service_role` key.
 
 ---
 
 ## Cloud database (Supabase)
 
-Module 3 operational data (`alerts`, `readings`, `reports`) and the review
-system (`service_reviews`, `ai_summaries`) live in a shared Supabase
-(Postgres) project.
+Module 3 operational data (`alerts`, `readings`, `reports`) lives in a shared
+Supabase (Postgres) project.
 
 ### Tables
 
 | Table | Module | Description |
 |---|---|---|
-| `alerts` | 3 | NRW and electricity anomaly alerts |
+| `alerts` | 3 | NRW and electricity anomaly alerts with facility/equipment context and validated AI analysis |
 | `readings` | 3 | Household water readings |
 | `reports` | 3 | Worker field reports |
-| `service_reviews` | 2 | Customer repair ratings |
-| `ai_summaries` | 2 | AI-generated review summaries |
 
 ### Running the app
 
@@ -188,8 +168,8 @@ key already embedded in `main.dart`. Run `flutter pub get` then `flutter run`.
 
 Row Level Security (RLS) is enabled on all tables. The anon key is the only
 key that belongs in app code. Never commit a Supabase `service_role` key.
-`lib/config.dart` (Groq key) should be added to `.gitignore` before pushing
-to any public repository.
+`lib/config.dart` (Groq key) is gitignored and must never be pushed to a public
+repository.
 
 ---
 
@@ -265,7 +245,6 @@ The two files to watch:
 - [ ] All comments removed from code
 - [ ] All modules merged to `main` and running
 - [ ] `flutter run` launches without errors on emulator
-- [ ] Supabase tables created (`service_reviews`, `ai_summaries`)
 - [ ] Groq API key set in `lib/config.dart`
 - [ ] No `service_role` key committed anywhere
 - [ ] `.gitignore` up to date
