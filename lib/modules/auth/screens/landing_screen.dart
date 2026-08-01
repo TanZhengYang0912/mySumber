@@ -18,6 +18,8 @@ class LandingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return const LoginScreen();
+    /*
     final viewport = MediaQuery.sizeOf(context);
     if (viewport.shortestSide < 600 && viewport.width > viewport.height) {
       return _phoneLandscapeLanding(context);
@@ -105,6 +107,7 @@ class LandingScreen extends StatelessWidget {
         ),
       ),
     );
+    */
   }
 
   Widget _phoneLandscapeLanding(BuildContext context) {

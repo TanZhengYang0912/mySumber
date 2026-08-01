@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../theme/tokens.dart';
+import '../../auth/state/auth_state.dart';
 import '../../leakage/models/alert.dart';
 import '../../leakage/state/app_state.dart';
 import '../services/admin_tablet_layout.dart';
@@ -89,7 +90,7 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
                             facilities: facilities,
                             equipment: equipment,
                           )
-                        : _header(),
+                        : _header(context),
                 const LinearProgressIndicator(minHeight: 2),
               ],
             ),
@@ -344,7 +345,7 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
       key: const PageStorageKey('admin-review-phone-list'),
       padding: EdgeInsets.zero,
       children: [
-        _header(),
+        _header(context),
         _summary(alerts),
         _filters(
           states: states,
@@ -359,9 +360,9 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
     );
   }
 
-  Widget _header() {
+  Widget _header(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(18, 44, 18, 20),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
       decoration: const BoxDecoration(
         color: AppColors.adminPrimary,
         borderRadius: BorderRadius.only(
@@ -369,35 +370,80 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
           bottomRight: Radius.circular(24),
         ),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Icon(Icons.analytics_outlined,
-                color: Colors.white, size: 24),
-          ),
-          const SizedBox(width: 12),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: SafeArea(
+        bottom: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Text('AI Anomaly Review',
+                const Expanded(
+                  child: Text(
+                    'mySumber · ADMIN',
                     style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 21,
-                        fontWeight: FontWeight.w800)),
-                SizedBox(height: 4),
-                Text('Review water and electricity detection results',
-                    style: TextStyle(color: Colors.white70, fontSize: 12)),
+                      color: Colors.white70,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                InkWell(
+                  onTap: () => context.read<RoleState>().logout(),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.logout, color: Colors.white, size: 16),
+                      SizedBox(width: 4),
+                      Text(
+                        'Logout',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(
+                    Icons.analytics_outlined,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'AI Anomaly Review',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 21,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -503,12 +549,6 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
                   Text(
                     'AI Anomaly Review',
                     style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800),
-                  ),
-                  SizedBox(height: 3),
-                  Text(
-                    'Review water and electricity detection results',
-                    style:
-                        TextStyle(color: AppColors.textSecondary, fontSize: 12),
                   ),
                 ],
               ),

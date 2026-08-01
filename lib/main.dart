@@ -9,10 +9,12 @@ import 'config.dart';
 import 'modules/admin/screens/abnormal_production_screen.dart';
 import 'modules/admin/screens/oversight_screen.dart';
 import 'modules/admin/screens/review_management_screen.dart';
+import 'modules/admin/screens/worker_accounts_screen.dart';
 import 'modules/admin/services/admin_tablet_layout.dart';
 import 'modules/admin/widgets/admin_compact_rail.dart';
 
 import 'modules/auth/screens/landing_screen.dart';
+import 'modules/auth/screens/reset_password_screen.dart';
 import 'modules/auth/state/auth_state.dart' show RoleState;
 
 import 'modules/leakage/data/leakage_repository.dart';
@@ -159,6 +161,9 @@ class MySumberApp extends StatelessWidget {
         ),
         home: Consumer<RoleState>(
           builder: (BuildContext context, RoleState authState, Widget? _) {
+            if (authState.requiresPasswordReset) {
+              return const ResetPasswordScreen();
+            }
             if (authState.isLoggedIn) {
               // Authoritative regardless of how the session arrived — a
               // cold app start via the email-link deep link never has
@@ -212,6 +217,7 @@ class _AppShellState extends State<AppShell> {
           const AbnormalProductionScreen(),
           const OversightScreen(),
           const ReviewManagementScreen(),
+          const WorkerAccountsScreen(),
         ];
         _navItems = const [
           _NavItem(icon: Icons.grid_view_outlined, label: 'Dashboard'),
@@ -219,6 +225,7 @@ class _AppShellState extends State<AppShell> {
           _NavItem(icon: Icons.notifications_outlined, label: 'Alerts'),
           _NavItem(icon: Icons.shield_outlined, label: 'Oversight'),
           _NavItem(icon: Icons.analytics_outlined, label: 'AI Review'),
+          _NavItem(icon: Icons.manage_accounts_outlined, label: 'Workers'),
         ];
         break;
       case 'worker':

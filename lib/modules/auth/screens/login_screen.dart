@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../theme/tokens.dart';
 import '../state/auth_state.dart';
 import 'register_screen.dart';
+import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final String? intendedRole;
@@ -22,11 +23,6 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.intendedRole == 'admin') {
-      _emailController.text = 'admin@mysumber.my';
-    } else if (widget.intendedRole == 'worker') {
-      _emailController.text = 'worker@mysumber.my';
-    }
   }
 
   @override
@@ -39,6 +35,12 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _login() async {
     final auth = context.read<RoleState>();
     await auth.login(_emailController.text.trim(), _passwordController.text);
+  }
+
+  void _openForgotPassword() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
+    );
   }
 
   /// Shared by email/password login and the async Google OAuth callback.
@@ -113,14 +115,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   String _roleLabel() {
-    switch (widget.intendedRole) {
-      case 'admin':
-        return 'Admin';
-      case 'worker':
-        return 'Worker';
-      default:
-        return 'Customer';
-    }
+    return 'Account';
   }
 
   bool _isPhoneLandscape(BuildContext context) {
@@ -248,6 +243,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                                 onSubmitted: (_) => _login(),
                               ),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton(
+                                  onPressed: auth.isLoading ? null : _openForgotPassword,
+                                  child: const Text('Forgot password?'),
+                                ),
+                              ),
                               if (auth.errorMessage != null)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 8),
@@ -364,10 +366,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final primary = rolePrimary(widget.intendedRole);
-    final isCustomer = widget.intendedRole == 'user' ||
-        widget.intendedRole == null ||
-        widget.intendedRole == 'customer';
+    const primary = AppColors.adminPrimary;
+    const isCustomer = true;
 
     if (_isPhoneLandscape(context)) {
       return _phoneLandscapeScaffold(context, primary, isCustomer);
@@ -472,6 +472,13 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         onSubmitted: (_) => _login(),
                       ),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: auth.isLoading ? null : _openForgotPassword,
+                          child: const Text('Forgot password?'),
+                        ),
+                      ),
                       if (auth.errorMessage != null)
                         Padding(
                           padding: const EdgeInsets.only(top: 12),
@@ -574,8 +581,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                         const SizedBox(height: 14),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             const Text(
                               "Don't have an account? ",

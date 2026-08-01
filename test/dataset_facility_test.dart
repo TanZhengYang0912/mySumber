@@ -314,6 +314,70 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('State / Federal Territory'), findsOneWidget);
   });
+
+  testWidgets('inventory aligns equipment details into four wide-card zones',
+      (tester) async {
+    tester.view.physicalSize = const Size(1024, 768);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final datasetState = _StaticDatasetState()
+      ..nodes = const [
+        EquipmentNode(
+          nodeName: 'Main Water Pump A1',
+          utilityType: 'Water',
+          zoneId: 'W.P. Kuala Lumpur',
+          facilityName: 'Suria KLCC',
+          facilityCity: 'Kuala Lumpur',
+          manufacturer: 'Grundfos',
+          status: 'Active',
+          healthScore: 96,
+        ),
+      ];
+
+    await tester.pumpWidget(MaterialApp(
+      home: ChangeNotifierProvider<DatasetState>.value(
+        value: datasetState,
+        child: const InventoryScreen(),
+      ),
+    ));
+    await tester.pump();
+
+    expect(find.text('Status'), findsOneWidget);
+    expect(find.text('Health'), findsOneWidget);
+    expect(find.text('Operation'), findsOneWidget);
+    expect(find.text('96%'), findsOneWidget);
+    expect(find.byTooltip('Edit equipment'), findsOneWidget);
+
+    final statusColumn = tester.widget<Column>(
+      find
+          .ancestor(
+            of: find.text('Status'),
+            matching: find.byType(Column),
+          )
+          .first,
+    );
+    final healthColumn = tester.widget<Column>(
+      find
+          .ancestor(
+            of: find.text('Health'),
+            matching: find.byType(Column),
+          )
+          .first,
+    );
+    expect(statusColumn.crossAxisAlignment, CrossAxisAlignment.center);
+    expect(healthColumn.crossAxisAlignment, CrossAxisAlignment.center);
+
+    final statusLabelY = tester.getCenter(find.text('Status')).dy;
+    final healthLabelY = tester.getCenter(find.text('Health')).dy;
+    final operationLabelY = tester.getCenter(find.text('Operation')).dy;
+    final statusValueY = tester.getCenter(find.text('Active')).dy;
+    final healthValueY = tester.getCenter(find.text('96%')).dy;
+    final operationY = tester.getCenter(find.byTooltip('Edit equipment')).dy;
+    expect(statusLabelY, closeTo(healthLabelY, 1));
+    expect(statusLabelY, closeTo(operationLabelY, 1));
+    expect(statusValueY, closeTo(healthValueY, 1));
+    expect(statusValueY, closeTo(operationY, 1));
+  });
 }
 
 class _StaticDatasetState extends DatasetState {

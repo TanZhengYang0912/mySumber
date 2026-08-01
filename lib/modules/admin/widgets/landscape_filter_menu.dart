@@ -9,12 +9,14 @@ class LandscapeFilterMenu extends StatelessWidget {
     this.label = 'Filter',
     this.tooltip = 'Filter anomalies',
     this.activeCount = 0,
+    this.footer,
   });
 
   final Widget child;
   final String label;
   final String tooltip;
   final int activeCount;
+  final Widget? footer;
 
   @override
   Widget build(BuildContext context) {
@@ -32,10 +34,21 @@ class LandscapeFilterMenu extends StatelessWidget {
             return SizedBox(
               width: 360,
               height: maxHeight,
-              child: SingleChildScrollView(
-                primary: false,
-                padding: const EdgeInsets.all(16),
-                child: child,
+              child: Column(
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      primary: false,
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: child,
+                    ),
+                  ),
+                  if (footer != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                      child: footer,
+                    ),
+                ],
               ),
             );
           },

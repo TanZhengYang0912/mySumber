@@ -761,118 +761,33 @@ Backup Generator 2,Electricity,Kelantan,Kota Bharu,AEON Mall Kota Bharu,Honda,Ac
                 ],
               ),
               padding: const EdgeInsets.fromLTRB(18, 14, 14, 14),
-              child: Row(
-                children: [
-                  Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: surface,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          isWater
-                              ? Icons.water_drop_outlined
-                              : Icons.electric_bolt,
-                          color: accent,
-                        ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  void onEdit() {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => NodeFormScreen(node: node),
                       ),
-                      Positioned(
-                        right: -2,
-                        bottom: -2,
-                        child: Container(
-                          width: 14,
-                          height: 14,
-                          decoration: BoxDecoration(
-                            color: statusColor,
-                            shape: BoxShape.circle,
-                            border:
-                                Border.all(color: AppColors.surface, width: 2),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          node.facilityName ?? 'Unassigned facility',
-                          style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.adminPrimary),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          node.nodeName,
-                          style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${node.zoneId ?? '—'} · ${node.facilityCity ?? '—'} · ${node.manufacturer ?? 'Unknown'}',
-                          style: const TextStyle(
-                              fontSize: 12, color: AppColors.textSecondary),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Text(
-                              node.status,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: statusColor,
-                              ),
-                            ),
-                            const Spacer(),
-                            Text(
-                              '${node.healthScore}%',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: statusColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: (node.healthScore / 100).clamp(0.0, 1.0),
-                            minHeight: 6,
-                            backgroundColor:
-                                statusColor.withValues(alpha: 0.15),
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(statusColor),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.edit_outlined, size: 18),
-                    color: AppColors.textSecondary,
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => NodeFormScreen(node: node),
-                        ),
-                      );
-                    },
-                  ),
-                ],
+                    );
+                  }
+
+                  if (constraints.maxWidth >= 720) {
+                    return _wideEquipmentCardContent(
+                      node: node,
+                      accent: accent,
+                      surface: surface,
+                      statusColor: statusColor,
+                      onEdit: onEdit,
+                    );
+                  }
+                  return _compactEquipmentCardContent(
+                    node: node,
+                    accent: accent,
+                    surface: surface,
+                    statusColor: statusColor,
+                    onEdit: onEdit,
+                  );
+                },
               ),
             ),
             Positioned(
@@ -893,6 +808,286 @@ Backup Generator 2,Electricity,Kelantan,Kota Bharu,AEON Mall Kota Bharu,Honda,Ac
           ],
         ),
       ),
+    );
+  }
+
+  Widget _wideEquipmentCardContent({
+    required EquipmentNode node,
+    required Color accent,
+    required Color surface,
+    required Color statusColor,
+    required VoidCallback onEdit,
+  }) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 58,
+          child: Center(
+            child: _equipmentIcon(
+              node: node,
+              accent: accent,
+              surface: surface,
+              statusColor: statusColor,
+            ),
+          ),
+        ),
+        _cardDivider(),
+        const SizedBox(width: 16),
+        Expanded(flex: 6, child: _equipmentDetails(node)),
+        _cardDivider(),
+        SizedBox(
+          width: 84,
+          child: _labelledMetric(
+            label: 'Status',
+            value: node.status,
+            color: statusColor,
+          ),
+        ),
+        _cardDivider(),
+        SizedBox(
+          width: 128,
+          child: _healthMetric(node.healthScore, statusColor),
+        ),
+        _cardDivider(),
+        SizedBox(
+          width: 64,
+          child: _operationMetric(onEdit),
+        ),
+      ],
+    );
+  }
+
+  Widget _compactEquipmentCardContent({
+    required EquipmentNode node,
+    required Color accent,
+    required Color surface,
+    required Color statusColor,
+    required VoidCallback onEdit,
+  }) {
+    return Row(
+      children: [
+        _equipmentIcon(
+          node: node,
+          accent: accent,
+          surface: surface,
+          statusColor: statusColor,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _equipmentDetails(node),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Text(
+                    node.status,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: statusColor,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${node.healthScore}%',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: statusColor,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              _healthBar(node.healthScore, statusColor),
+            ],
+          ),
+        ),
+        IconButton(
+          tooltip: 'Edit equipment',
+          icon: const Icon(Icons.edit_outlined, size: 18),
+          color: AppColors.textSecondary,
+          onPressed: onEdit,
+        ),
+      ],
+    );
+  }
+
+  Widget _equipmentIcon({
+    required EquipmentNode node,
+    required Color accent,
+    required Color surface,
+    required Color statusColor,
+  }) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: surface,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            node.utilityType == 'Water'
+                ? Icons.water_drop_outlined
+                : Icons.electric_bolt,
+            color: accent,
+          ),
+        ),
+        Positioned(
+          right: -2,
+          bottom: -2,
+          child: Container(
+            width: 14,
+            height: 14,
+            decoration: BoxDecoration(
+              color: statusColor,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.surface, width: 2),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _equipmentDetails(EquipmentNode node) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          node.facilityName ?? 'Unassigned facility',
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: AppColors.adminPrimary,
+          ),
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 2),
+        Text(
+          node.nodeName,
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: AppColors.textPrimary,
+          ),
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 2),
+        Text(
+          '${node.zoneId ?? '—'} · ${node.facilityCity ?? '—'} · ${node.manufacturer ?? 'Unknown'}',
+          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
+    );
+  }
+
+  Widget _labelledMetric({
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return _metricColumn(
+      label: label,
+      value: Text(
+        value,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w800,
+          color: color,
+        ),
+      ),
+    );
+  }
+
+  Widget _healthMetric(int score, Color color) {
+    return _metricColumn(
+      label: 'Health',
+      value: Text(
+        '$score%',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w800,
+          color: color,
+        ),
+      ),
+      footer: SizedBox(
+        width: double.infinity,
+        child: _healthBar(score, color),
+      ),
+    );
+  }
+
+  Widget _operationMetric(VoidCallback onEdit) {
+    return _metricColumn(
+      label: 'Operation',
+      value: IconButton(
+        tooltip: 'Edit equipment',
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+        icon: const Icon(Icons.edit_outlined, size: 18),
+        color: AppColors.textSecondary,
+        onPressed: onEdit,
+      ),
+    );
+  }
+
+  Widget _metricColumn({
+    required String label,
+    required Widget value,
+    Widget? footer,
+  }) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        SizedBox(
+          height: 18,
+          child: Center(
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        SizedBox(height: 28, child: Center(child: value)),
+        const SizedBox(height: 4),
+        SizedBox(height: 6, child: footer ?? const SizedBox.shrink()),
+      ],
+    );
+  }
+
+  Widget _healthBar(int score, Color color) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(4),
+      child: LinearProgressIndicator(
+        value: (score / 100).clamp(0.0, 1.0),
+        minHeight: 6,
+        backgroundColor: color.withValues(alpha: 0.15),
+        valueColor: AlwaysStoppedAnimation<Color>(color),
+      ),
+    );
+  }
+
+  Widget _cardDivider() {
+    return Container(
+      width: 1,
+      height: 56,
+      color: AppColors.divider,
     );
   }
 }
