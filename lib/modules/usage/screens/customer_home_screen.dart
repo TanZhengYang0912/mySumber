@@ -622,30 +622,6 @@ class CustomerHomeScreen extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 14),
-            Material(
-              color: Colors.white.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(999),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(999),
-                onTap: () => showAddConsumptionFlow(context),
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.add, size: 18, color: Colors.white),
-                      SizedBox(width: 6),
-                      Text('Add +',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14)),
-                    ],
-                  ),
-                ),
-              ),
-            ),
           ],
         ),
       ),

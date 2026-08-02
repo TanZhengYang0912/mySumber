@@ -415,7 +415,7 @@ class AddConsumptionFab extends StatelessWidget {
       foregroundColor: Colors.white,
       onPressed: () => showAddConsumptionFlow(context, utility: utility),
       icon: const Icon(Icons.add),
-      label: const Text('Add +',
+      label: const Text('Add',
           style: TextStyle(fontWeight: FontWeight.w700)),
     );
   }
