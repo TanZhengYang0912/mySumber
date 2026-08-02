@@ -79,15 +79,26 @@ class _LandingScreenState extends State<LandingScreen> {
         child: SafeArea(
           child: isPhoneLandscape
               ? _LandscapeLanding(onPick: _pick)
-              : PageView(
-                  controller: _pageController,
-                  onPageChanged: (i) => setState(() => _page = i),
+              : Stack(
                   children: [
-                    _WelcomePage(page: _page, onContinue: () => _goTo(1)),
-                    _RoleSelectPage(
-                      page: _page,
-                      onBack: () => _goTo(0),
-                      onPick: _pick,
+                    PageView(
+                      controller: _pageController,
+                      onPageChanged: (i) => setState(() => _page = i),
+                      children: [
+                        _WelcomePage(onContinue: () => _goTo(1)),
+                        _RoleSelectPage(
+                          onBack: () => _goTo(0),
+                          onPick: _pick,
+                        ),
+                      ],
+                    ),
+                    // Pinned outside the PageView so it reflects the current
+                    // page instead of swiping away with the page content.
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 20,
+                      child: _PageDots(page: _page),
                     ),
                   ],
                 ),
@@ -123,9 +134,8 @@ class _PageDots extends StatelessWidget {
 }
 
 class _WelcomePage extends StatelessWidget {
-  final int page;
   final VoidCallback onContinue;
-  const _WelcomePage({required this.page, required this.onContinue});
+  const _WelcomePage({required this.onContinue});
 
   @override
   Widget build(BuildContext context) {
@@ -205,8 +215,7 @@ class _WelcomePage extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 16),
-          _PageDots(page: page),
+          const SizedBox(height: 40),
         ],
       ),
     );
@@ -214,11 +223,9 @@ class _WelcomePage extends StatelessWidget {
 }
 
 class _RoleSelectPage extends StatelessWidget {
-  final int page;
   final VoidCallback onBack;
   final ValueChanged<String> onPick;
   const _RoleSelectPage({
-    required this.page,
     required this.onBack,
     required this.onPick,
   });
@@ -307,7 +314,7 @@ class _RoleSelectPage extends StatelessWidget {
             },
           ),
           const Spacer(flex: 5),
-          _PageDots(page: page),
+          const SizedBox(height: 40),
         ],
       ),
     );
