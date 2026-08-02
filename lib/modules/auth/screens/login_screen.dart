@@ -6,6 +6,13 @@ import '../state/auth_state.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
 
+/// Matches the "Continue as Customer" card on the landing page's role-select
+/// screen, rather than the app-wide indigo AppColors.customerPrimary — kept
+/// local to this file since the green reskin was scoped to the front pages
+/// (of which this customer login screen is effectively the third step) and
+/// not applied to AppColors globally.
+const _customerGreen = Color(0xFF22C55E);
+
 class LoginScreen extends StatefulWidget {
   final String? intendedRole;
   const LoginScreen({super.key, this.intendedRole});
@@ -373,9 +380,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final primary = rolePrimary(widget.intendedRole);
     final isCustomer =
         widget.intendedRole == null || widget.intendedRole == 'user';
+    final primary =
+        isCustomer ? _customerGreen : rolePrimary(widget.intendedRole);
 
     if (_isPhoneLandscape(context)) {
       return _phoneLandscapeScaffold(context, primary, isCustomer);
