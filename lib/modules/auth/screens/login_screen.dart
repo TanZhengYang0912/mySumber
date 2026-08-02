@@ -115,7 +115,14 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   String _roleLabel() {
-    return 'Account';
+    switch (widget.intendedRole) {
+      case 'admin':
+        return 'Admin';
+      case 'worker':
+        return 'Worker';
+      default:
+        return 'Account';
+    }
   }
 
   bool _isPhoneLandscape(BuildContext context) {
@@ -366,8 +373,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const primary = AppColors.adminPrimary;
-    const isCustomer = true;
+    final primary = rolePrimary(widget.intendedRole);
+    final isCustomer =
+        widget.intendedRole == null || widget.intendedRole == 'user';
 
     if (_isPhoneLandscape(context)) {
       return _phoneLandscapeScaffold(context, primary, isCustomer);
