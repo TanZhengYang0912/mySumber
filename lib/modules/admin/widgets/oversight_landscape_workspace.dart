@@ -17,6 +17,7 @@ class OversightLandscapeWorkspace extends StatelessWidget {
     required this.onSectionChanged,
     required this.onAlertTap,
     required this.onClearFilters,
+    required this.onReportState,
     required this.reportsBody,
   });
 
@@ -29,6 +30,7 @@ class OversightLandscapeWorkspace extends StatelessWidget {
   final ValueChanged<int> onSectionChanged;
   final ValueChanged<Alert> onAlertTap;
   final VoidCallback onClearFilters;
+  final VoidCallback onReportState;
   final Widget reportsBody;
 
   @override
@@ -40,6 +42,8 @@ class OversightLandscapeWorkspace extends StatelessWidget {
           _CompactTopBar(
             pendingCount: pendingCount,
             filterMenu: filterMenu,
+            showReportState: showingAlerts,
+            onReportState: onReportState,
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
@@ -69,10 +73,14 @@ class _CompactTopBar extends StatelessWidget {
   const _CompactTopBar({
     required this.pendingCount,
     required this.filterMenu,
+    required this.showReportState,
+    required this.onReportState,
   });
 
   final int pendingCount;
   final Widget filterMenu;
+  final bool showReportState;
+  final VoidCallback onReportState;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -91,8 +99,7 @@ class _CompactTopBar extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: AppColors.criticalSurface,
                   borderRadius: BorderRadius.circular(99),
@@ -107,6 +114,13 @@ class _CompactTopBar extends StatelessWidget {
                 ),
               ),
               const Spacer(),
+              if (showReportState)
+                IconButton.filledTonal(
+                  tooltip: 'Report State',
+                  onPressed: onReportState,
+                  icon: const Icon(Icons.add_alert_outlined),
+                ),
+              if (showReportState) const SizedBox(width: 8),
               filterMenu,
             ],
           ),
@@ -274,8 +288,7 @@ class _AlertRow extends StatelessWidget {
               ),
               Container(
                 margin: const EdgeInsets.only(right: 10),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
                 decoration: BoxDecoration(
                   color: severity.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(99),

@@ -25,6 +25,10 @@ class DatasetState extends ChangeNotifier {
 
     try {
       nodes = await repository.fetchNodes();
+      if (nodes.isEmpty) {
+        await repository.seedDemoDataIfEmpty();
+        nodes = await repository.fetchNodes();
+      }
       if (stateWaterSupply.isEmpty) {
         await loadAggregatedStateData();
       }
@@ -52,11 +56,12 @@ class DatasetState extends ChangeNotifier {
     notifyListeners();
 
     try {
-      if (node.nodeId != null) {
-        currentLogs = await repository.fetchLogsForNode(node.nodeId!);
+      if (selectedNode?.nodeId != null) {
+        final selected = selectedNode!;
+        currentLogs = await repository.fetchLogsForNode(selected.nodeId!);
         if (currentLogs.isEmpty) {
-          await _loadHistoricalDataFromCSV(node);
-          currentLogs = await repository.fetchLogsForNode(node.nodeId!);
+          await repository.seedDemoLogsForNode(selected);
+          currentLogs = await repository.fetchLogsForNode(selected.nodeId!);
         }
       }
     } catch (e) {
@@ -67,43 +72,11 @@ class DatasetState extends ChangeNotifier {
     }
   }
 
-  Future<void> _loadHistoricalDataFromCSV(EquipmentNode node) async {
-    final isWater = node.utilityType == 'Water';
-    final assetPath = isWater 
-        ? 'assets/water_consumption.csv' 
-        : 'assets/electricity_consumption.csv';
-    
-    try {
-      final csvString = await rootBundle.loadString(assetPath);
-      final lines = csvString.split('\n');
-      
-      int stateIdx = 0;
-      int dateIdx = isWater ? 2 : 1;
-      int valIdx = 3;
-
-      final matchingLines = lines.skip(1).where((l) {
-        final p = l.split(',');
-        return p.length > valIdx && p[stateIdx] == node.zoneId;
-      }).toList();
-      
-      // Grab up to 30 recent data points to form baseline
-      final recentLines = matchingLines.length > 30 ? matchingLines.sublist(matchingLines.length - 30) : matchingLines;
-      
-      for (var line in recentLines) {
-        final parts = line.split(',');
-        final val = double.tryParse(parts[valIdx]) ?? 0.0;
-        final timestamp = DateTime.tryParse(parts[dateIdx]) ?? DateTime.now();
-        repository.insertHistoricalLog(node.nodeId!, val, timestamp);
-      }
-    } catch(e) {
-      debugPrint('Failed to load CSV: $e');
-    }
-  }
-
   Future<void> loadAggregatedStateData() async {
     try {
       // 1. Load Water Supply (Production)
-      final waterSupplyStr = await rootBundle.loadString('assets/water_production.csv');
+      final waterSupplyStr =
+          await rootBundle.loadString('assets/water_production.csv');
       final waterSupplyLines = waterSupplyStr.split('\n');
       for (var line in waterSupplyLines.skip(1)) {
         final p = line.split(',');
@@ -115,41 +88,47 @@ class DatasetState extends ChangeNotifier {
       }
 
       // 2. Load Water Consumption
-      final waterConStr = await rootBundle.loadString('assets/water_consumption.csv');
+      final waterConStr =
+          await rootBundle.loadString('assets/water_consumption.csv');
       final waterConLines = waterConStr.split('\n');
       for (var line in waterConLines.skip(1)) {
         final p = line.split(',');
         if (p.length >= 4 && p[0] != 'Malaysia' && p[0].trim().isNotEmpty) {
           final state = p[0].trim();
           final val = double.tryParse(p[3]) ?? 0.0;
-          stateWaterConsumption[state] = (stateWaterConsumption[state] ?? 0.0) + val;
+          stateWaterConsumption[state] =
+              (stateWaterConsumption[state] ?? 0.0) + val;
         }
       }
 
       // 3. Load Electricity Supply
-      final elecSupplyStr = await rootBundle.loadString('assets/electricity_supply.csv');
+      final elecSupplyStr =
+          await rootBundle.loadString('assets/electricity_supply.csv');
       final elecSupplyLines = elecSupplyStr.split('\n');
       for (var line in elecSupplyLines.skip(1)) {
         final p = line.split(',');
         if (p.length >= 4 && p[0] != 'Malaysia' && p[0].trim().isNotEmpty) {
           final state = p[0].trim();
           final val = double.tryParse(p[3]) ?? 0.0;
-          stateElectricitySupply[state] = (stateElectricitySupply[state] ?? 0.0) + val;
+          stateElectricitySupply[state] =
+              (stateElectricitySupply[state] ?? 0.0) + val;
         }
       }
 
       // 4. Load Electricity Consumption
-      final elecConStr = await rootBundle.loadString('assets/electricity_consumption.csv');
+      final elecConStr =
+          await rootBundle.loadString('assets/electricity_consumption.csv');
       final elecConLines = elecConStr.split('\n');
       for (var line in elecConLines.skip(1)) {
         final p = line.split(',');
         if (p.length >= 4 && p[0] != 'Malaysia' && p[0].trim().isNotEmpty) {
           final state = p[0].trim();
           final val = double.tryParse(p[3]) ?? 0.0;
-          stateElectricityConsumption[state] = (stateElectricityConsumption[state] ?? 0.0) + val;
+          stateElectricityConsumption[state] =
+              (stateElectricityConsumption[state] ?? 0.0) + val;
         }
       }
-      
+
       notifyListeners();
     } catch (e) {
       debugPrint('Error loading aggregated data: $e');

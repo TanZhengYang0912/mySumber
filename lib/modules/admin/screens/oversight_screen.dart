@@ -145,6 +145,13 @@ class _OversightScreenState extends State<OversightScreen>
                 builder: (_) => AdminAlertDetailScreen(alertId: alert.id!)));
           },
           onClearFilters: _clearLandscapeAlertFilters,
+          onReportState: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const AbnormalProductionScreen(
+                showBackToOversight: true,
+              ),
+            ),
+          ),
           reportsBody: _reportsTab(app, compact: true),
         ),
       );
@@ -201,7 +208,9 @@ class _OversightScreenState extends State<OversightScreen>
               icon: const Icon(Icons.add_alert_outlined),
               label: const Text('Report State'),
               onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const AbnormalProductionScreen())),
+                  builder: (_) => const AbnormalProductionScreen(
+                        showBackToOversight: true,
+                      ))),
             )
           : null,
     );
