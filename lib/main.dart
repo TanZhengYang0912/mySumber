@@ -89,7 +89,9 @@ class MySumberApp extends StatelessWidget {
           },
         ),
         ChangeNotifierProvider<DatasetState>(
-          create: (_) => DatasetState(repository: DatasetRepository()),
+          create: (_) => DatasetState(
+            repository: DatasetRepository(client: Supabase.instance.client),
+          ),
         ),
         ChangeNotifierProvider<UsageState>(
           create: (_) => UsageState(),

@@ -11,7 +11,12 @@ import '../../leakage/state/app_state.dart';
 import '../services/abnormal_production_layout.dart';
 
 class AbnormalProductionScreen extends StatefulWidget {
-  const AbnormalProductionScreen({super.key});
+  final bool showBackToOversight;
+
+  const AbnormalProductionScreen({
+    super.key,
+    this.showBackToOversight = false,
+  });
 
   @override
   State<AbnormalProductionScreen> createState() =>
@@ -111,25 +116,38 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
         20,
         16,
       ),
-      child: const Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'mySumber · ADMIN',
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
+          if (widget.showBackToOversight)
+            IconButton(
+              tooltip: 'Back to Oversight',
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
             ),
-          ),
-          SizedBox(height: 3),
-          Text(
-            'Abnormal Production',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-              height: 1.15,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text(
+                  'mySumber · ADMIN',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                SizedBox(height: 3),
+                Text(
+                  'Abnormal Production',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    height: 1.15,
+                  ),
+                ),
+              ],
             ),
           ),
         ],

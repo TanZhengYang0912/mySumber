@@ -27,6 +27,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
   late String _selectedState;
   String _selectedFacility = 'All';
   final _searchController = TextEditingController();
+  final _inventoryScrollController = ScrollController();
+  double _savedInventoryOffset = 0;
+  bool _shouldRestoreInventoryOffset = false;
 
   @override
   void initState() {
@@ -40,6 +43,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _inventoryScrollController.dispose();
     super.dispose();
   }
 
@@ -67,6 +71,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
     final isPhoneLandscape = adminLayoutModeFor(MediaQuery.sizeOf(context)) ==
         AdminLayoutMode.phoneLandscape;
 
+    if (!state.isLoading && _shouldRestoreInventoryOffset) {
+      _restoreInventoryPosition();
+    }
+
     if (isPhoneLandscape && !state.isLoading) {
       return _phoneLandscapeLayout(
         context: context,
@@ -83,6 +91,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
       body: state.isLoading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
+              controller: _inventoryScrollController,
               padding: EdgeInsets.zero,
               children: [
                 _header(context),
@@ -176,6 +185,31 @@ class _InventoryScreenState extends State<InventoryScreen> {
     );
   }
 
+  void _saveInventoryPosition() {
+    if (_inventoryScrollController.hasClients) {
+      _savedInventoryOffset = _inventoryScrollController.offset;
+      _shouldRestoreInventoryOffset = true;
+    }
+  }
+
+  void _restoreInventoryPosition() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          !_shouldRestoreInventoryOffset ||
+          !_inventoryScrollController.hasClients) {
+        return;
+      }
+
+      final position = _inventoryScrollController.position;
+      final target = _savedInventoryOffset.clamp(
+        position.minScrollExtent,
+        position.maxScrollExtent,
+      );
+      _inventoryScrollController.jumpTo(target);
+      _shouldRestoreInventoryOffset = false;
+    });
+  }
+
   Widget _phoneLandscapeLayout({
     required BuildContext context,
     required DatasetState state,
@@ -257,6 +291,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
             const Divider(height: 1),
             Expanded(
               child: ListView(
+                controller: _inventoryScrollController,
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                 children: [
                   _searchField(),
@@ -741,6 +776,7 @@ Backup Generator 2,Electricity,Kelantan,Kota Bharu,AEON Mall Kota Bharu,Honda,Ac
       },
       child: GestureDetector(
         onTap: () {
+          _saveInventoryPosition();
           state.selectNode(node);
           Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => const EquipmentDetailScreen()),
