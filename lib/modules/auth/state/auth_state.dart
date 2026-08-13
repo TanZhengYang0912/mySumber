@@ -427,17 +427,25 @@ class RoleState extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    // Cleared up front, before the signOut() await, not after: GoTrue drops
+    // its local currentUser synchronously as soon as signOut() starts,
+    // ahead of the network call that finishes it. needsProfileSetup reads
+    // that live currentUser, so if _userRole were still 'user' during the
+    // gap, a frame could render with currentUser already null and flash
+    // ProfileSetupScreen (metadata looks missing) before landing on
+    // LandingScreen. Nulling _userRole first makes isLoggedIn false
+    // immediately, so main.dart never evaluates needsProfileSetup here.
     _isLoading = true;
+    _userRole = null;
+    _email = null;
+    _profile = null;
+    _errorMessage = null;
+    _profileSetupSkipped = false;
+    _requiresPasswordReset = false;
     notifyListeners();
 
     try {
       await Supabase.instance.client.auth.signOut();
-      _userRole = null;
-      _email = null;
-      _profile = null;
-      _errorMessage = null;
-      _profileSetupSkipped = false;
-      _requiresPasswordReset = false;
       _isLoading = false;
       notifyListeners();
     } catch (e) {
