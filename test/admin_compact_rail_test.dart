@@ -5,6 +5,38 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mysumber/modules/admin/widgets/admin_compact_rail.dart';
 
 void main() {
+  testWidgets('orders horizontal admin destinations by workflow',
+      (tester) async {
+    tester.view.physicalSize = const Size(914, 411);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    int? selectedIndex;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: AdminCompactRail(
+          currentIndex: 0,
+          onDestinationSelected: (index) => selectedIndex = index,
+          onLogout: () {},
+        ),
+      ),
+    ));
+
+    final dashboard = tester.getRect(find.byTooltip('Dashboard'));
+    final inventory = tester.getRect(find.byTooltip('Inventory'));
+    final alerts = tester.getRect(find.byTooltip('Alerts'));
+    final oversight = tester.getRect(find.byTooltip('Oversight'));
+
+    expect(dashboard.top, lessThan(inventory.top));
+    expect(inventory.top, lessThan(alerts.top));
+    expect(alerts.top, lessThan(oversight.top));
+
+    await tester.tap(find.byTooltip('Inventory'));
+    expect(selectedIndex, 1);
+    await tester.tap(find.byTooltip('Alerts'));
+    expect(selectedIndex, 2);
+  });
+
   testWidgets('keeps low-frequency destinations inside the more menu',
       (tester) async {
     int? selectedIndex;
@@ -89,7 +121,7 @@ void main() {
 
     // The camera occupies the middle of the rail. Destinations should be
     // evenly distributed in the available segments above and below it,
-    // instead of pushing Inventory down and compressing the lower entries.
+    // with Inventory above the camera and Alerts below it.
     expect(
       inventory.bottom,
       lessThanOrEqualTo(cameraCutout.top),
@@ -99,8 +131,8 @@ void main() {
       greaterThanOrEqualTo(cameraCutout.bottom),
     );
     expect(
-      alerts.top - dashboard.bottom,
-      closeTo(inventory.top - alerts.bottom, 1),
+      inventory.top - dashboard.bottom,
+      closeTo(alerts.top - inventory.bottom, 1),
     );
     expect(
       more.top - oversight.bottom,

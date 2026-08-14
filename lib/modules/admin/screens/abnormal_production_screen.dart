@@ -3,12 +3,14 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../theme/tokens.dart';
+import '../../auth/state/auth_state.dart';
 import '../../electricity/models/electricity_models.dart';
 import '../../leakage/models/alert.dart';
 import '../../leakage/screens/network_error.dart';
 import '../../leakage/services/nrw_service.dart';
 import '../../leakage/state/app_state.dart';
 import '../services/abnormal_production_layout.dart';
+import '../widgets/admin_page_header.dart';
 
 class AbnormalProductionScreen extends StatefulWidget {
   final bool showBackToOversight;
@@ -107,51 +109,17 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
   }
 
   Widget _buildHeader(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      color: AppColors.adminPrimary,
-      padding: EdgeInsets.fromLTRB(
-        20,
-        MediaQuery.paddingOf(context).top + 14,
-        20,
-        16,
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (widget.showBackToOversight)
-            IconButton(
+    return AdminPageHeader(
+      title: 'Abnormal Production',
+      icon: Icons.notifications_outlined,
+      leading: widget.showBackToOversight
+          ? IconButton(
               tooltip: 'Back to Oversight',
               onPressed: () => Navigator.of(context).pop(),
               icon: const Icon(Icons.arrow_back, color: Colors.white),
-            ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
-                  'mySumber · ADMIN',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                SizedBox(height: 3),
-                Text(
-                  'Abnormal Production',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                    height: 1.15,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+            )
+          : null,
+      onLogout: () => context.read<RoleState>().logout(),
     );
   }
 

@@ -14,6 +14,7 @@ import 'admin_alert_detail_screen.dart';
 import '../services/admin_tablet_layout.dart';
 import '../services/anomaly_review_filter.dart';
 import '../widgets/landscape_filter_menu.dart';
+import '../widgets/admin_page_header.dart';
 import '../widgets/oversight_landscape_workspace.dart';
 
 enum OversightSection { alerts, reports }
@@ -113,6 +114,7 @@ class _OversightScreenState extends State<OversightScreen>
           AnomalyReviewFilter.apply(app.alerts, _oversightAlertQuery());
       final landscapeFilterMenu = isAlertsTab
           ? LandscapeFilterMenu(
+              compact: true,
               activeCount: _activeLandscapeFilterCount,
               footer: TextButton(
                 onPressed: _clearLandscapeAlertFilters,
@@ -121,6 +123,7 @@ class _OversightScreenState extends State<OversightScreen>
               child: _landscapeFilterControls(),
             )
           : LandscapeFilterMenu(
+              compact: true,
               tooltip: 'Filter reports',
               activeCount: _activeLandscapeReportFilterCount,
               footer: TextButton(
@@ -145,6 +148,7 @@ class _OversightScreenState extends State<OversightScreen>
                 builder: (_) => AdminAlertDetailScreen(alertId: alert.id!)));
           },
           onClearFilters: _clearLandscapeAlertFilters,
+          onLogout: () => context.read<RoleState>().logout(),
           onReportState: () => Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => const AbnormalProductionScreen(
@@ -390,63 +394,10 @@ class _OversightScreenState extends State<OversightScreen>
       left.length == right.length && left.containsAll(right);
 
   Widget _header(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      decoration: const BoxDecoration(
-        color: AppColors.adminPrimary,
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(24),
-          bottomRight: Radius.circular(24),
-        ),
-      ),
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-      child: SafeArea(
-        bottom: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    'mySumber · ADMIN',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-                InkWell(
-                  onTap: () => context.read<RoleState>().logout(),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.logout, color: Colors.white, size: 16),
-                      SizedBox(width: 4),
-                      Text('Logout',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Oversight',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
-                height: 1.15,
-              ),
-            ),
-          ],
-        ),
-      ),
+    return AdminPageHeader(
+      title: 'Oversight',
+      icon: Icons.shield_outlined,
+      onLogout: () => context.read<RoleState>().logout(),
     );
   }
 

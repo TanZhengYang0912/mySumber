@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-
 import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
 import '../../leakage/models/alert.dart';
@@ -9,6 +8,7 @@ import '../../leakage/state/app_state.dart';
 import '../services/admin_tablet_layout.dart';
 import '../services/anomaly_review_filter.dart';
 import '../widgets/landscape_filter_menu.dart';
+import '../widgets/admin_page_header.dart';
 import 'anomaly_review_detail_screen.dart';
 
 class ReviewManagementScreen extends StatefulWidget {
@@ -131,38 +131,41 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
     required List<String> facilities,
     required List<String> equipment,
   }) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-        child: Column(
-          children: [
-            _phoneLandscapeHeader(
-              states: states,
-              facilities: facilities,
-              equipment: equipment,
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: results.isEmpty
-                  ? _emptyState()
-                  : GridView.builder(
-                      controller: _landscapeReviewController,
-                      key: const PageStorageKey('phone-landscape-review-grid'),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 10,
-                        mainAxisSpacing: 10,
-                        childAspectRatio: 1.65,
-                      ),
-                      itemCount: results.length,
-                      itemBuilder: (context, index) =>
-                          _landscapeAlertCard(results[index]),
-                    ),
-            ),
-          ],
+    return Column(
+      children: [
+        _phoneLandscapeHeader(
+          states: states,
+          facilities: facilities,
+          equipment: equipment,
         ),
-      ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              adminLandscapeHorizontalInset,
+              0,
+              adminLandscapeHorizontalInset,
+              12,
+            ),
+            child: results.isEmpty
+                ? _emptyState()
+                : GridView.builder(
+                    controller: _landscapeReviewController,
+                    key: const PageStorageKey('phone-landscape-review-grid'),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
+                      childAspectRatio: 1.65,
+                    ),
+                    itemCount: results.length,
+                    itemBuilder: (context, index) =>
+                        _landscapeAlertCard(results[index]),
+                  ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -199,44 +202,19 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
     required List<String> facilities,
     required List<String> equipment,
   }) {
-    return SizedBox(
-      height: 48,
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: AppColors.adminSurface,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            alignment: Alignment.center,
-            child: const Icon(
-              Icons.analytics_outlined,
-              color: AppColors.adminPrimary,
-            ),
-          ),
-          const SizedBox(width: 10),
-          const Expanded(
-            child: Text(
-              'AI Review',
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-          _landscapeStatusLabel(),
-          const SizedBox(width: 8),
-          LandscapeFilterMenu(
-            child: _landscapeFilterControls(
-              states: states,
-              facilities: facilities,
-              equipment: equipment,
-            ),
-          ),
-        ],
+    return AdminPageHeader(
+      title: 'AI Anomaly Review',
+      icon: Icons.analytics_outlined,
+      compact: true,
+      onLogout: () => context.read<RoleState>().logout(),
+      titleAccessory: _landscapeStatusLabel(),
+      action: LandscapeFilterMenu(
+        compact: true,
+        child: _landscapeFilterControls(
+          states: states,
+          facilities: facilities,
+          equipment: equipment,
+        ),
       ),
     );
   }
@@ -252,13 +230,13 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: AppColors.canvas,
+        color: Colors.white.withValues(alpha: 0.16),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
         label,
         style: const TextStyle(
-          color: AppColors.textSecondary,
+          color: Colors.white,
           fontSize: 12,
           fontWeight: FontWeight.w700,
         ),
@@ -361,222 +339,10 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
   }
 
   Widget _header(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-      decoration: const BoxDecoration(
-        color: AppColors.adminPrimary,
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(24),
-          bottomRight: Radius.circular(24),
-        ),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    'mySumber · ADMIN',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-                InkWell(
-                  onTap: () => context.read<RoleState>().logout(),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.logout, color: Colors.white, size: 16),
-                      SizedBox(width: 4),
-                      Text(
-                        'Logout',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  alignment: Alignment.center,
-                  child: const Icon(
-                    Icons.analytics_outlined,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'AI Anomaly Review',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 21,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _tabletLayout({
-    required List<Alert> results,
-    required List<String> states,
-    required List<String> facilities,
-    required List<String> equipment,
-  }) {
-    _syncSelection(results);
-    final selectedAlert = _selectedAlert(results);
-
-    return Column(
-      children: [
-        _tabletHeader(results),
-        _tabletFilters(
-          states: states,
-          facilities: facilities,
-          equipment: equipment,
-        ),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 400,
-                  child: Column(
-                    children: [
-                      _resultsHeader(results.length, compact: true),
-                      Expanded(
-                        child: results.isEmpty
-                            ? _emptyState()
-                            : ListView.separated(
-                                controller: _tabletReviewController,
-                                key: const PageStorageKey(
-                                  'admin-review-tablet-list',
-                                ),
-                                padding: const EdgeInsets.only(top: 2),
-                                itemCount: results.length,
-                                separatorBuilder: (_, __) =>
-                                    const SizedBox(height: 8),
-                                itemBuilder: (context, index) =>
-                                    _tabletResultTile(
-                                  results[index],
-                                  selected:
-                                      results[index].id == selectedAlert?.id,
-                                ),
-                              ),
-                      ),
-                    ],
-                  ),
-                ),
-                const VerticalDivider(width: 32),
-                Expanded(
-                  child: Align(
-                    alignment: Alignment.topLeft,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 840),
-                      child: selectedAlert?.id == null
-                          ? _tabletEmptyDetail()
-                          : AnomalyReviewDetailContent(
-                              key: ValueKey(selectedAlert!.id),
-                              alertId: selectedAlert.id!,
-                              pane: true,
-                            ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _tabletHeader(List<Alert> results) {
-    final pending =
-        results.where((alert) => alert.status == AlertStatus.pending).length;
-    final high =
-        results.where((alert) => alert.severity == Severity.high).length;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 18, 24, 16),
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(bottom: BorderSide(color: AppColors.divider)),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Row(
-          children: [
-            const Icon(Icons.analytics_outlined,
-                color: AppColors.adminPrimary, size: 28),
-            const SizedBox(width: 12),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'AI Anomaly Review',
-                    style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800),
-                  ),
-                ],
-              ),
-            ),
-            _tabletStat('$pending', 'Pending'),
-            const SizedBox(width: 18),
-            _tabletStat('$high', 'High severity'),
-            const SizedBox(width: 18),
-            _tabletStat('${results.length}', 'Results'),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _tabletStat(String value, String label) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Text(value,
-            style: const TextStyle(
-                color: AppColors.adminPrimary,
-                fontSize: 17,
-                fontWeight: FontWeight.w800)),
-        Text(label,
-            style:
-                const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
-      ],
+    return AdminPageHeader(
+      title: 'AI Anomaly Review',
+      icon: Icons.analytics_outlined,
+      onLogout: () => context.read<RoleState>().logout(),
     );
   }
 
@@ -722,6 +488,128 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
         _equipmentName = equipmentName;
       });
     });
+  }
+
+  Widget _tabletLayout({
+    required List<Alert> results,
+    required List<String> states,
+    required List<String> facilities,
+    required List<String> equipment,
+  }) {
+    _syncSelection(results);
+    final selectedAlert = _selectedAlert(results);
+
+    return Column(
+      children: [
+        _tabletHeader(results),
+        _tabletFilters(
+          states: states,
+          facilities: facilities,
+          equipment: equipment,
+        ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 400,
+                  child: Column(
+                    children: [
+                      _resultsHeader(results.length, compact: true),
+                      Expanded(
+                        child: results.isEmpty
+                            ? _emptyState()
+                            : ListView.separated(
+                                controller: _tabletReviewController,
+                                key: const PageStorageKey(
+                                  'admin-review-tablet-list',
+                                ),
+                                padding: const EdgeInsets.only(top: 2),
+                                itemCount: results.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 8),
+                                itemBuilder: (context, index) =>
+                                    _tabletResultTile(
+                                  results[index],
+                                  selected:
+                                      results[index].id == selectedAlert?.id,
+                                ),
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+                const VerticalDivider(width: 32),
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.topLeft,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 840),
+                      child: selectedAlert?.id == null
+                          ? _tabletEmptyDetail()
+                          : AnomalyReviewDetailContent(
+                              key: ValueKey(selectedAlert!.id),
+                              alertId: selectedAlert.id!,
+                              pane: true,
+                            ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _tabletHeader(List<Alert> results) {
+    final pending =
+        results.where((alert) => alert.status == AlertStatus.pending).length;
+    final high =
+        results.where((alert) => alert.severity == Severity.high).length;
+
+    return AdminPageHeader(
+      title: 'AI Anomaly Review',
+      icon: Icons.analytics_outlined,
+      compact: true,
+      onLogout: () => context.read<RoleState>().logout(),
+      action: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _tabletStat('$pending', 'Pending'),
+          const SizedBox(width: 18),
+          _tabletStat('$high', 'High severity'),
+          const SizedBox(width: 18),
+          _tabletStat('${results.length}', 'Results'),
+        ],
+      ),
+    );
+  }
+
+  Widget _tabletStat(String value, String label) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _tabletEmptyDetail() {

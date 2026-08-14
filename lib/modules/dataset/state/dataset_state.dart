@@ -3,6 +3,8 @@ import 'package:flutter/services.dart' show rootBundle;
 
 import '../data/dataset_repository.dart';
 import '../models/models.dart';
+import '../services/equipment_import.dart';
+import '../services/equipment_identity.dart';
 
 class DatasetState extends ChangeNotifier {
   final DatasetRepository repository;
@@ -13,6 +15,7 @@ class DatasetState extends ChangeNotifier {
   List<UtilityLog> currentLogs = [];
   bool isLoading = false;
   EquipmentNode? selectedNode;
+  EquipmentImportCatalog importCatalog = defaultEquipmentImportCatalog();
 
   Map<String, double> stateWaterSupply = {};
   Map<String, double> stateWaterConsumption = {};
@@ -24,10 +27,19 @@ class DatasetState extends ChangeNotifier {
     notifyListeners();
 
     try {
-      nodes = await repository.fetchNodes();
-      if (nodes.isEmpty) {
-        await repository.seedDemoDataIfEmpty();
-        nodes = await repository.fetchNodes();
+      nodes = deduplicateEquivalentEquipmentNodes(
+        await repository.fetchNodes(),
+      );
+      final legacyCatalog = catalogFromNodes(nodes);
+      try {
+        importCatalog = mergeImportCatalogs(
+          await repository.fetchImportCatalog(),
+          legacyCatalog,
+        );
+      } catch (_) {
+        // Keep existing inventory usable while a deployment catalog migration
+        // is being rolled out or when the catalog tables are unavailable.
+        importCatalog = legacyCatalog;
       }
       if (stateWaterSupply.isEmpty) {
         await loadAggregatedStateData();
@@ -45,6 +57,64 @@ class DatasetState extends ChangeNotifier {
     await loadNodes();
   }
 
+  Future<void> importRows(List<EquipmentImportRow> rows) async {
+    if (rows.isEmpty) return;
+    final existingByAssetTag = {
+      for (final node in nodes)
+        if (node.assetTag != null) normalizeAssetTag(node.assetTag!): node,
+    };
+    final existingByPhysicalIdentity = {
+      for (final node in nodes)
+        if (equipmentNodePhysicalIdentity(node) != null)
+          equipmentNodePhysicalIdentity(node)!: node,
+    };
+    final importedNodes = rows.map((row) {
+      final existing = existingByAssetTag[normalizeAssetTag(row.assetTag)] ??
+          existingByPhysicalIdentity[physicalEquipmentIdentity(
+            serialNumber: row.serialNumber,
+            ipAddress: row.ipAddress,
+          )];
+      final ipAssignment = switch (row.ipAssignment) {
+        IpAssignment.staticIp => 'Static',
+        IpAssignment.dhcp => 'DHCP',
+        IpAssignment.notAssigned => 'Not Assigned',
+      };
+      return EquipmentNode(
+        nodeId: existing?.nodeId,
+        assetTag: row.assetTag,
+        nodeName: existing == null
+            ? row.equipmentType
+            : equipmentDisplayName(existing),
+        equipmentType: row.equipmentType,
+        utilityType: row.utilityType,
+        zoneId: row.facility.state,
+        facilityId: row.facilityId ?? existing?.facilityId,
+        facilityCode: row.facility.code,
+        facilityName: row.facility.name,
+        facilityCity: row.facility.city,
+        modelId: row.modelId ?? existing?.modelId,
+        modelName: row.model,
+        serialNumber: row.serialNumber ?? existing?.serialNumber,
+        status: row.status,
+        createdAt: existing?.createdAt,
+        manufacturer: row.manufacturer,
+        manufacturerId: row.manufacturerId ?? existing?.manufacturerId,
+        installationDate: row.installationDate ?? existing?.installationDate,
+        lastMaintenanceDate:
+            row.lastMaintenanceDate ?? existing?.lastMaintenanceDate,
+        nextMaintenanceDate:
+            row.nextMaintenanceDate ?? existing?.nextMaintenanceDate,
+        healthScore: existing?.healthScore ?? 100,
+        firmwareId: row.firmwareId ?? existing?.firmwareId,
+        firmwareVersion: row.firmwareVersion,
+        ipAssignment: ipAssignment,
+        ipAddress: row.ipAddress,
+      );
+    }).toList();
+    await repository.upsertNodes(importedNodes);
+    await loadNodes();
+  }
+
   Future<void> deleteNode(String nodeId) async {
     await repository.deleteNode(nodeId);
     await loadNodes();
@@ -59,10 +129,6 @@ class DatasetState extends ChangeNotifier {
       if (selectedNode?.nodeId != null) {
         final selected = selectedNode!;
         currentLogs = await repository.fetchLogsForNode(selected.nodeId!);
-        if (currentLogs.isEmpty) {
-          await repository.seedDemoLogsForNode(selected);
-          currentLogs = await repository.fetchLogsForNode(selected.nodeId!);
-        }
       }
     } catch (e) {
       debugPrint('Error loading logs: $e');

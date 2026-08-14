@@ -4,6 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/models.dart';
+import '../services/equipment_import.dart';
+import '../services/equipment_identity.dart';
 
 class DatasetRepository {
   DatasetRepository({SupabaseClient? client}) : _client = client;
@@ -51,55 +53,71 @@ class DatasetRepository {
     for (var i = 0; i < _facilitySeeds.length; i++) {
       final facility = _facilitySeeds[i];
       final subnet = i + 1;
+      final facilityCode = 'DEMO-${(i + 1).toString().padLeft(2, '0')}';
       final valveIsCritical = i % 4 == 0;
       final transformerNeedsMaintenance = i % 5 == 0;
       nodes.addAll([
         EquipmentNode(
           nodeId: const Uuid().v4(),
+          assetTag: '$facilityCode-WP-001',
           nodeName: 'Main Water Pump A1',
+          equipmentType: 'Main Water Pump',
           utilityType: 'Water',
           zoneId: facility.state,
+          facilityCode: facilityCode,
           facilityName: facility.name,
           facilityCity: facility.city,
           status: 'Active',
           createdAt: now.subtract(Duration(days: 120 + i)),
           manufacturer: 'Grundfos',
+          modelName: 'Unspecified',
           installationDate: now.subtract(Duration(days: 365 + i)),
           lastMaintenanceDate: now.subtract(Duration(days: 15 + i % 12)),
           healthScore: 96 - i % 8,
           firmwareVersion: 'v2.4.1',
+          ipAssignment: 'Static',
           ipAddress: '10.0.$subnet.10',
         ),
         EquipmentNode(
           nodeId: const Uuid().v4(),
+          assetTag: '$facilityCode-WV-001',
           nodeName: 'Cooling Tower Valve',
+          equipmentType: 'Cooling Tower Valve',
           utilityType: 'Water',
           zoneId: facility.state,
+          facilityCode: facilityCode,
           facilityName: facility.name,
           facilityCity: facility.city,
           status: valveIsCritical ? 'Critical' : 'Active',
           createdAt: now.subtract(Duration(days: 90 + i)),
           manufacturer: 'Schneider Electric',
+          modelName: 'Unspecified',
           installationDate: now.subtract(Duration(days: 240 + i)),
           lastMaintenanceDate: now.subtract(Duration(days: 30 + i % 15)),
           healthScore: valveIsCritical ? 58 : 90 - i % 7,
           firmwareVersion: 'v3.0.5',
+          ipAssignment: 'Static',
           ipAddress: '10.0.$subnet.11',
         ),
         EquipmentNode(
           nodeId: const Uuid().v4(),
+          assetTag: '$facilityCode-TR-001',
           nodeName: 'Sub-Transformer B2',
+          equipmentType: 'Sub-Transformer',
           utilityType: 'Electricity',
           zoneId: facility.state,
+          facilityCode: facilityCode,
           facilityName: facility.name,
           facilityCity: facility.city,
           status: transformerNeedsMaintenance ? 'Maintenance' : 'Active',
           createdAt: now.subtract(Duration(days: 150 + i)),
           manufacturer: 'Siemens',
+          modelName: 'Unspecified',
           installationDate: now.subtract(Duration(days: 300 + i)),
           lastMaintenanceDate: now.subtract(Duration(days: 2 + i % 20)),
           healthScore: transformerNeedsMaintenance ? 72 : 94 - i % 9,
           firmwareVersion: 'v1.1.0',
+          ipAssignment: 'Static',
           ipAddress: '10.0.$subnet.12',
         ),
       ]);
@@ -116,24 +134,123 @@ class DatasetRepository {
         .order('facility_name')
         .order('node_name');
     return rows
-        .map((row) => EquipmentNode.fromMap(Map<String, Object?>.from(row)))
+        .map((row) => canonicalizeEquipmentNode(
+            EquipmentNode.fromMap(Map<String, Object?>.from(row))))
         .toList();
   }
 
+  Future<EquipmentImportCatalog> fetchImportCatalog() async {
+    final client = _client;
+    if (client == null) return catalogFromNodes(_localNodes);
+
+    final facilityRows = await client
+        .from('facilities')
+        .select('facility_id, facility_code, name, city, state')
+        .eq('status', 'Active')
+        .order('name');
+    final manufacturerRows = await client
+        .from('manufacturers')
+        .select('manufacturer_id, name')
+        .order('name');
+    final modelRows = await client
+        .from('equipment_models')
+        .select(
+            'model_id, equipment_type, utility_type, manufacturer_id, model_name')
+        .order('equipment_type')
+        .order('model_name');
+    final firmwareRows = await client
+        .from('firmware_catalog')
+        .select('firmware_id, model_id, version, is_supported')
+        .eq('is_supported', true)
+        .order('version');
+
+    final manufacturerNames = {
+      for (final raw in manufacturerRows)
+        raw['manufacturer_id'] as String: raw['name'] as String,
+    };
+    final firmwareByModel = <String, Map<String, String>>{};
+    for (final raw in firmwareRows) {
+      final modelId = raw['model_id'] as String;
+      final version = raw['version'] as String;
+      firmwareByModel.putIfAbsent(modelId, () => {})[version] =
+          raw['firmware_id'] as String;
+    }
+
+    return EquipmentImportCatalog(
+      facilities: facilityRows
+          .map((raw) => ImportFacility(
+                facilityId: raw['facility_id'] as String,
+                code: raw['facility_code'] as String,
+                name: raw['name'] as String,
+                city: raw['city'] as String,
+                state: raw['state'] as String,
+              ))
+          .toList(),
+      models: modelRows.map((raw) {
+        final modelId = raw['model_id'] as String;
+        final firmwareIds =
+            firmwareByModel[modelId] ?? const <String, String>{};
+        return ImportModel(
+          modelId: modelId,
+          manufacturerId: raw['manufacturer_id'] as String,
+          equipmentType: raw['equipment_type'] as String,
+          utilityType: raw['utility_type'] as String,
+          manufacturer:
+              manufacturerNames[raw['manufacturer_id'] as String] ?? 'Unknown',
+          model: raw['model_name'] as String,
+          firmwareVersions: [
+            'Unknown',
+            'Pending Verification',
+            'Not Applicable',
+            ...firmwareIds.keys,
+          ],
+          firmwareIds: firmwareIds,
+        );
+      }).toList(),
+    );
+  }
+
   Future<void> upsertNode(EquipmentNode node) async {
-    final saved = node.nodeId == null
-        ? node.copyWith(nodeId: _uuid.v4(), createdAt: DateTime.now())
-        : node;
+    await upsertNodes([node]);
+  }
+
+  Future<void> upsertNodes(List<EquipmentNode> nodes) async {
+    if (nodes.isEmpty) return;
+    final savedNodes = nodes.map((node) {
+      final assetTag = normalizedAssetTag(node.assetTag);
+      if (assetTag == null) {
+        throw ArgumentError('Asset Tag is required for equipment records.');
+      }
+      final canonical = canonicalizeEquipmentNode(
+        node.copyWith(assetTag: assetTag),
+      );
+      return canonical.nodeId == null
+          ? canonical.copyWith(nodeId: _uuid.v4(), createdAt: DateTime.now())
+          : canonical;
+    }).toList();
     final client = _client;
     if (client != null) {
-      await client.from('equipment_nodes').upsert(saved.toMap());
+      await client.from('equipment_nodes').upsert(
+            savedNodes.map((node) => node.toMap()).toList(),
+            onConflict: 'asset_tag',
+          );
       return;
     }
-    final index = _localNodes.indexWhere((item) => item.nodeId == saved.nodeId);
-    if (index == -1) {
-      _localNodes.insert(0, saved);
-    } else {
-      _localNodes[index] = saved;
+
+    for (final saved in savedNodes) {
+      var index = saved.assetTag == null
+          ? -1
+          : _localNodes.indexWhere(
+              (item) => normalizedAssetTag(item.assetTag) == saved.assetTag,
+            );
+      if (index == -1) {
+        index = _localNodes.indexWhere((item) => item.nodeId == saved.nodeId);
+      }
+      if (index == -1) {
+        _localNodes.insert(0, saved);
+      } else {
+        _localNodes[index] = saved;
+      }
     }
   }
 

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
 import '../../admin/services/admin_tablet_layout.dart';
+import '../../admin/widgets/admin_page_header.dart';
 import '../state/dataset_state.dart';
 import '../models/models.dart';
 
@@ -104,66 +105,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required EquipmentNode? priority,
     required List<EquipmentNode> healthPreview,
   }) {
-    return SafeArea(
-      child: ListView(
-        controller: _landscapeDashboardController,
-        key: const PageStorageKey('phone-landscape-dashboard'),
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-        children: [
-          SizedBox(
-            height: 56,
-            child: Row(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: AppColors.adminSurface,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  alignment: Alignment.center,
-                  child: const Icon(
-                    Icons.grid_view_outlined,
-                    color: AppColors.adminPrimary,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                const Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Dashboard',
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      Text(
-                        'Priority system status',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Tooltip(
-                  message: 'View full dashboard',
-                  child: TextButton(
-                    onPressed: _scrollToFullDashboard,
-                    child: const Text('View full'),
-                  ),
-                ),
-              ],
+    return ListView(
+      controller: _landscapeDashboardController,
+      key: const PageStorageKey('phone-landscape-dashboard'),
+      padding: EdgeInsets.zero,
+      children: [
+        AdminPageHeader(
+          title: 'Dashboard',
+          icon: Icons.grid_view_outlined,
+          compact: true,
+          onLogout: () => context.read<RoleState>().logout(),
+          action: Tooltip(
+            message: 'View full dashboard',
+            child: AdminHeaderAction(
+              icon: Icons.unfold_more,
+              label: 'View full',
+              onPressed: _scrollToFullDashboard,
             ),
           ),
-          const SizedBox(height: 12),
-          SizedBox(
+        ),
+        const SizedBox(height: 12),
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: adminLandscapeHorizontalInset,
+          ),
+          child: SizedBox(
             height: 200,
             child: Row(
               children: [
@@ -180,15 +146,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          KeyedSubtree(
+        ),
+        const SizedBox(height: 16),
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: adminLandscapeHorizontalInset,
+          ),
+          child: KeyedSubtree(
             key: _fullDashboardKey,
             child: _usageComparisonCard(state),
           ),
-          const SizedBox(height: 16),
-          _equipmentHealthCard(healthPreview),
-        ],
-      ),
+        ),
+        const SizedBox(height: 16),
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: adminLandscapeHorizontalInset,
+          ),
+          child: _equipmentHealthCard(healthPreview),
+        ),
+      ],
     );
   }
 
@@ -403,63 +379,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _header(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      decoration: const BoxDecoration(
-        color: AppColors.adminPrimary,
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(24),
-          bottomRight: Radius.circular(24),
-        ),
-      ),
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-      child: SafeArea(
-        bottom: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    'mySumber · ADMIN',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-                InkWell(
-                  onTap: () => context.read<RoleState>().logout(),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.logout, color: Colors.white, size: 16),
-                      SizedBox(width: 4),
-                      Text('Logout',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Dashboard',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
-                height: 1.15,
-              ),
-            ),
-          ],
-        ),
-      ),
+    return AdminPageHeader(
+      title: 'Dashboard',
+      icon: Icons.grid_view_outlined,
+      onLogout: () => context.read<RoleState>().logout(),
     );
   }
 

@@ -171,6 +171,21 @@ key that belongs in app code. Never commit a Supabase `service_role` key.
 `lib/config.dart` (Groq key) is gitignored and must never be pushed to a public
 repository.
 
+### Equipment import and deployment data
+
+Admin Inventory now accepts a real CSV file instead of importing hard-coded
+sample rows. Use [docs/equipment-import-template.csv](docs/equipment-import-template.csv)
+as the starting format. The importer previews valid, new, update, and invalid
+rows before saving. `asset_tag` is the stable equipment identity; facility,
+model, manufacturer, and firmware values must match the registered catalog.
+Replace `REPLACE_WITH_FACILITY_CODE` in the template with a facility code shown
+by the New Deployment facility picker; do not invent a new code in the CSV.
+
+For IP data, use `Static` with a valid IPv4/IPv6 address, or use `DHCP` / `Not
+Assigned` and leave `ip_address` empty. Invalid rows are skipped and listed in
+the preview instead of being silently written. Empty production inventory no
+longer creates demo equipment or usage logs automatically.
+
 ---
 
 ## Dependencies
@@ -184,6 +199,7 @@ intl: ^0.20.2           # Date/number formatting
 uuid: ^4.5.3            # Unique IDs
 lucide_icons: ^0.257.0  # Water droplet, server crash icons
 http: ^1.2.0            # Groq API calls
+file_picker: ^12.0.0   # Admin CSV equipment import
 ```
 
 ---

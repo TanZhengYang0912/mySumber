@@ -432,9 +432,9 @@ class RoleState extends ChangeNotifier {
     // ahead of the network call that finishes it. needsProfileSetup reads
     // that live currentUser, so if _userRole were still 'user' during the
     // gap, a frame could render with currentUser already null and flash
-    // ProfileSetupScreen (metadata looks missing) before landing on
-    // LandingScreen. Nulling _userRole first makes isLoggedIn false
-    // immediately, so main.dart never evaluates needsProfileSetup here.
+    // ProfileSetupScreen (metadata looks missing) before returning to the
+    // unauthenticated login state. Nulling _userRole first makes isLoggedIn
+    // false immediately, so main.dart never evaluates needsProfileSetup here.
     _isLoading = true;
     _userRole = null;
     _email = null;

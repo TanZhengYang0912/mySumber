@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../state/dataset_state.dart';
 import '../models/models.dart';
+import '../services/equipment_identity.dart';
 
 class EquipmentDetailScreen extends StatefulWidget {
   const EquipmentDetailScreen({super.key});
@@ -46,6 +47,7 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
   }
 
   Widget _buildHeaderInfo(EquipmentNode node) {
+    final assetTag = normalizedAssetTag(node.assetTag);
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -66,10 +68,30 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  node.nodeName,
-                  style: const TextStyle(
-                      fontSize: 24, fontWeight: FontWeight.bold),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      equipmentDisplayName(node),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 24, fontWeight: FontWeight.bold),
+                    ),
+                    if (assetTag != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Asset Tag: $assetTag',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.blueGrey,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
               _buildStatusBadge(node.status),

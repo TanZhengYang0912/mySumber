@@ -10,6 +10,7 @@ class LandscapeFilterMenu extends StatelessWidget {
     this.tooltip = 'Filter anomalies',
     this.activeCount = 0,
     this.footer,
+    this.compact = false,
   });
 
   final Widget child;
@@ -17,6 +18,7 @@ class LandscapeFilterMenu extends StatelessWidget {
   final String tooltip;
   final int activeCount;
   final Widget? footer;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -87,8 +89,13 @@ class LandscapeFilterMenu extends StatelessWidget {
             ],
           ),
           style: TextButton.styleFrom(
-            foregroundColor: AppColors.adminPrimary,
-            backgroundColor: AppColors.adminSurface,
+            foregroundColor: compact ? Colors.white : AppColors.adminPrimary,
+            backgroundColor: compact
+                ? Colors.white.withValues(alpha: 0.16)
+                : AppColors.adminSurface,
+            minimumSize: const Size(0, 42),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            shape: const StadiumBorder(),
           ),
         ),
       ),

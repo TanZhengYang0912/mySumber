@@ -87,16 +87,16 @@ class AdminCompactRail extends StatelessWidget {
         onTap: () => onDestinationSelected(0),
       ),
       _RailDestination(
-        icon: Icons.notifications_outlined,
-        tooltip: 'Alerts',
-        selected: currentIndex == 2,
-        onTap: () => onDestinationSelected(2),
-      ),
-      _RailDestination(
         icon: Icons.inventory_2_outlined,
         tooltip: 'Inventory',
         selected: currentIndex == 1,
         onTap: () => onDestinationSelected(1),
+      ),
+      _RailDestination(
+        icon: Icons.notifications_outlined,
+        tooltip: 'Alerts',
+        selected: currentIndex == 2,
+        onTap: () => onDestinationSelected(2),
       ),
       _RailDestination(
         icon: Icons.shield_outlined,

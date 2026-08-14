@@ -8,6 +8,7 @@ import 'package:mysumber/modules/dataset/screens/dashboard_screen.dart';
 import 'package:mysumber/modules/dataset/screens/inventory_screen.dart';
 import 'package:mysumber/modules/dataset/services/inventory_filter.dart';
 import 'package:mysumber/modules/dataset/state/dataset_state.dart';
+import 'package:mysumber/theme/tokens.dart';
 
 void main() {
   test('seeds every configured mall with the three core equipment types',
@@ -161,6 +162,10 @@ void main() {
     expect(find.byKey(const ValueKey('priority-equipment')), findsOneWidget);
     expect(find.text('Usage Comparison'), findsOneWidget);
     expect(find.byTooltip('View full dashboard'), findsOneWidget);
+
+    final panels = find.byType(AppCard);
+    expect(tester.getRect(panels.at(0)).left, 16);
+    expect(tester.getRect(panels.at(1)).left, greaterThan(16));
   });
 
   test('filters Selangor to its nine equipment nodes', () async {

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../theme/tokens.dart';
 import '../../leakage/models/alert.dart';
 import '../../leakage/screens/style.dart';
+import 'admin_page_header.dart';
 
 class OversightLandscapeWorkspace extends StatelessWidget {
   const OversightLandscapeWorkspace({
@@ -18,6 +19,7 @@ class OversightLandscapeWorkspace extends StatelessWidget {
     required this.onAlertTap,
     required this.onClearFilters,
     required this.onReportState,
+    required this.onLogout,
     required this.reportsBody,
   });
 
@@ -31,40 +33,45 @@ class OversightLandscapeWorkspace extends StatelessWidget {
   final ValueChanged<Alert> onAlertTap;
   final VoidCallback onClearFilters;
   final VoidCallback onReportState;
+  final VoidCallback onLogout;
   final Widget reportsBody;
 
   @override
   Widget build(BuildContext context) {
     final showingAlerts = sectionIndex == 0;
-    return SafeArea(
-      child: Column(
-        children: [
-          _CompactTopBar(
-            pendingCount: pendingCount,
-            filterMenu: filterMenu,
-            showReportState: showingAlerts,
-            onReportState: onReportState,
+    return Column(
+      children: [
+        _CompactTopBar(
+          pendingCount: pendingCount,
+          filterMenu: filterMenu,
+          showReportState: showingAlerts,
+          onReportState: onReportState,
+          onLogout: onLogout,
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            adminLandscapeHorizontalInset,
+            6,
+            adminLandscapeHorizontalInset,
+            0,
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-            child: _SectionSegmentedControl(
-              selectedIndex: sectionIndex,
-              onChanged: onSectionChanged,
-            ),
+          child: _SectionSegmentedControl(
+            selectedIndex: sectionIndex,
+            onChanged: onSectionChanged,
           ),
-          Expanded(
-            child: showingAlerts
-                ? _AlertQueue(
-                    queueLabel: queueLabel,
-                    alerts: alerts,
-                    controller: alertController,
-                    onTap: onAlertTap,
-                    onClearFilters: onClearFilters,
-                  )
-                : reportsBody,
-          ),
-        ],
-      ),
+        ),
+        Expanded(
+          child: showingAlerts
+              ? _AlertQueue(
+                  queueLabel: queueLabel,
+                  alerts: alerts,
+                  controller: alertController,
+                  onTap: onAlertTap,
+                  onClearFilters: onClearFilters,
+                )
+              : reportsBody,
+        ),
+      ],
     );
   }
 }
@@ -75,55 +82,48 @@ class _CompactTopBar extends StatelessWidget {
     required this.filterMenu,
     required this.showReportState,
     required this.onReportState,
+    required this.onLogout,
   });
 
   final int pendingCount;
   final Widget filterMenu;
   final bool showReportState;
   final VoidCallback onReportState;
+  final VoidCallback onLogout;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-        height: 60,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            children: [
-              const Text(
-                'Oversight',
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.criticalSurface,
-                  borderRadius: BorderRadius.circular(99),
-                ),
-                child: Text(
-                  '$pendingCount pending',
-                  style: const TextStyle(
-                    color: AppColors.critical,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              const Spacer(),
-              if (showReportState)
-                IconButton.filledTonal(
-                  tooltip: 'Report State',
-                  onPressed: onReportState,
-                  icon: const Icon(Icons.add_alert_outlined),
-                ),
-              if (showReportState) const SizedBox(width: 8),
-              filterMenu,
-            ],
+  Widget build(BuildContext context) => AdminPageHeader(
+        title: 'Oversight',
+        icon: Icons.shield_outlined,
+        compact: true,
+        onLogout: onLogout,
+        titleAccessory: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.16),
+            borderRadius: BorderRadius.circular(99),
           ),
+          child: Text(
+            '$pendingCount pending',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        action: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (showReportState)
+              AdminHeaderIconButton(
+                tooltip: 'Report State',
+                onPressed: onReportState,
+                icon: Icons.add_alert_outlined,
+              ),
+            if (showReportState) const SizedBox(width: 8),
+            filterMenu,
+          ],
         ),
       );
 }
@@ -195,7 +195,12 @@ class _AlertQueue extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(18, 10, 18, 6),
+          padding: const EdgeInsets.fromLTRB(
+            adminLandscapeHorizontalInset,
+            10,
+            adminLandscapeHorizontalInset,
+            6,
+          ),
           child: Text(
             queueLabel,
             style: const TextStyle(

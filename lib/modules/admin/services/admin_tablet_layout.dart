@@ -18,3 +18,7 @@ AdminLayoutMode adminLayoutModeFor(Size viewport) {
       ? AdminLayoutMode.tabletLandscape
       : AdminLayoutMode.tabletPortrait;
 }
+
+bool usesAdminCompactHeader(Size viewport) {
+  return adminLayoutModeFor(viewport) == AdminLayoutMode.phoneLandscape;
+}

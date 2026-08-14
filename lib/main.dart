@@ -13,13 +13,15 @@ import 'modules/admin/screens/worker_accounts_screen.dart';
 import 'modules/admin/services/admin_tablet_layout.dart';
 import 'modules/admin/widgets/admin_compact_rail.dart';
 
-import 'modules/auth/screens/landing_screen.dart';
+import 'modules/auth/screens/login_screen.dart';
 import 'modules/auth/screens/reset_password_screen.dart';
 import 'modules/auth/state/auth_state.dart' show RoleState;
+import 'modules/auth/widgets/exit_confirmation_scope.dart';
 
 import 'modules/leakage/data/leakage_repository.dart';
 import 'modules/leakage/models/alert.dart' show Utility;
 import 'modules/leakage/screens/home_screen.dart';
+import 'modules/leakage/services/worker_utility_colors.dart';
 import 'modules/leakage/services/baseline_service.dart';
 import 'modules/leakage/services/anomaly_ai_service.dart';
 import 'modules/leakage/services/nrw_service.dart';
@@ -177,7 +179,7 @@ class MySumberApp extends StatelessWidget {
               }
               return AppShell(userRole: authState.userRole!);
             }
-            return const LandingScreen();
+            return const LoginScreen();
           },
         ),
       ),
@@ -293,74 +295,83 @@ class _AppShellState extends State<AppShell> {
           children: _screens,
         );
 
-        return Scaffold(
-          backgroundColor: AppColors.canvas,
-          body: usesRoleRail
-              ? Row(
-                  children: [
-                    if (useCompactRail)
-                      AdminCompactRail(
-                        currentIndex: _currentIndex,
-                        onDestinationSelected: (index) =>
-                            setState(() => _currentIndex = index),
-                        onLogout: () => context.read<RoleState>().logout(),
-                      )
-                    else if (useTabletRail)
-                      NavigationRail(
-                        selectedIndex: _currentIndex,
-                        onDestinationSelected: (index) =>
-                            setState(() => _currentIndex = index),
-                        labelType: NavigationRailLabelType.all,
-                        backgroundColor: Colors.white,
-                        indicatorColor: AppColors.adminSurface,
-                        selectedIconTheme:
-                            const IconThemeData(color: AppColors.adminPrimary),
-                        selectedLabelTextStyle: const TextStyle(
-                          color: AppColors.adminPrimary,
-                          fontWeight: FontWeight.w700,
+        return ExitConfirmationScope(
+          child: Scaffold(
+            backgroundColor: AppColors.canvas,
+            body: usesRoleRail
+                ? Row(
+                    children: [
+                      if (useCompactRail)
+                        AdminCompactRail(
+                          currentIndex: _currentIndex,
+                          onDestinationSelected: (index) =>
+                              setState(() => _currentIndex = index),
+                          onLogout: () => context.read<RoleState>().logout(),
+                        )
+                      else if (useTabletRail)
+                        NavigationRail(
+                          selectedIndex: _currentIndex,
+                          onDestinationSelected: (index) =>
+                              setState(() => _currentIndex = index),
+                          labelType: NavigationRailLabelType.all,
+                          backgroundColor: Colors.white,
+                          indicatorColor: AppColors.adminSurface,
+                          selectedIconTheme: const IconThemeData(
+                            color: AppColors.adminPrimary,
+                          ),
+                          selectedLabelTextStyle: const TextStyle(
+                            color: AppColors.adminPrimary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          unselectedIconTheme: const IconThemeData(
+                            color: AppColors.textTertiary,
+                          ),
+                          unselectedLabelTextStyle: const TextStyle(
+                            color: AppColors.textTertiary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          destinations: [
+                            for (final item in _navItems)
+                              NavigationRailDestination(
+                                icon: Icon(item.icon),
+                                selectedIcon: Icon(item.icon),
+                                label: Text(item.label),
+                              ),
+                          ],
+                        )
+                      else if (usesWorkerCompactRail)
+                        WorkerCompactRail(
+                          currentIndex: _currentIndex,
+                          onDestinationSelected: (index) =>
+                              setState(() => _currentIndex = index),
+                          onLogout: () => context.read<RoleState>().logout(),
+                        )
+                      else
+                        CustomerCompactRail(
+                          currentIndex: _currentIndex,
+                          onDestinationSelected: (index) =>
+                              setState(() => _currentIndex = index),
+                          onLogout: () => context.read<RoleState>().logout(),
                         ),
-                        unselectedIconTheme:
-                            const IconThemeData(color: AppColors.textTertiary),
-                        unselectedLabelTextStyle: const TextStyle(
-                          color: AppColors.textTertiary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        destinations: [
-                          for (final item in _navItems)
-                            NavigationRailDestination(
-                              icon: Icon(item.icon),
-                              selectedIcon: Icon(item.icon),
-                              label: Text(item.label),
-                            ),
-                        ],
-                      )
-                    else if (usesWorkerCompactRail)
-                      WorkerCompactRail(
-                        currentIndex: _currentIndex,
-                        onDestinationSelected: (index) =>
-                            setState(() => _currentIndex = index),
-                        onLogout: () => context.read<RoleState>().logout(),
-                      )
-                    else
-                      CustomerCompactRail(
-                        currentIndex: _currentIndex,
-                        onDestinationSelected: (index) =>
-                            setState(() => _currentIndex = index),
-                        onLogout: () => context.read<RoleState>().logout(),
-                      ),
-                    const VerticalDivider(width: 1),
-                    Expanded(child: screenStack),
-                  ],
-                )
-              : screenStack,
-          bottomNavigationBar:
-              usesRoleRail ? null : _buildBottomNavigation(primary),
+                      const VerticalDivider(width: 1),
+                      Expanded(child: screenStack),
+                    ],
+                  )
+                : screenStack,
+            bottomNavigationBar:
+                usesRoleRail ? null : _buildBottomNavigation(primary),
+          ),
         );
       },
     );
   }
 
   Widget _buildBottomNavigation(Color primary) {
+    final selectedPrimary = widget.userRole == 'worker'
+        ? workerUtilityPrimary(
+            _currentIndex == 1 ? Utility.electricity : Utility.water,
+          )
+        : primary;
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
@@ -385,7 +396,8 @@ class _AppShellState extends State<AppShell> {
                     children: [
                       Icon(
                         item.icon,
-                        color: selected ? primary : AppColors.textTertiary,
+                        color:
+                            selected ? selectedPrimary : AppColors.textTertiary,
                         size: 24,
                       ),
                       const SizedBox(height: 4),
@@ -394,7 +406,9 @@ class _AppShellState extends State<AppShell> {
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: selected ? primary : AppColors.textTertiary,
+                          color: selected
+                              ? selectedPrimary
+                              : AppColors.textTertiary,
                         ),
                       ),
                     ],

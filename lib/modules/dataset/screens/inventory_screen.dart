@@ -1,15 +1,22 @@
+import 'dart:convert';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
 import '../../admin/services/admin_tablet_layout.dart';
+import '../../admin/widgets/admin_page_header.dart';
 import '../../admin/widgets/landscape_filter_menu.dart';
 import '../state/dataset_state.dart';
 import '../models/models.dart';
+import '../services/equipment_import.dart';
+import '../services/equipment_identity.dart';
 import '../services/inventory_filter.dart';
 import 'equipment_detail_screen.dart';
 import 'node_form_screen.dart';
+import '../widgets/equipment_import_preview_dialog.dart';
 
 class InventoryScreen extends StatefulWidget {
   final String? initialState;
@@ -175,11 +182,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppColors.adminPrimary,
         foregroundColor: Colors.white,
-        onPressed: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const NodeFormScreen()),
-          );
-        },
+        onPressed: () => _openNodeForm(),
         child: const Icon(Icons.add),
       ),
     );
@@ -190,6 +193,23 @@ class _InventoryScreenState extends State<InventoryScreen> {
       _savedInventoryOffset = _inventoryScrollController.offset;
       _shouldRestoreInventoryOffset = true;
     }
+  }
+
+  Future<void> _openNodeForm({EquipmentNode? node}) async {
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => NodeFormScreen(node: node)),
+    );
+    if (!mounted || saved != true) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          node == null
+              ? 'Deployment saved successfully'
+              : 'Deployment updated successfully',
+        ),
+        backgroundColor: AppColors.success,
+      ),
+    );
   }
 
   void _restoreInventoryPosition() {
@@ -220,111 +240,99 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }) {
     return Scaffold(
       backgroundColor: AppColors.canvas,
-      body: SafeArea(
-        child: Column(
-          key: const PageStorageKey('phone-landscape-inventory'),
-          children: [
-            SizedBox(
-              height: 60,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  children: [
-                    const Text(
-                      'Inventory',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      '$locationCount equipment',
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    LandscapeFilterMenu(
-                      tooltip: 'Filter equipment',
-                      activeCount: _activeLandscapeFilterCount,
-                      child: _landscapeFilterControls(
-                        stateOptions: stateOptions,
-                        facilityOptions: facilityOptions,
-                      ),
-                    ),
-                    MenuAnchor(
-                      menuChildren: [
-                        MenuItemButton(
-                          leadingIcon: const Icon(Icons.upload_outlined),
-                          onPressed: () => _importData(context),
-                          child: const Text('Import'),
-                        ),
-                      ],
-                      builder: (context, controller, _) => IconButton(
-                        tooltip: 'More inventory actions',
-                        onPressed: controller.isOpen
-                            ? controller.close
-                            : controller.open,
-                        icon: const Icon(Icons.more_horiz),
-                      ),
-                    ),
-                    IconButton.filled(
-                      tooltip: 'Add equipment',
-                      style: IconButton.styleFrom(
-                        backgroundColor: AppColors.adminPrimary,
-                        foregroundColor: Colors.white,
-                      ),
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                            builder: (_) => const NodeFormScreen()),
-                      ),
-                      icon: const Icon(Icons.add),
+      body: Column(
+        key: const PageStorageKey('phone-landscape-inventory'),
+        children: [
+          AdminPageHeader(
+            title: 'Inventory',
+            icon: Icons.inventory_2_outlined,
+            compact: true,
+            onLogout: () => context.read<RoleState>().logout(),
+            titleAccessory: Text(
+              '$locationCount equipment',
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            action: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                LandscapeFilterMenu(
+                  tooltip: 'Filter equipment',
+                  activeCount: _activeLandscapeFilterCount,
+                  compact: true,
+                  child: _landscapeFilterControls(
+                    stateOptions: stateOptions,
+                    facilityOptions: facilityOptions,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                MenuAnchor(
+                  menuChildren: [
+                    MenuItemButton(
+                      leadingIcon: const Icon(Icons.upload_outlined),
+                      onPressed: _importData,
+                      child: const Text('Import'),
                     ),
                   ],
-                ),
-              ),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: ListView(
-                controller: _inventoryScrollController,
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                children: [
-                  _searchField(),
-                  const SizedBox(height: 12),
-                  Text(
-                    _landscapeListLabel(),
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  builder: (context, controller, _) => AdminHeaderIconButton(
+                    tooltip: 'More inventory actions',
+                    onPressed:
+                        controller.isOpen ? controller.close : controller.open,
+                    icon: Icons.more_horiz,
                   ),
-                  const SizedBox(height: 8),
-                  if (displayNodes.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 32),
-                      child: Center(
-                        child: Text(
-                          'No equipment found matching your criteria.',
-                          style: TextStyle(color: AppColors.textSecondary),
-                        ),
-                      ),
-                    )
-                  else
-                    ...displayNodes.map((node) => Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: _equipmentCard(node, state),
-                        )),
-                ],
-              ),
+                ),
+                const SizedBox(width: 8),
+                AdminHeaderIconButton(
+                  tooltip: 'Add equipment',
+                  onPressed: () => _openNodeForm(),
+                  icon: Icons.add,
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+          Expanded(
+            child: ListView(
+              controller: _inventoryScrollController,
+              padding: const EdgeInsets.fromLTRB(
+                adminLandscapeHorizontalInset,
+                12,
+                adminLandscapeHorizontalInset,
+                16,
+              ),
+              children: [
+                _searchField(),
+                const SizedBox(height: 12),
+                Text(
+                  _landscapeListLabel(),
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (displayNodes.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 32),
+                    child: Center(
+                      child: Text(
+                        'No equipment found matching your criteria.',
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
+                    ),
+                  )
+                else
+                  ...displayNodes.map((node) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _equipmentCard(node, state),
+                      )),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -417,139 +425,102 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   Widget _header(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      decoration: const BoxDecoration(
-        color: AppColors.adminPrimary,
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(24),
-          bottomRight: Radius.circular(24),
-        ),
-      ),
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-      child: SafeArea(
-        bottom: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    'mySumber · ADMIN',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-                InkWell(
-                  onTap: () => context.read<RoleState>().logout(),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.logout, color: Colors.white, size: 16),
-                      SizedBox(width: 4),
-                      Text('Logout',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                const Expanded(
-                  child: Text(
-                    'Inventory',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      height: 1.15,
-                    ),
-                  ),
-                ),
-                headerActionButton(
-                  icon: Icons.upload_outlined,
-                  label: 'Import',
-                  onTap: () => _importData(context),
-                ),
-              ],
-            ),
-          ],
-        ),
+    return AdminPageHeader(
+      title: 'Inventory',
+      icon: Icons.inventory_2_outlined,
+      onLogout: () => context.read<RoleState>().logout(),
+      action: AdminHeaderAction(
+        icon: Icons.upload_outlined,
+        label: 'Import',
+        secondary: true,
+        onPressed: _importData,
       ),
     );
   }
 
-  void _importData(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Import Equipment Data'),
-        content: const Text(
-            'Bulk-import 4 predefined equipment records from the sample data?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.adminPrimary,
-              minimumSize: const Size(80, 40),
-            ),
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              _processImport();
-            },
-            child: const Text('Import'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _processImport() {
+  Future<void> _importData() async {
     final state = context.read<DatasetState>();
-    const csvString =
-        '''node_name,utility_type,zone_id,facility_city,facility_name,manufacturer,status
-Smart Water Meter X1,Water,Johor,Johor Bahru,Mid Valley Southkey,AquaTech,Active
-High-Voltage Transformer,Electricity,Selangor,Petaling Jaya,1 Utama Shopping Centre,Siemens,Critical
-Main Valve B,Water,Kedah,Alor Setar,Aman Central,FlowMaster,Warning
-Backup Generator 2,Electricity,Kelantan,Kota Bharu,AEON Mall Kota Bharu,Honda,Active''';
+    final selection = await FilePicker.pickFile(
+      type: FileType.custom,
+      allowedExtensions: ['csv'],
+    );
+    if (!mounted || selection == null) return;
 
-    final lines = csvString.split('\n');
-    int count = 0;
-    for (int i = 1; i < lines.length; i++) {
-      final parts = lines[i].split(',');
-      if (parts.length >= 7) {
-        state.addOrUpdateNode(EquipmentNode(
-          nodeName: parts[0],
-          utilityType: parts[1],
-          zoneId: parts[2],
-          facilityCity: parts[3],
-          facilityName: parts[4],
-          manufacturer: parts[5],
-          status: parts[6],
-          installationDate: DateTime.now(),
-        ));
-        count++;
-      }
+    final file = selection;
+    late final List<int> bytes;
+    try {
+      bytes = await file.readAsBytes();
+    } catch (error) {
+      _showImportError('Could not read ${file.name}: $error');
+      return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Successfully imported $count equipment nodes.'),
-        backgroundColor: AppColors.success,
+    late final String csv;
+    try {
+      csv = utf8.decode(bytes);
+    } on FormatException {
+      _showImportError('The selected file is not valid UTF-8 CSV.');
+      return;
+    }
+
+    final result = parseEquipmentCsv(
+      csv,
+      catalog: state.importCatalog,
+      existingAssetTags:
+          state.nodes.map((node) => node.assetTag).whereType<String>().toSet(),
+    );
+    if (!mounted) return;
+
+    final shouldImport = await _showImportPreview(
+      fileName: file.name,
+      result: result,
+      existingAssetTags: state.nodes
+          .map((node) => node.assetTag)
+          .whereType<String>()
+          .map((tag) => tag.toUpperCase())
+          .toSet(),
+    );
+    if (!mounted || shouldImport != true) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await state.importRows(result.rows);
+      if (!mounted) return;
+      final skipped =
+          result.issues.map((issue) => issue.sourceRow).toSet().length;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            'Imported ${result.rows.length} equipment nodes'
+            '${skipped == 0 ? '.' : '; skipped $skipped invalid row(s).'}',
+          ),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (error) {
+      _showImportError('Import failed. No records were confirmed: $error');
+    }
+  }
+
+  Future<bool?> _showImportPreview({
+    required String fileName,
+    required EquipmentImportResult result,
+    required Set<String> existingAssetTags,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      builder: (_) => EquipmentImportPreviewDialog(
+        fileName: fileName,
+        result: result,
+        existingAssetTags: existingAssetTags,
       ),
+    );
+  }
+
+  void _showImportError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: AppColors.critical),
     );
   }
 
@@ -799,13 +770,7 @@ Backup Generator 2,Electricity,Kelantan,Kota Bharu,AEON Mall Kota Bharu,Honda,Ac
               padding: const EdgeInsets.fromLTRB(18, 14, 14, 14),
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  void onEdit() {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => NodeFormScreen(node: node),
-                      ),
-                    );
-                  }
+                  void onEdit() => _openNodeForm(node: node);
 
                   if (constraints.maxWidth >= 720) {
                     return _wideEquipmentCardContent(
@@ -992,6 +957,7 @@ Backup Generator 2,Electricity,Kelantan,Kota Bharu,AEON Mall Kota Bharu,Honda,Ac
   }
 
   Widget _equipmentDetails(EquipmentNode node) {
+    final assetTag = normalizedAssetTag(node.assetTag);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1006,7 +972,7 @@ Backup Generator 2,Electricity,Kelantan,Kota Bharu,AEON Mall Kota Bharu,Honda,Ac
         ),
         const SizedBox(height: 2),
         Text(
-          node.nodeName,
+          equipmentDisplayName(node),
           style: const TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w700,
@@ -1014,6 +980,18 @@ Backup Generator 2,Electricity,Kelantan,Kota Bharu,AEON Mall Kota Bharu,Honda,Ac
           ),
           overflow: TextOverflow.ellipsis,
         ),
+        const SizedBox(height: 2),
+        if (assetTag != null)
+          Text(
+            assetTag,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textTertiary,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
         const SizedBox(height: 2),
         Text(
           '${node.zoneId ?? '—'} · ${node.facilityCity ?? '—'} · ${node.manufacturer ?? 'Unknown'}',

@@ -3,19 +3,12 @@ import 'package:provider/provider.dart';
 
 import '../../../theme/tokens.dart';
 import '../state/auth_state.dart';
+import '../widgets/exit_confirmation_scope.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
 
-/// Matches the "Continue as Customer" card on the landing page's role-select
-/// screen, rather than the app-wide indigo AppColors.customerPrimary — kept
-/// local to this file since the green reskin was scoped to the front pages
-/// (of which this customer login screen is effectively the third step) and
-/// not applied to AppColors globally.
-const _customerGreen = Color(0xFF22C55E);
-
 class LoginScreen extends StatefulWidget {
-  final String? intendedRole;
-  const LoginScreen({super.key, this.intendedRole});
+  const LoginScreen({super.key});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -106,7 +99,8 @@ class _LoginScreenState extends State<LoginScreen> {
         const SizedBox(height: 20),
         OutlinedButton(
           onPressed: () => auth.resendVerificationEmail(),
-          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+          style:
+              OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
           child: const Text('Resend email'),
         ),
         const SizedBox(height: 10),
@@ -121,17 +115,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  String _roleLabel() {
-    switch (widget.intendedRole) {
-      case 'admin':
-        return 'Admin';
-      case 'worker':
-        return 'Worker';
-      default:
-        return 'Account';
-    }
-  }
-
   bool _isPhoneLandscape(BuildContext context) {
     final viewport = MediaQuery.sizeOf(context);
     return viewport.shortestSide < 600 && viewport.width > viewport.height;
@@ -140,7 +123,6 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _phoneLandscapeScaffold(
     BuildContext context,
     Color primary,
-    bool isCustomer,
   ) {
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -148,13 +130,14 @@ class _LoginScreenState extends State<LoginScreen> {
         toolbarHeight: 56,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(),
+          tooltip: 'Exit app',
+          onPressed: () => showExitConfirmation(context),
         ),
         backgroundColor: primary,
         foregroundColor: Colors.white,
-        title: Text(
-          'Sign in as ${_roleLabel()}',
-          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 17),
+        title: const Text(
+          'Sign in to mySumber',
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17),
         ),
         systemOverlayStyle: null,
       ),
@@ -200,7 +183,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '${_roleLabel()} sign in',
+                            'Utility management account',
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                               fontSize: 13,
@@ -260,7 +243,9 @@ class _LoginScreenState extends State<LoginScreen> {
                               Align(
                                 alignment: Alignment.centerRight,
                                 child: TextButton(
-                                  onPressed: auth.isLoading ? null : _openForgotPassword,
+                                  onPressed: auth.isLoading
+                                      ? null
+                                      : _openForgotPassword,
                                   child: const Text('Forgot password?'),
                                 ),
                               ),
@@ -300,69 +285,66 @@ class _LoginScreenState extends State<LoginScreen> {
                                   auth.isLoading ? 'Signing in…' : 'Sign In',
                                 ),
                               ),
-                              if (isCustomer) ...[
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    const Expanded(child: Divider()),
-                                    const Padding(
-                                      padding:
-                                          EdgeInsets.symmetric(horizontal: 8),
-                                      child: Text(
-                                        'or',
-                                        style: TextStyle(
-                                          color: AppColors.textTertiary,
-                                          fontSize: 12,
-                                        ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  const Expanded(child: Divider()),
+                                  const Padding(
+                                    padding:
+                                        EdgeInsets.symmetric(horizontal: 8),
+                                    child: Text(
+                                      'or',
+                                      style: TextStyle(
+                                        color: AppColors.textTertiary,
+                                        fontSize: 12,
                                       ),
                                     ),
-                                    const Expanded(child: Divider()),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    SizedBox(
-                                      width: 190,
-                                      child: OutlinedButton(
-                                        onPressed: auth.isLoading
-                                            ? null
-                                            : () => auth.signInWithGoogle(),
-                                        style: OutlinedButton.styleFrom(
-                                          minimumSize:
-                                              const Size.fromHeight(42),
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 10),
-                                        ),
-                                        child: const Text('Google'),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    TextButton(
-                                      onPressed: () {
-                                        Navigator.of(context).push(
-                                          MaterialPageRoute(
-                                            builder: (_) => RegisterScreen(
-                                              onBack: () =>
-                                                  Navigator.pop(context),
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                      style: TextButton.styleFrom(
-                                        foregroundColor: primary,
+                                  ),
+                                  const Expanded(child: Divider()),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  SizedBox(
+                                    width: 190,
+                                    child: OutlinedButton(
+                                      onPressed: auth.isLoading
+                                          ? null
+                                          : () => auth.signInWithGoogle(),
+                                      style: OutlinedButton.styleFrom(
+                                        minimumSize: const Size.fromHeight(42),
                                         padding: const EdgeInsets.symmetric(
-                                            horizontal: 8),
-                                        textStyle: const TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                        ),
+                                            horizontal: 10),
                                       ),
-                                      child: const Text('Sign Up'),
+                                      child: const Text('Google'),
                                     ),
-                                  ],
-                                ),
-                              ],
+                                  ),
+                                  const SizedBox(width: 12),
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => RegisterScreen(
+                                            onBack: () =>
+                                                Navigator.pop(context),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: primary,
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8),
+                                      textStyle: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    child: const Text('Sign Up'),
+                                  ),
+                                ],
+                              ),
                             ],
                           );
                         },
@@ -380,13 +362,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isCustomer =
-        widget.intendedRole == null || widget.intendedRole == 'user';
-    final primary =
-        isCustomer ? _customerGreen : rolePrimary(widget.intendedRole);
+    const primary = AppColors.adminPrimary;
 
     if (_isPhoneLandscape(context)) {
-      return _phoneLandscapeScaffold(context, primary, isCustomer);
+      return _phoneLandscapeScaffold(context, primary);
     }
 
     return Scaffold(
@@ -394,13 +373,14 @@ class _LoginScreenState extends State<LoginScreen> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(),
+          tooltip: 'Exit app',
+          onPressed: () => showExitConfirmation(context),
         ),
         backgroundColor: primary,
         foregroundColor: Colors.white,
-        title: Text(
-          'Sign in as ${_roleLabel()}',
-          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+        title: const Text(
+          'Sign in to mySumber',
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
         ),
         systemOverlayStyle: null,
       ),
@@ -437,7 +417,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                '${_roleLabel()} sign in',
+                'Utility management account',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontSize: 15,
@@ -491,7 +471,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       Align(
                         alignment: Alignment.centerRight,
                         child: TextButton(
-                          onPressed: auth.isLoading ? null : _openForgotPassword,
+                          onPressed:
+                              auth.isLoading ? null : _openForgotPassword,
                           child: const Text('Forgot password?'),
                         ),
                       ),
@@ -548,83 +529,80 @@ class _LoginScreenState extends State<LoginScreen> {
                             : const Icon(Icons.login),
                         label: Text(auth.isLoading ? 'Signing in…' : 'Sign In'),
                       ),
-                      if (isCustomer) ...[
-                        const SizedBox(height: 18),
-                        Row(
-                          children: [
-                            const Expanded(child: Divider()),
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 10),
-                              child: Text('or',
-                                  style: TextStyle(
-                                      color: AppColors.textTertiary,
-                                      fontSize: 13)),
-                            ),
-                            const Expanded(child: Divider()),
-                          ],
-                        ),
-                        const SizedBox(height: 18),
-                        OutlinedButton(
-                          onPressed: auth.isLoading
-                              ? null
-                              : () => auth.signInWithGoogle(),
-                          style: OutlinedButton.styleFrom(
-                            minimumSize: const Size.fromHeight(52),
-                            side: const BorderSide(color: AppColors.divider),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Image.network(
-                                'https://www.gstatic.com/images/branding/product/1x/googleg_standard_color_18dp.png',
-                                height: 18,
-                                width: 18,
-                                errorBuilder: (_, __, ___) => const Icon(
-                                    Icons.g_mobiledata,
-                                    size: 22,
-                                    color: AppColors.textSecondary),
-                              ),
-                              const SizedBox(width: 10),
-                              const Text(
-                                'Sign in with Google',
+                      const SizedBox(height: 18),
+                      Row(
+                        children: [
+                          const Expanded(child: Divider()),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            child: Text('or',
                                 style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                            ],
+                                    color: AppColors.textTertiary,
+                                    fontSize: 13)),
                           ),
+                          const Expanded(child: Divider()),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      OutlinedButton(
+                        onPressed: auth.isLoading
+                            ? null
+                            : () => auth.signInWithGoogle(),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(52),
+                          side: const BorderSide(color: AppColors.divider),
                         ),
-                        const SizedBox(height: 14),
-                        Wrap(
-                          alignment: WrapAlignment.center,
-                          crossAxisAlignment: WrapCrossAlignment.center,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Text(
-                              "Don't have an account? ",
-                              style: TextStyle(color: AppColors.textSecondary),
+                            Image.network(
+                              'https://www.gstatic.com/images/branding/product/1x/googleg_standard_color_18dp.png',
+                              height: 18,
+                              width: 18,
+                              errorBuilder: (_, __, ___) => const Icon(
+                                  Icons.g_mobiledata,
+                                  size: 22,
+                                  color: AppColors.textSecondary),
                             ),
-                            TextButton(
-                              onPressed: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => RegisterScreen(
-                                      onBack: () => Navigator.pop(context),
-                                    ),
-                                  ),
-                                );
-                              },
-                              style: TextButton.styleFrom(
-                                foregroundColor: primary,
-                                textStyle:
-                                    const TextStyle(fontWeight: FontWeight.w700),
+                            const SizedBox(width: 10),
+                            const Text(
+                              'Sign in with Google',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textPrimary,
                               ),
-                              child: const Text('Sign Up'),
                             ),
                           ],
                         ),
-                      ],
+                      ),
+                      const SizedBox(height: 14),
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          const Text(
+                            "Don't have an account? ",
+                            style: TextStyle(color: AppColors.textSecondary),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => RegisterScreen(
+                                    onBack: () => Navigator.pop(context),
+                                  ),
+                                ),
+                              );
+                            },
+                            style: TextButton.styleFrom(
+                              foregroundColor: primary,
+                              textStyle:
+                                  const TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                            child: const Text('Sign Up'),
+                          ),
+                        ],
+                      ),
                     ],
                   );
                 },

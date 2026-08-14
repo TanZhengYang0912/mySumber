@@ -3,6 +3,8 @@ import 'dart:ui' show DisplayFeatureType;
 import 'package:flutter/material.dart';
 
 import '../../../theme/tokens.dart';
+import '../models/alert.dart';
+import '../services/worker_utility_colors.dart';
 
 /// Compact Worker navigation for a phone in landscape orientation.
 class WorkerCompactRail extends StatelessWidget {
@@ -36,7 +38,7 @@ class WorkerCompactRail extends StatelessWidget {
                 Positioned(
                   left: 14,
                   top: 36,
-                  child: _utilityDestination(currentIndex),
+                  child: _utilityDestination(0),
                 ),
                 Positioned(
                   left: 14,
@@ -45,7 +47,7 @@ class WorkerCompactRail extends StatelessWidget {
                     logoutTop: logoutTop,
                     cameraCutout: cameraCutout,
                   ),
-                  child: _utilityDestination(currentIndex == 0 ? 1 : 0),
+                  child: _utilityDestination(1),
                 ),
                 Positioned(
                   left: 14,
@@ -82,6 +84,8 @@ class WorkerCompactRail extends StatelessWidget {
         icon: Icons.water_drop_outlined,
         label: 'Water',
         selected: currentIndex == 0,
+        selectedColor: workerUtilityPrimary(Utility.water),
+        selectedSurface: workerUtilitySurface(Utility.water),
         onTap: () => onDestinationSelected(0),
       );
     }
@@ -89,6 +93,8 @@ class WorkerCompactRail extends StatelessWidget {
       icon: Icons.electric_bolt_outlined,
       label: 'Electricity',
       selected: currentIndex == 1,
+      selectedColor: workerUtilityPrimary(Utility.electricity),
+      selectedSurface: workerUtilitySurface(Utility.electricity),
       onTap: () => onDestinationSelected(1),
     );
   }
@@ -129,17 +135,21 @@ class _WorkerRailDestination extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.selected,
+    this.selectedColor = AppColors.workerPrimary,
+    this.selectedSurface = AppColors.workerSurface,
     required this.onTap,
   });
 
   final IconData icon;
   final String label;
   final bool selected;
+  final Color selectedColor;
+  final Color selectedSurface;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? AppColors.workerPrimary : AppColors.textTertiary;
+    final color = selected ? selectedColor : AppColors.textTertiary;
     return Tooltip(
       message: label,
       child: Material(
@@ -151,7 +161,7 @@ class _WorkerRailDestination extends StatelessWidget {
             width: 60,
             height: 64,
             decoration: BoxDecoration(
-              color: selected ? AppColors.workerSurface : Colors.transparent,
+              color: selected ? selectedSurface : Colors.transparent,
               borderRadius: BorderRadius.circular(14),
             ),
             child: Column(

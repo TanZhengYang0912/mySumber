@@ -1,0 +1,2 @@
+asset_tag,equipment_type,utility_type,facility_code,serial_number,manufacturer,model,ip_assignment,ip_address,firmware_version,status,installation_date,last_maintenance_date,next_maintenance_date
+MY-SKLC-WP-001,Main Water Pump,Water,REPLACE_WITH_FACILITY_CODE,SN-GF-92831,Grundfos,Unspecified,Static,10.0.1.10,v2.4.1,Active,2025-01-12,2026-07-01,2027-01-01

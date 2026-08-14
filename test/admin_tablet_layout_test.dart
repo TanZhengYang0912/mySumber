@@ -21,4 +21,10 @@ void main() {
       AdminLayoutMode.tabletLandscape,
     );
   });
+
+  test('uses the compact shared header for phone landscape', () {
+    expect(usesAdminCompactHeader(const Size(914, 411)), isTrue);
+    expect(usesAdminCompactHeader(const Size(411, 914)), isFalse);
+    expect(usesAdminCompactHeader(const Size(1024, 768)), isFalse);
+  });
 }
