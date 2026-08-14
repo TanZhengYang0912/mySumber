@@ -1,14 +1,30 @@
-import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 
 import 'package:mysumber/modules/leakage/models/ai_anomaly_analysis.dart';
 import 'package:mysumber/modules/leakage/models/alert.dart';
 import 'package:mysumber/modules/leakage/services/anomaly_ai_service.dart';
 
 void main() {
+  test('keeps Groq credentials out of the Flutter build', () {
+    final appEntryPoint = File('lib/main.dart').readAsStringSync();
+    final clientService =
+        File('lib/modules/leakage/services/anomaly_ai_service.dart')
+            .readAsStringSync();
+    const functionPath =
+        'supabase/functions/generate-anomaly-analysis/index.ts';
+
+    expect(appEntryPoint, isNot(contains('GroqConfig')));
+    expect(clientService, isNot(contains('api.groq.com')));
+    expect(File(functionPath).existsSync(), isTrue);
+
+    final functionSource = File(functionPath).readAsStringSync();
+    expect(functionSource, contains("Deno.env.get('GROQ_API_KEY')"));
+    expect(functionSource, contains("profile.role !== 'admin'"));
+    expect(functionSource, contains("profile.status !== 'active'"));
+  });
+
   test('parses a valid Groq anomaly response', () {
     final analysis = AiAnomalyAnalysis.fromJson({
       'summary': 'Water use is above the normal baseline.',
@@ -165,71 +181,34 @@ void main() {
     );
   });
 
-  test('sends anomaly context and parses Groq JSON', () async {
-    late Map<String, dynamic> requestBody;
-    final client = MockClient((request) async {
-      requestBody = jsonDecode(request.body) as Map<String, dynamic>;
-      return http.Response(
-          jsonEncode({
-            'choices': [
-              {
-                'message': {
-                  'content': jsonEncode({
-                    'summary': 'Pump usage is abnormal.',
-                    'possible_cause': 'Demand spike around the pump.',
-                    'severity_assessment': 'High',
-                    'confidence': 0.9,
-                    'recommendation': 'Continue monitoring.',
-                  }),
-                },
-              },
-            ],
-          }),
-          200);
+  test('sends only the alert ID to the private edge function', () async {
+    var requestedAlertId = 0;
+    final service = AnomalyAiService.forTesting((alertId) async {
+      requestedAlertId = alertId;
+      return {
+        'analysis': {
+          'summary': 'Pump usage is abnormal.',
+          'possible_cause': 'Demand spike around the pump.',
+          'severity_assessment': 'High',
+          'confidence': 0.9,
+          'recommendation': 'Continue monitoring.',
+        },
+      };
     });
 
-    final result = await AnomalyAiService(
-      client: client,
-      apiKey: 'test-key',
-    ).generate(_testAlert());
+    final result = await service.generate(_testAlert());
 
+    expect(requestedAlertId, 9);
     expect(result.summary, 'Pump usage is abnormal.');
-    expect(requestBody['model'], AnomalyAiService.model);
-    expect(requestBody['response_format'], {'type': 'json_object'});
-    final messages = requestBody['messages'] as List<dynamic>;
-    final systemMessage = messages.first as Map<String, dynamic>;
-    expect(systemMessage['content'], contains('JSON number from 0 to 1'));
-    expect(requestBody.toString(), contains('Main Water Pump A1'));
   });
 
-  test('maps timeout to an anomaly AI exception', () async {
-    final timeoutClient = MockClient((_) async {
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-      return http.Response('', 200);
-    });
-
-    expect(
-      () => AnomalyAiService(
-        client: timeoutClient,
-        apiKey: 'test-key',
-        timeout: const Duration(milliseconds: 1),
-      ).generate(_testAlert()),
-      throwsA(
-        isA<AnomalyAiException>().having(
-          (error) => error.failure,
-          'failure',
-          AnomalyAiFailure.timeout,
-        ),
-      ),
+  test('maps edge-function failures to an anomaly AI exception', () async {
+    final service = AnomalyAiService.forTesting(
+      (_) async => throw StateError('Function unavailable'),
     );
-  });
-
-  test('maps non-200 responses to an API error', () async {
-    final client = MockClient((_) async => http.Response('Nope', 503));
 
     expect(
-      () => AnomalyAiService(client: client, apiKey: 'test-key')
-          .generate(_testAlert()),
+      () => service.generate(_testAlert()),
       throwsA(
         isA<AnomalyAiException>().having(
           (error) => error.failure,
@@ -240,16 +219,20 @@ void main() {
     );
   });
 
-  test('rejects an empty API key before making a request', () {
-    final client = MockClient((_) async => http.Response('', 500));
+  test('rejects an incomplete edge-function response', () async {
+    final service = AnomalyAiService.forTesting(
+      (_) async => {
+        'analysis': {'summary': 'Incomplete'}
+      },
+    );
 
     expect(
-      () => AnomalyAiService(client: client, apiKey: '').generate(_testAlert()),
+      () => service.generate(_testAlert()),
       throwsA(
         isA<AnomalyAiException>().having(
           (error) => error.failure,
           'failure',
-          AnomalyAiFailure.missingApiKey,
+          AnomalyAiFailure.invalidResponse,
         ),
       ),
     );

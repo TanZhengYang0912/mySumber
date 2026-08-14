@@ -117,8 +117,8 @@ void main() {
       find.byKey(const ValueKey('Shopping Mall-All')),
     );
 
-    expect(stateDropdown.decoration?.labelText, isNull);
-    expect(mallDropdown.decoration?.labelText, isNull);
+    expect(stateDropdown.decoration.labelText, isNull);
+    expect(mallDropdown.decoration.labelText, isNull);
     expect(find.text('State / Federal Territory'), findsOneWidget);
     expect(find.text('Shopping Mall'), findsOneWidget);
   });

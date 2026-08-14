@@ -1,10 +1,8 @@
-import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'theme/tokens.dart';
-import 'config.dart';
 
 import 'modules/admin/screens/abnormal_production_screen.dart';
 import 'modules/admin/screens/oversight_screen.dart';
@@ -75,10 +73,7 @@ class MySumberApp extends StatelessWidget {
               baseline: baseline,
               repository: repository,
             );
-            final anomalyAi = AnomalyAiService(
-              client: http.Client(),
-              apiKey: GroqConfig.apiKey,
-            );
+            final anomalyAi = AnomalyAiService();
             final state = AppState(
               baseline: baseline,
               nrw: nrw,

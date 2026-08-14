@@ -1,10 +1,8 @@
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 
 import '../../electricity/models/electricity_models.dart';
 import '../../electricity/services/electricity_data_service.dart';
 import '../data/leakage_repository.dart';
-import '../../../config.dart';
 import '../models/ai_anomaly_analysis.dart';
 import '../models/alert.dart';
 import '../models/report.dart';
@@ -33,7 +31,7 @@ class AppState extends ChangeNotifier {
   final LeakageRepository repository;
   final SimulationService simulation;
   final Explainer explainer;
-  final AnomalyAiService anomalyAi;
+  AnomalyAiService? _anomalyAi;
 
   List<Alert> _alerts = [];
   List<Report> _reports = [];
@@ -53,11 +51,9 @@ class AppState extends ChangeNotifier {
   })  : electricityLoss = electricityLoss ?? ElectricityLossService(),
         electricityData = electricityData ?? ElectricityDataService(),
         explainer = explainer ?? Explainer(),
-        anomalyAi = anomalyAi ??
-            AnomalyAiService(
-              client: http.Client(),
-              apiKey: GroqConfig.apiKey,
-            );
+        _anomalyAi = anomalyAi;
+
+  AnomalyAiService get anomalyAi => _anomalyAi ??= AnomalyAiService();
 
   String get workerName => 'Worker X';
   List<Alert> get alerts => _alerts;
@@ -82,37 +78,22 @@ class AppState extends ChangeNotifier {
 
     try {
       final analysis = await anomalyAi.generate(alert);
-      var persisted = true;
-      try {
-        await repository.updateAlertAiAnalysis(
-          id: alertId,
-          analysis: analysis,
+      final index = _alerts.indexWhere((item) => item.id == alertId);
+      if (index != -1) {
+        _alerts[index] = _alerts[index].copyWith(
+          aiSummary: analysis.summary,
+          aiPossibleCause: analysis.possibleCause,
+          aiSeverityAssessment: analysis.severityAssessment,
+          aiRecommendation: analysis.recommendation,
+          aiConfidence: analysis.confidence,
+          aiGeneratedAt: analysis.generatedAt,
         );
-      } catch (error, stackTrace) {
-        persisted = false;
-        if (kDebugMode) {
-          debugPrint('Anomaly AI storage error: $error\n$stackTrace');
-        }
-      }
-
-      if (persisted) {
-        final index = _alerts.indexWhere((item) => item.id == alertId);
-        if (index != -1) {
-          _alerts[index] = _alerts[index].copyWith(
-            aiSummary: analysis.summary,
-            aiPossibleCause: analysis.possibleCause,
-            aiSeverityAssessment: analysis.severityAssessment,
-            aiRecommendation: analysis.recommendation,
-            aiConfidence: analysis.confidence,
-            aiGeneratedAt: analysis.generatedAt,
-          );
-          notifyListeners();
-        }
+        notifyListeners();
       }
 
       return AnomalyAiGenerationResult(
         analysis: analysis,
-        persisted: persisted,
+        persisted: true,
       );
     } finally {
       _generatingAnomalyIds.remove(alertId);

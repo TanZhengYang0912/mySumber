@@ -45,7 +45,6 @@ app.*.map.json
 /android/app/release
 
 # Local-only, not shared with the team
-/test/
 /docs/superpowers/
 /.superpowers/
 

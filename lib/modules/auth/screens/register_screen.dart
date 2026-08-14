@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../theme/tokens.dart';
 import '../state/auth_state.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -102,13 +103,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Colors.blue.shade50,
+            color: AppColors.adminSurface,
             borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
             children: [
-              Icon(Icons.mark_email_read_outlined,
-                  color: Colors.blue.shade700, size: 36),
+              const Icon(
+                Icons.mark_email_read_outlined,
+                color: AppColors.adminPrimary,
+                size: 36,
+              ),
               const SizedBox(height: 12),
               const Text(
                 'Confirm your account',
@@ -119,8 +123,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 'We sent a confirmation link to ${auth.pendingEmail} — click '
                 'it to activate your account and continue.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                    fontSize: 13, color: Colors.grey.shade700, height: 1.4),
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                  height: 1.4,
+                ),
               ),
             ],
           ),
@@ -131,7 +138,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
             child: Text(
               auth.errorMessage!,
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.red.shade700, fontSize: 13),
+              style: const TextStyle(
+                color: AppColors.critical,
+                fontSize: 13,
+              ),
             ),
           ),
         const SizedBox(height: 20),
@@ -157,10 +167,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.canvas,
       appBar: AppBar(
         title: const Text('Create Account'),
-        backgroundColor: Colors.blue.shade700,
+        backgroundColor: AppColors.adminPrimary,
         foregroundColor: Colors.white,
+        titleTextStyle: const TextStyle(
+          color: Colors.white,
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+        ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
@@ -168,20 +184,42 @@ class _RegisterScreenState extends State<RegisterScreen> {
             widget.onBack();
           },
         ),
+        systemOverlayStyle: null,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
             const SizedBox(height: 20),
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: AppColors.adminPrimary,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: const Icon(
+                Icons.water_drop_rounded,
+                color: Colors.white,
+                size: 34,
+              ),
+            ),
+            const SizedBox(height: 16),
             const Text(
               'Sign Up',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.w800,
+                color: AppColors.textPrimary,
+              ),
             ),
             const SizedBox(height: 8),
-            Text(
+            const Text(
               'Create a new account',
-              style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+              style: TextStyle(
+                fontSize: 16,
+                color: AppColors.textSecondary,
+              ),
             ),
             const SizedBox(height: 40),
             Consumer<RoleState>(
@@ -202,9 +240,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       decoration: InputDecoration(
                         labelText: 'Email',
                         hintText: 'Enter your email',
-                        prefixIcon: const Icon(Icons.email),
+                        prefixIcon: const Icon(Icons.email_outlined),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                     ),
@@ -215,9 +253,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       decoration: InputDecoration(
                         labelText: 'Password',
                         hintText: 'At least 8 characters',
-                        prefixIcon: const Icon(Icons.lock),
+                        prefixIcon: const Icon(Icons.lock_outline),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                         suffixIcon: IconButton(
                           icon: Icon(
@@ -237,9 +275,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       decoration: InputDecoration(
                         labelText: 'Confirm Password',
                         hintText: 'Re-enter your password',
-                        prefixIcon: const Icon(Icons.lock),
+                        prefixIcon: const Icon(Icons.lock_outline),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                         suffixIcon: IconButton(
                           icon: Icon(
@@ -247,8 +285,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ? Icons.visibility
                                 : Icons.visibility_off,
                           ),
-                          onPressed: () => setState(
-                              () => _showConfirmPassword = !_showConfirmPassword),
+                          onPressed: () => setState(() =>
+                              _showConfirmPassword = !_showConfirmPassword),
                         ),
                       ),
                     ),
@@ -257,13 +295,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       children: [
                         Checkbox(
                           value: _agreedToTerms,
+                          activeColor: AppColors.adminPrimary,
                           onChanged: (value) =>
                               setState(() => _agreedToTerms = value ?? false),
                         ),
                         Expanded(
                           child: Text(
                             'I agree to the terms and conditions',
-                            style: TextStyle(color: Colors.grey.shade600),
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                            ),
                           ),
                         ),
                       ],
@@ -274,20 +315,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         child: Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.red.shade50,
+                            color: AppColors.criticalSurface,
                             border:
-                                Border.all(color: Colors.red.shade200, width: 1),
+                                Border.all(color: AppColors.critical, width: 1),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Row(
                             children: [
-                              Icon(Icons.error, color: Colors.red.shade700),
+                              const Icon(
+                                Icons.error,
+                                color: AppColors.critical,
+                              ),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Text(
                                   auth.errorMessage!,
                                   style: TextStyle(
-                                    color: Colors.red.shade700,
+                                    color: AppColors.critical,
                                     fontSize: 14,
                                   ),
                                 ),
@@ -305,6 +349,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.adminPrimary,
+                          foregroundColor: Colors.white,
+                        ),
                         onPressed: auth.isLoading ? null : _register,
                         icon: auth.isLoading
                             ? const SizedBox(
@@ -312,11 +360,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 height: 16,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation(
+                                    Colors.white,
+                                  ),
                                 ),
                               )
                             : const Icon(Icons.person_add),
-                        label:
-                            Text(auth.isLoading ? 'Creating...' : 'Create Account'),
+                        label: Text(
+                            auth.isLoading ? 'Creating...' : 'Create Account'),
                       ),
                     ),
                   ],

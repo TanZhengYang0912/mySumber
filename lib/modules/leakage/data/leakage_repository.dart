@@ -1,6 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../models/ai_anomaly_analysis.dart';
 import '../models/alert.dart';
 import '../models/reading.dart';
 import '../models/report.dart';
@@ -61,13 +60,6 @@ class LeakageRepository {
       'facility_city': facilityCity,
       'equipment_name': equipmentName,
     }).eq('id', id);
-  }
-
-  Future<void> updateAlertAiAnalysis({
-    required int id,
-    required AiAnomalyAnalysis analysis,
-  }) async {
-    await _client.from('alerts').update(analysis.toAlertFields()).eq('id', id);
   }
 
   Future<int> insertReport(Report report) async {

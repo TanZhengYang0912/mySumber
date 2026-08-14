@@ -38,7 +38,7 @@ void main() {
     );
     expect(dropdowns, hasLength(3));
     expect(
-      dropdowns.every((dropdown) => dropdown.decoration?.labelText == null),
+      dropdowns.every((dropdown) => dropdown.decoration.labelText == null),
       isTrue,
     );
     expect(find.text('State / Federal Territory'), findsOneWidget);

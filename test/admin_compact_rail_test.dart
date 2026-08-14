@@ -140,7 +140,7 @@ void main() {
     );
     expect(
       tester.getRect(find.byTooltip('More')).bottom,
-      lessThan(tester.binding.renderView.size.height - 52),
+      lessThan(tester.view.physicalSize.height - 52),
     );
   });
 

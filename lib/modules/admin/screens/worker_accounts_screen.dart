@@ -40,17 +40,19 @@ class _WorkerAccountsScreenState extends State<WorkerAccountsScreen> {
   Future<void> _load() async {
     try {
       final workers = await _repository.listWorkers();
-      if (mounted)
+      if (mounted) {
         setState(() {
           _workers = workers;
           _loading = false;
         });
+      }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = 'Could not load worker accounts';
           _loading = false;
         });
+      }
     }
   }
 
@@ -81,8 +83,11 @@ class _WorkerAccountsScreenState extends State<WorkerAccountsScreen> {
         ],
       ),
     );
-    if (submit != true || name.text.trim().isEmpty || !email.text.contains('@'))
+    if (submit != true ||
+        name.text.trim().isEmpty ||
+        !email.text.contains('@')) {
       return;
+    }
     try {
       await _repository.manage(
           action: 'create',
@@ -94,9 +99,10 @@ class _WorkerAccountsScreenState extends State<WorkerAccountsScreen> {
               'Worker invited successfully. A password setup email has been sent.')));
       await _load();
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Could not invite worker')));
+      }
     }
   }
 
@@ -106,9 +112,10 @@ class _WorkerAccountsScreenState extends State<WorkerAccountsScreen> {
       await _repository.manage(action: action, workerId: worker.id);
       await _load();
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Could not update worker status')));
+      }
     }
   }
 

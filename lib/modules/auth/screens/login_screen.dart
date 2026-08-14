@@ -365,249 +365,255 @@ class _LoginScreenState extends State<LoginScreen> {
     const primary = AppColors.adminPrimary;
 
     if (_isPhoneLandscape(context)) {
-      return _phoneLandscapeScaffold(context, primary);
+      return ExitConfirmationScope(
+        child: _phoneLandscapeScaffold(context, primary),
+      );
     }
 
-    return Scaffold(
-      backgroundColor: AppColors.canvas,
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          tooltip: 'Exit app',
-          onPressed: () => showExitConfirmation(context),
+    return ExitConfirmationScope(
+      child: Scaffold(
+        backgroundColor: AppColors.canvas,
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            tooltip: 'Exit app',
+            onPressed: () => showExitConfirmation(context),
+          ),
+          backgroundColor: primary,
+          foregroundColor: Colors.white,
+          title: const Text(
+            'Sign in to mySumber',
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+          ),
+          systemOverlayStyle: null,
         ),
-        backgroundColor: primary,
-        foregroundColor: Colors.white,
-        title: const Text(
-          'Sign in to mySumber',
-          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
-        ),
-        systemOverlayStyle: null,
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 72,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    color: primary,
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: const Icon(
-                    Icons.water_drop_rounded,
-                    color: Colors.white,
-                    size: 34,
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      color: primary,
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: const Icon(
+                      Icons.water_drop_rounded,
+                      color: Colors.white,
+                      size: 34,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'mySumber',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
+                const SizedBox(height: 16),
+                const Text(
+                  'mySumber',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Utility management account',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 15,
-                  color: AppColors.textSecondary,
-                  fontWeight: FontWeight.w500,
+                const SizedBox(height: 4),
+                Text(
+                  'Utility management account',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 28),
-              Consumer<RoleState>(
-                builder: (context, auth, _) {
-                  if (auth.isLoggedIn && !_navigated) {
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (mounted) _navigateAfterAuth(auth);
-                    });
-                  }
-                  if (auth.awaitingSecondFactor) {
-                    return _verifyEmailPanel(auth, primary);
-                  }
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      TextField(
-                        controller: _emailController,
-                        keyboardType: TextInputType.emailAddress,
-                        decoration: const InputDecoration(
-                          labelText: 'Email',
-                          hintText: 'Enter your email',
-                          prefixIcon: Icon(Icons.email_outlined),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      TextField(
-                        controller: _passwordController,
-                        obscureText: !_showPassword,
-                        decoration: InputDecoration(
-                          labelText: 'Password',
-                          hintText: 'Enter your password',
-                          prefixIcon: const Icon(Icons.lock_outline),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _showPassword
-                                  ? Icons.visibility_off_outlined
-                                  : Icons.visibility_outlined,
-                            ),
-                            onPressed: () =>
-                                setState(() => _showPassword = !_showPassword),
+                const SizedBox(height: 28),
+                Consumer<RoleState>(
+                  builder: (context, auth, _) {
+                    if (auth.isLoggedIn && !_navigated) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted) _navigateAfterAuth(auth);
+                      });
+                    }
+                    if (auth.awaitingSecondFactor) {
+                      return _verifyEmailPanel(auth, primary);
+                    }
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        TextField(
+                          controller: _emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          decoration: const InputDecoration(
+                            labelText: 'Email',
+                            hintText: 'Enter your email',
+                            prefixIcon: Icon(Icons.email_outlined),
                           ),
                         ),
-                        onSubmitted: (_) => _login(),
-                      ),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed:
-                              auth.isLoading ? null : _openForgotPassword,
-                          child: const Text('Forgot password?'),
-                        ),
-                      ),
-                      if (auth.errorMessage != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 12),
-                          child: Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: AppColors.criticalSurface,
-                              borderRadius: BorderRadius.circular(12),
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: _passwordController,
+                          obscureText: !_showPassword,
+                          decoration: InputDecoration(
+                            labelText: 'Password',
+                            hintText: 'Enter your password',
+                            prefixIcon: const Icon(Icons.lock_outline),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _showPassword
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
+                              ),
+                              onPressed: () => setState(
+                                  () => _showPassword = !_showPassword),
                             ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.error_outline,
-                                    color: AppColors.critical, size: 20),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    auth.errorMessage!,
-                                    style: const TextStyle(
-                                      color: AppColors.critical,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
+                          ),
+                          onSubmitted: (_) => _login(),
+                        ),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed:
+                                auth.isLoading ? null : _openForgotPassword,
+                            child: const Text('Forgot password?'),
+                          ),
+                        ),
+                        if (auth.errorMessage != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: AppColors.criticalSurface,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.error_outline,
+                                      color: AppColors.critical, size: 20),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      auth.errorMessage!,
+                                      style: const TextStyle(
+                                        color: AppColors.critical,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
                                   ),
-                                ),
-                                InkWell(
-                                  onTap: auth.clearError,
-                                  child: const Icon(Icons.close,
-                                      color: AppColors.critical, size: 18),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      const SizedBox(height: 20),
-                      FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: primary,
-                          foregroundColor: Colors.white,
-                        ),
-                        onPressed: auth.isLoading ? null : _login,
-                        icon: auth.isLoading
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor:
-                                      AlwaysStoppedAnimation(Colors.white),
-                                ),
-                              )
-                            : const Icon(Icons.login),
-                        label: Text(auth.isLoading ? 'Signing in…' : 'Sign In'),
-                      ),
-                      const SizedBox(height: 18),
-                      Row(
-                        children: [
-                          const Expanded(child: Divider()),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                            child: Text('or',
-                                style: TextStyle(
-                                    color: AppColors.textTertiary,
-                                    fontSize: 13)),
-                          ),
-                          const Expanded(child: Divider()),
-                        ],
-                      ),
-                      const SizedBox(height: 18),
-                      OutlinedButton(
-                        onPressed: auth.isLoading
-                            ? null
-                            : () => auth.signInWithGoogle(),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(52),
-                          side: const BorderSide(color: AppColors.divider),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Image.network(
-                              'https://www.gstatic.com/images/branding/product/1x/googleg_standard_color_18dp.png',
-                              height: 18,
-                              width: 18,
-                              errorBuilder: (_, __, ___) => const Icon(
-                                  Icons.g_mobiledata,
-                                  size: 22,
-                                  color: AppColors.textSecondary),
-                            ),
-                            const SizedBox(width: 10),
-                            const Text(
-                              'Sign in with Google',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textPrimary,
+                                  InkWell(
+                                    onTap: auth.clearError,
+                                    child: const Icon(Icons.close,
+                                        color: AppColors.critical, size: 18),
+                                  ),
+                                ],
                               ),
+                            ),
+                          ),
+                        const SizedBox(height: 20),
+                        FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: primary,
+                            foregroundColor: Colors.white,
+                          ),
+                          onPressed: auth.isLoading ? null : _login,
+                          icon: auth.isLoading
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor:
+                                        AlwaysStoppedAnimation(Colors.white),
+                                  ),
+                                )
+                              : const Icon(Icons.login),
+                          label:
+                              Text(auth.isLoading ? 'Signing in…' : 'Sign In'),
+                        ),
+                        const SizedBox(height: 18),
+                        Row(
+                          children: [
+                            const Expanded(child: Divider()),
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 10),
+                              child: Text('or',
+                                  style: TextStyle(
+                                      color: AppColors.textTertiary,
+                                      fontSize: 13)),
+                            ),
+                            const Expanded(child: Divider()),
+                          ],
+                        ),
+                        const SizedBox(height: 18),
+                        OutlinedButton(
+                          onPressed: auth.isLoading
+                              ? null
+                              : () => auth.signInWithGoogle(),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(52),
+                            side: const BorderSide(color: AppColors.divider),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Image.network(
+                                'https://www.gstatic.com/images/branding/product/1x/googleg_standard_color_18dp.png',
+                                height: 18,
+                                width: 18,
+                                errorBuilder: (_, __, ___) => const Icon(
+                                    Icons.g_mobiledata,
+                                    size: 22,
+                                    color: AppColors.textSecondary),
+                              ),
+                              const SizedBox(width: 10),
+                              const Text(
+                                'Sign in with Google',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            const Text(
+                              "Don't have an account? ",
+                              style: TextStyle(color: AppColors.textSecondary),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => RegisterScreen(
+                                      onBack: () => Navigator.pop(context),
+                                    ),
+                                  ),
+                                );
+                              },
+                              style: TextButton.styleFrom(
+                                foregroundColor: primary,
+                                textStyle: const TextStyle(
+                                    fontWeight: FontWeight.w700),
+                              ),
+                              child: const Text('Sign Up'),
                             ),
                           ],
                         ),
-                      ),
-                      const SizedBox(height: 14),
-                      Wrap(
-                        alignment: WrapAlignment.center,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          const Text(
-                            "Don't have an account? ",
-                            style: TextStyle(color: AppColors.textSecondary),
-                          ),
-                          TextButton(
-                            onPressed: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => RegisterScreen(
-                                    onBack: () => Navigator.pop(context),
-                                  ),
-                                ),
-                              );
-                            },
-                            style: TextButton.styleFrom(
-                              foregroundColor: primary,
-                              textStyle:
-                                  const TextStyle(fontWeight: FontWeight.w700),
-                            ),
-                            child: const Text('Sign Up'),
-                          ),
-                        ],
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ],
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
         ),
       ),
