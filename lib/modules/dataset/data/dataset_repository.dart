@@ -210,8 +210,10 @@ class DatasetRepository {
     return remoteFirst(
       remote: () async {
         final rows = await remote.fetchNodes();
-        await database.replaceEquipmentNodes(rows);
-        await database.setLastSync('equipment_nodes', DateTime.now());
+        await cacheBestEffort('equipment', () async {
+          await database.replaceEquipmentNodes(rows);
+          await database.setLastSync('equipment_nodes', DateTime.now());
+        });
         return _nodesFromRows(rows);
       },
       local: () async => _nodesFromRows(await database.equipmentNodes()),
@@ -320,10 +322,12 @@ class DatasetRepository {
       await remote.upsertNodes(rows);
       final database = _database;
       if (database != null) {
-        for (final row in rows) {
-          await database.upsertEquipmentNode(row);
-        }
-        await database.setLastSync('equipment_nodes', DateTime.now());
+        await cacheBestEffort('equipment', () async {
+          for (final row in rows) {
+            await database.upsertEquipmentNode(row);
+          }
+          await database.setLastSync('equipment_nodes', DateTime.now());
+        });
       }
       _cacheStatus.markOnline();
       return;
@@ -350,7 +354,13 @@ class DatasetRepository {
     final remote = _remote;
     if (remote != null) {
       await remote.deleteNode(nodeId);
-      await _database?.deleteEquipmentNode(nodeId);
+      final database = _database;
+      if (database != null) {
+        await cacheBestEffort(
+          'equipment',
+          () => database.deleteEquipmentNode(nodeId),
+        );
+      }
       _cacheStatus.markOnline();
       return;
     }
@@ -366,14 +376,17 @@ class DatasetRepository {
       return logs;
     }
     final database = _database;
-    if (database == null)
+    if (database == null) {
       return _logsFromRows(await remote.fetchLogsForNode(nodeId));
+    }
     final scope = 'equipment_logs:$nodeId';
     return remoteFirst(
       remote: () async {
         final rows = await remote.fetchLogsForNode(nodeId);
-        await database.replaceEquipmentLogs(nodeId, rows);
-        await database.setLastSync(scope, DateTime.now());
+        await cacheBestEffort('equipment usage', () async {
+          await database.replaceEquipmentLogs(nodeId, rows);
+          await database.setLastSync(scope, DateTime.now());
+        });
         return _logsFromRows(rows);
       },
       local: () async => _logsFromRows(await database.equipmentLogs(nodeId)),
@@ -396,7 +409,13 @@ class DatasetRepository {
     final remote = _remote;
     if (remote != null) {
       await remote.upsertLogs([log.toMap()]);
-      await _database?.upsertEquipmentLog(log.toMap());
+      final database = _database;
+      if (database != null) {
+        await cacheBestEffort(
+          'equipment usage',
+          () => database.upsertEquipmentLog(log.toMap()),
+        );
+      }
       _cacheStatus.markOnline();
       return;
     }

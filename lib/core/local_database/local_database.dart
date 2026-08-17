@@ -85,7 +85,7 @@ class LocalSyncMetadata extends Table {
 class LocalDatabase extends _$LocalDatabase {
   LocalDatabase.defaults() : super(driftDatabase(name: 'mysumber_cache'));
 
-  LocalDatabase.forTesting(QueryExecutor executor) : super(executor);
+  LocalDatabase.forTesting(super.executor);
 
   @override
   int get schemaVersion => 1;
@@ -166,6 +166,23 @@ class LocalDatabase extends _$LocalDatabase {
         ),
       );
 
+  Future<void> replaceReadings(List<Map<String, Object?>> rows) async {
+    await transaction(() async {
+      await delete(localReadings).go();
+      if (rows.isNotEmpty) {
+        await batch((batch) => batch.insertAll(
+              localReadings,
+              rows
+                  .map((row) => LocalReadingsCompanion.insert(
+                        remoteId: Value(_int(row, 'id')),
+                        payload: jsonEncode(row),
+                      ))
+                  .toList(),
+            ));
+      }
+    });
+  }
+
   Future<List<Map<String, Object?>>> readings() async {
     final rows = await select(localReadings).get();
     return rows.map((row) => _decode(row.payload)).toList();
@@ -178,6 +195,23 @@ class LocalDatabase extends _$LocalDatabase {
         await batch((batch) => batch.insertAll(
               localAlerts,
               rows.map(_alertCompanion).toList(),
+            ));
+      }
+    });
+  }
+
+  Future<void> replaceVisibleAlerts(List<Map<String, Object?>> rows) async {
+    await transaction(() async {
+      await (delete(localAlerts)
+            ..where((row) =>
+                row.isDeleted.equals(false) &
+                row.status.equals('dismissed').not()))
+          .go();
+      if (rows.isNotEmpty) {
+        await batch((batch) => batch.insertAll(
+              localAlerts,
+              rows.map(_alertCompanion).toList(),
+              mode: InsertMode.insertOrReplace,
             ));
       }
     });
@@ -213,6 +247,20 @@ class LocalDatabase extends _$LocalDatabase {
         await batch((batch) => batch.insertAll(
               localReports,
               rows.map(_reportCompanion).toList(),
+            ));
+      }
+    });
+  }
+
+  Future<void> replaceVisibleReports(List<Map<String, Object?>> rows) async {
+    await transaction(() async {
+      await (delete(localReports)..where((row) => row.isDeleted.equals(false)))
+          .go();
+      if (rows.isNotEmpty) {
+        await batch((batch) => batch.insertAll(
+              localReports,
+              rows.map(_reportCompanion).toList(),
+              mode: InsertMode.insertOrReplace,
             ));
       }
     });

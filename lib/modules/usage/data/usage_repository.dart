@@ -109,12 +109,14 @@ class UsageRepository {
     return remoteFirst(
       remote: () async {
         final rows = await _remote.entriesFor(utility);
-        await database.replaceCustomerEntries(
-          userId: userId,
-          utility: utility.key,
-          rows: rows,
-        );
-        await database.setLastSync(scope, DateTime.now());
+        await cacheBestEffort('customer usage', () async {
+          await database.replaceCustomerEntries(
+            userId: userId,
+            utility: utility.key,
+            rows: rows,
+          );
+          await database.setLastSync(scope, DateTime.now());
+        });
         return _entriesFromRows(rows);
       },
       local: () async => _entriesFromRows(
@@ -138,7 +140,13 @@ class UsageRepository {
       periodMonth: periodMonth,
       value: value,
     );
-    await _database?.upsertCustomerEntry(userId, row);
+    final database = _database;
+    if (database != null) {
+      await cacheBestEffort(
+        'customer usage',
+        () => database.upsertCustomerEntry(userId, row),
+      );
+    }
     _cacheStatus.markOnline();
     return UtilityEntry.fromMap(row);
   }

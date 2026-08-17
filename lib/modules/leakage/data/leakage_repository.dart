@@ -8,6 +8,7 @@ import '../models/reading.dart';
 import '../models/report.dart';
 
 abstract class LeakageRemoteStore {
+  Future<List<Map<String, Object?>>> readings();
   Future<Map<String, Object?>> insertReading(Map<String, Object?> row);
   Future<Map<String, Object?>> insertAlert(Map<String, Object?> row);
   Future<List<Map<String, Object?>>> alerts({required bool includeDismissed});
@@ -29,6 +30,15 @@ class SupabaseLeakageRemoteStore implements LeakageRemoteStore {
   const SupabaseLeakageRemoteStore(this.client);
 
   final SupabaseClient client;
+
+  @override
+  Future<List<Map<String, Object?>>> readings() async {
+    final rows = await client
+        .from('readings')
+        .select()
+        .order('reading_date', ascending: false);
+    return rows.map((row) => Map<String, Object?>.from(row)).toList();
+  }
 
   @override
   Future<Map<String, Object?>> insertReading(Map<String, Object?> row) async =>
@@ -157,10 +167,34 @@ class LeakageRepository {
   final LocalDatabase? _database;
   final CacheStatus _cacheStatus;
 
+  Future<List<Reading>> readings() async {
+    final database = _database;
+    if (database == null) {
+      return _readingsFromRows(await _remote.readings());
+    }
+    return remoteFirst(
+      remote: () async {
+        final rows = await _remote.readings();
+        await cacheBestEffort('readings', () async {
+          await database.replaceReadings(rows);
+          await database.setLastSync('readings', DateTime.now());
+        });
+        return _readingsFromRows(rows);
+      },
+      local: () async => _readingsFromRows(await database.readings()),
+      hasLocalData: (rows) => rows.isNotEmpty,
+      lastSync: () => database.lastSync('readings'),
+      status: _cacheStatus,
+    );
+  }
+
   Future<int> insertReading(Reading reading) async {
     final request = reading.toMap()..remove('id');
     final row = await _remote.insertReading(request);
-    await _database?.upsertReading(row);
+    final database = _database;
+    if (database != null) {
+      await cacheBestEffort('readings', () => database.upsertReading(row));
+    }
     _cacheStatus.markOnline();
     return (row['id'] as num).toInt();
   }
@@ -168,7 +202,10 @@ class LeakageRepository {
   Future<int> insertAlert(Alert alert) async {
     final request = alert.toMap()..remove('id');
     final row = await _remote.insertAlert(request);
-    await _database?.upsertAlert(row);
+    final database = _database;
+    if (database != null) {
+      await cacheBestEffort('alerts', () => database.upsertAlert(row));
+    }
     _cacheStatus.markOnline();
     return (row['id'] as num).toInt();
   }
@@ -183,14 +220,14 @@ class LeakageRepository {
     return remoteFirst(
       remote: () async {
         final rows = await _remote.alerts(includeDismissed: includeDismissed);
-        if (includeDismissed) {
-          await database.replaceAlerts(rows);
-        } else {
-          for (final row in rows) {
-            await database.upsertAlert(row);
+        await cacheBestEffort('alerts', () async {
+          if (includeDismissed) {
+            await database.replaceAlerts(rows);
+          } else {
+            await database.replaceVisibleAlerts(rows);
           }
-        }
-        await database.setLastSync('alerts', DateTime.now());
+          await database.setLastSync('alerts', DateTime.now());
+        });
         return _alertsFromRows(rows);
       },
       local: () async => _alertsFromRows(
@@ -211,7 +248,9 @@ class LeakageRepository {
     return remoteFirst(
       remote: () async {
         final row = await _remote.alertById(id);
-        if (row != null) await database.upsertAlert(row);
+        if (row != null) {
+          await cacheBestEffort('alerts', () => database.upsertAlert(row));
+        }
         return row == null ? null : Alert.fromMap(row);
       },
       local: () async {
@@ -226,7 +265,10 @@ class LeakageRepository {
 
   Future<void> updateAlertStatus(int id, String status) async {
     final row = await _remote.updateAlertStatus(id, status);
-    await _database?.upsertAlert(row);
+    final database = _database;
+    if (database != null) {
+      await cacheBestEffort('alerts', () => database.upsertAlert(row));
+    }
     _cacheStatus.markOnline();
   }
 
@@ -244,14 +286,20 @@ class LeakageRepository {
       facilityCity: facilityCity,
       equipmentName: equipmentName,
     );
-    await _database?.upsertAlert(row);
+    final database = _database;
+    if (database != null) {
+      await cacheBestEffort('alerts', () => database.upsertAlert(row));
+    }
     _cacheStatus.markOnline();
   }
 
   Future<int> insertReport(Report report) async {
     final request = report.toMap()..remove('id');
     final row = await _remote.insertReport(request);
-    await _database?.upsertReport(row);
+    final database = _database;
+    if (database != null) {
+      await cacheBestEffort('reports', () => database.upsertReport(row));
+    }
     _cacheStatus.markOnline();
     return (row['id'] as num).toInt();
   }
@@ -276,14 +324,14 @@ class LeakageRepository {
     return remoteFirst(
       remote: () async {
         final rows = await _remote.reports(includeDeleted: includeDeleted);
-        if (includeDeleted) {
-          await database.replaceReports(rows);
-        } else {
-          for (final row in rows) {
-            await database.upsertReport(row);
+        await cacheBestEffort('reports', () async {
+          if (includeDeleted) {
+            await database.replaceReports(rows);
+          } else {
+            await database.replaceVisibleReports(rows);
           }
-        }
-        await database.setLastSync('reports', DateTime.now());
+          await database.setLastSync('reports', DateTime.now());
+        });
         return _reportsFromRows(rows);
       },
       local: () async => _reportsFromRows(
@@ -297,12 +345,18 @@ class LeakageRepository {
 
   Future<void> setReportDeleted(int id, bool isDeleted) async {
     final row = await _remote.setReportDeleted(id, isDeleted);
-    await _database?.upsertReport(row);
+    final database = _database;
+    if (database != null) {
+      await cacheBestEffort('reports', () => database.upsertReport(row));
+    }
     _cacheStatus.markOnline();
   }
 
   List<Alert> _alertsFromRows(List<Map<String, Object?>> rows) =>
       rows.map(Alert.fromMap).toList();
+
+  List<Reading> _readingsFromRows(List<Map<String, Object?>> rows) =>
+      rows.map(Reading.fromMap).toList();
 
   List<Report> _reportsFromRows(List<Map<String, Object?>> rows) =>
       rows.map(Report.fromMap).toList();

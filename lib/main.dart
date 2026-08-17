@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/local_database/cache_status.dart';
 import 'core/local_database/local_database.dart';
+import 'core/local_database/offline_status_banner.dart';
 import 'theme/tokens.dart';
 
 import 'modules/admin/screens/abnormal_production_screen.dart';
@@ -126,6 +127,9 @@ class MySumberApp extends StatelessWidget {
       child: MaterialApp(
         title: 'mySumber',
         debugShowCheckedModeBanner: false,
+        builder: (context, child) => OfflineStatusBanner(
+          child: child ?? const SizedBox.shrink(),
+        ),
         theme: ThemeData(
           useMaterial3: true,
           scaffoldBackgroundColor: AppColors.canvas,

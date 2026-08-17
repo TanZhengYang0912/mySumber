@@ -50,6 +50,17 @@ void main() {
     expect(await repository.alerts(includeDismissed: false), hasLength(1));
   });
 
+  test('filtered alert refresh removes stale visible rows', () async {
+    remote.alertRows = [_alert().toMap()];
+    await repository.alerts();
+    remote.alertRows = [
+      _alert(status: AlertStatus.dismissed).toMap(),
+    ];
+
+    expect(await repository.alerts(includeDismissed: false), isEmpty);
+    expect(await database.alerts(includeDismissed: false), isEmpty);
+  });
+
   test('confirmed reading and report inserts are mirrored locally', () async {
     final readingId = await repository.insertReading(_reading());
     final reportId = await repository.insertReport(_report());
@@ -58,6 +69,17 @@ void main() {
     expect(reportId, 30);
     expect((await database.readings()).single['id'], 20);
     expect((await database.reports()).single['id'], 30);
+  });
+
+  test('existing Supabase readings are mirrored as a local snapshot', () async {
+    remote.readingRows = [
+      {..._reading().toMap(), 'id': 21}
+    ];
+
+    final readings = await repository.readings();
+
+    expect(readings.single.id, 21);
+    expect((await database.readings()).single['id'], 21);
   });
 
   test('failed alert update leaves the cached row unchanged', () async {
@@ -83,6 +105,19 @@ void main() {
 
     expect(await repository.reports(), hasLength(1));
     expect(await repository.reports(includeDeleted: true), hasLength(2));
+  });
+
+  test('filtered report refresh removes stale visible rows', () async {
+    remote.reportRows = [
+      _report().copyWithForTest(id: 30, isDeleted: false).toMap(),
+    ];
+    await repository.reports(includeDeleted: true);
+    remote.reportRows = [
+      _report().copyWithForTest(id: 30, isDeleted: true).toMap(),
+    ];
+
+    expect(await repository.reports(), isEmpty);
+    expect(await database.reports(), isEmpty);
   });
 }
 
@@ -136,6 +171,7 @@ class _FakeLeakageRemote implements LeakageRemoteStore {
   bool offline = false;
   List<Map<String, Object?>> alertRows = [];
   List<Map<String, Object?>> reportRows = [];
+  List<Map<String, Object?>> readingRows = [];
 
   void _checkOnline() {
     if (offline) throw const SocketException('offline');
@@ -145,6 +181,12 @@ class _FakeLeakageRemote implements LeakageRemoteStore {
   Future<Map<String, Object?>> insertReading(Map<String, Object?> row) async {
     _checkOnline();
     return {...row, 'id': 20};
+  }
+
+  @override
+  Future<List<Map<String, Object?>>> readings() async {
+    _checkOnline();
+    return readingRows;
   }
 
   @override
