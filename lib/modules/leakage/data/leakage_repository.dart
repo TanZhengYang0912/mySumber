@@ -1,50 +1,233 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/local_database/cache_status.dart';
+import '../../../core/local_database/local_database.dart';
+import '../../../core/local_database/remote_fallback.dart';
 import '../models/alert.dart';
 import '../models/reading.dart';
 import '../models/report.dart';
 
-class LeakageRepository {
-  final SupabaseClient _client;
+abstract class LeakageRemoteStore {
+  Future<Map<String, Object?>> insertReading(Map<String, Object?> row);
+  Future<Map<String, Object?>> insertAlert(Map<String, Object?> row);
+  Future<List<Map<String, Object?>>> alerts({required bool includeDismissed});
+  Future<Map<String, Object?>?> alertById(int id);
+  Future<Map<String, Object?>> updateAlertStatus(int id, String status);
+  Future<Map<String, Object?>> updateAlertLocation({
+    required int id,
+    String? equipmentNodeId,
+    String? facilityName,
+    String? facilityCity,
+    String? equipmentName,
+  });
+  Future<Map<String, Object?>> insertReport(Map<String, Object?> row);
+  Future<List<Map<String, Object?>>> reports({required bool includeDeleted});
+  Future<Map<String, Object?>> setReportDeleted(int id, bool isDeleted);
+}
 
-  LeakageRepository([SupabaseClient? client])
-      : _client = client ?? Supabase.instance.client;
+class SupabaseLeakageRemoteStore implements LeakageRemoteStore {
+  const SupabaseLeakageRemoteStore(this.client);
 
-  Future<int> insertReading(Reading reading) async {
-    final row = await _client
-        .from('readings')
-        .insert(reading.toMap()..remove('id'))
-        .select()
-        .single();
-    return row['id'] as int;
-  }
+  final SupabaseClient client;
 
-  Future<int> insertAlert(Alert alert) async {
-    final row = await _client
-        .from('alerts')
-        .insert(alert.toMap()..remove('id'))
-        .select()
-        .single();
-    return row['id'] as int;
-  }
+  @override
+  Future<Map<String, Object?>> insertReading(Map<String, Object?> row) async =>
+      Map<String, Object?>.from(
+          await client.from('readings').insert(row).select().single());
 
-  Future<List<Alert>> alerts({bool includeDismissed = true}) async {
-    var query = _client.from('alerts').select().eq('is_deleted', false);
+  @override
+  Future<Map<String, Object?>> insertAlert(Map<String, Object?> row) async =>
+      Map<String, Object?>.from(
+          await client.from('alerts').insert(row).select().single());
+
+  @override
+  Future<List<Map<String, Object?>>> alerts({
+    required bool includeDismissed,
+  }) async {
+    var query = client.from('alerts').select().eq('is_deleted', false);
     if (!includeDismissed) {
       query = query.neq('status', AlertStatus.dismissed);
     }
     final rows = await query.order('detected_at', ascending: false);
-    return rows.map((row) => Alert.fromMap(row)).toList();
+    return rows.map((row) => Map<String, Object?>.from(row)).toList();
+  }
+
+  @override
+  Future<Map<String, Object?>?> alertById(int id) async {
+    final row = await client.from('alerts').select().eq('id', id).maybeSingle();
+    return row == null ? null : Map<String, Object?>.from(row);
+  }
+
+  @override
+  Future<Map<String, Object?>> updateAlertStatus(int id, String status) async =>
+      Map<String, Object?>.from(await client
+          .from('alerts')
+          .update({'status': status})
+          .eq('id', id)
+          .select()
+          .single());
+
+  @override
+  Future<Map<String, Object?>> updateAlertLocation({
+    required int id,
+    String? equipmentNodeId,
+    String? facilityName,
+    String? facilityCity,
+    String? equipmentName,
+  }) async =>
+      Map<String, Object?>.from(await client
+          .from('alerts')
+          .update({
+            'equipment_node_id': equipmentNodeId,
+            'facility_name': facilityName,
+            'facility_city': facilityCity,
+            'equipment_name': equipmentName,
+          })
+          .eq('id', id)
+          .select()
+          .single());
+
+  @override
+  Future<Map<String, Object?>> insertReport(Map<String, Object?> row) async =>
+      Map<String, Object?>.from(
+          await client.from('reports').insert(row).select().single());
+
+  @override
+  Future<List<Map<String, Object?>>> reports({
+    required bool includeDeleted,
+  }) async {
+    var query = client.from('reports').select();
+    if (!includeDeleted) {
+      query = query.eq('is_deleted', false);
+    }
+    final rows = await query.order('updated_at', ascending: false);
+    return rows.map((row) => Map<String, Object?>.from(row)).toList();
+  }
+
+  @override
+  Future<Map<String, Object?>> setReportDeleted(
+    int id,
+    bool isDeleted,
+  ) async =>
+      Map<String, Object?>.from(await client
+          .from('reports')
+          .update({'is_deleted': isDeleted})
+          .eq('id', id)
+          .select()
+          .single());
+}
+
+class LeakageRepository {
+  LeakageRepository([SupabaseClient? client])
+      : this._(
+          remote: SupabaseLeakageRemoteStore(
+            client ?? Supabase.instance.client,
+          ),
+        );
+
+  LeakageRepository.cached({
+    required SupabaseClient client,
+    required LocalDatabase database,
+    required CacheStatus cacheStatus,
+  }) : this._(
+          remote: SupabaseLeakageRemoteStore(client),
+          database: database,
+          cacheStatus: cacheStatus,
+        );
+
+  LeakageRepository.withRemote({
+    required LeakageRemoteStore remote,
+    required LocalDatabase database,
+    required CacheStatus cacheStatus,
+  }) : this._(
+          remote: remote,
+          database: database,
+          cacheStatus: cacheStatus,
+        );
+
+  LeakageRepository._({
+    required LeakageRemoteStore remote,
+    LocalDatabase? database,
+    CacheStatus? cacheStatus,
+  })  : _remote = remote,
+        _database = database,
+        _cacheStatus = cacheStatus ?? CacheStatus();
+
+  final LeakageRemoteStore _remote;
+  final LocalDatabase? _database;
+  final CacheStatus _cacheStatus;
+
+  Future<int> insertReading(Reading reading) async {
+    final request = reading.toMap()..remove('id');
+    final row = await _remote.insertReading(request);
+    await _database?.upsertReading(row);
+    _cacheStatus.markOnline();
+    return (row['id'] as num).toInt();
+  }
+
+  Future<int> insertAlert(Alert alert) async {
+    final request = alert.toMap()..remove('id');
+    final row = await _remote.insertAlert(request);
+    await _database?.upsertAlert(row);
+    _cacheStatus.markOnline();
+    return (row['id'] as num).toInt();
+  }
+
+  Future<List<Alert>> alerts({bool includeDismissed = true}) async {
+    final database = _database;
+    if (database == null) {
+      return _alertsFromRows(
+        await _remote.alerts(includeDismissed: includeDismissed),
+      );
+    }
+    return remoteFirst(
+      remote: () async {
+        final rows = await _remote.alerts(includeDismissed: includeDismissed);
+        if (includeDismissed) {
+          await database.replaceAlerts(rows);
+        } else {
+          for (final row in rows) {
+            await database.upsertAlert(row);
+          }
+        }
+        await database.setLastSync('alerts', DateTime.now());
+        return _alertsFromRows(rows);
+      },
+      local: () async => _alertsFromRows(
+        await database.alerts(includeDismissed: includeDismissed),
+      ),
+      hasLocalData: (rows) => rows.isNotEmpty,
+      lastSync: () => database.lastSync('alerts'),
+      status: _cacheStatus,
+    );
   }
 
   Future<Alert?> alertById(int id) async {
-    final row =
-        await _client.from('alerts').select().eq('id', id).maybeSingle();
-    return row == null ? null : Alert.fromMap(row);
+    final database = _database;
+    if (database == null) {
+      final row = await _remote.alertById(id);
+      return row == null ? null : Alert.fromMap(row);
+    }
+    return remoteFirst(
+      remote: () async {
+        final row = await _remote.alertById(id);
+        if (row != null) await database.upsertAlert(row);
+        return row == null ? null : Alert.fromMap(row);
+      },
+      local: () async {
+        final row = await database.alertById(id);
+        return row == null ? null : Alert.fromMap(row);
+      },
+      hasLocalData: (alert) => alert != null,
+      lastSync: () => database.lastSync('alerts'),
+      status: _cacheStatus,
+    );
   }
 
   Future<void> updateAlertStatus(int id, String status) async {
-    await _client.from('alerts').update({'status': status}).eq('id', id);
+    final row = await _remote.updateAlertStatus(id, status);
+    await _database?.upsertAlert(row);
+    _cacheStatus.markOnline();
   }
 
   Future<void> updateAlertLocation({
@@ -54,53 +237,73 @@ class LeakageRepository {
     String? facilityCity,
     String? equipmentName,
   }) async {
-    await _client.from('alerts').update({
-      'equipment_node_id': equipmentNodeId,
-      'facility_name': facilityName,
-      'facility_city': facilityCity,
-      'equipment_name': equipmentName,
-    }).eq('id', id);
+    final row = await _remote.updateAlertLocation(
+      id: id,
+      equipmentNodeId: equipmentNodeId,
+      facilityName: facilityName,
+      facilityCity: facilityCity,
+      equipmentName: equipmentName,
+    );
+    await _database?.upsertAlert(row);
+    _cacheStatus.markOnline();
   }
 
   Future<int> insertReport(Report report) async {
-    final row = await _client
-        .from('reports')
-        .insert(report.toMap()..remove('id'))
-        .select()
-        .single();
-    return row['id'] as int;
+    final request = report.toMap()..remove('id');
+    final row = await _remote.insertReport(request);
+    await _database?.upsertReport(row);
+    _cacheStatus.markOnline();
+    return (row['id'] as num).toInt();
   }
 
-  Future<Set<String>> nrwAlertStates() async {
-    final rows = await _client
-        .from('alerts')
-        .select('state')
-        .eq('alert_type', AlertType.nrwHotspot)
-        .eq('is_deleted', false);
-    return rows.map((row) => row['state'] as String).toSet();
-  }
+  Future<Set<String>> nrwAlertStates() async => (await alerts())
+      .where((alert) => alert.alertType == AlertType.nrwHotspot)
+      .map((alert) => alert.state)
+      .toSet();
 
-  Future<Set<String>> electricityAlertStates() async {
-    final rows = await _client
-        .from('alerts')
-        .select('state')
-        .eq('alert_type', AlertType.electricityHotspot)
-        .eq('is_deleted', false);
-    return rows.map((row) => row['state'] as String).toSet();
-  }
+  Future<Set<String>> electricityAlertStates() async => (await alerts())
+      .where((alert) => alert.alertType == AlertType.electricityHotspot)
+      .map((alert) => alert.state)
+      .toSet();
 
   Future<List<Report>> reports({bool includeDeleted = false}) async {
-    var query = _client.from('reports').select();
-    if (!includeDeleted) {
-      query = query.eq('is_deleted', false);
+    final database = _database;
+    if (database == null) {
+      return _reportsFromRows(
+        await _remote.reports(includeDeleted: includeDeleted),
+      );
     }
-    final rows = await query.order('updated_at', ascending: false);
-    return rows.map((row) => Report.fromMap(row)).toList();
+    return remoteFirst(
+      remote: () async {
+        final rows = await _remote.reports(includeDeleted: includeDeleted);
+        if (includeDeleted) {
+          await database.replaceReports(rows);
+        } else {
+          for (final row in rows) {
+            await database.upsertReport(row);
+          }
+        }
+        await database.setLastSync('reports', DateTime.now());
+        return _reportsFromRows(rows);
+      },
+      local: () async => _reportsFromRows(
+        await database.reports(includeDeleted: includeDeleted),
+      ),
+      hasLocalData: (rows) => rows.isNotEmpty,
+      lastSync: () => database.lastSync('reports'),
+      status: _cacheStatus,
+    );
   }
 
   Future<void> setReportDeleted(int id, bool isDeleted) async {
-    await _client
-        .from('reports')
-        .update({'is_deleted': isDeleted}).eq('id', id);
+    final row = await _remote.setReportDeleted(id, isDeleted);
+    await _database?.upsertReport(row);
+    _cacheStatus.markOnline();
   }
+
+  List<Alert> _alertsFromRows(List<Map<String, Object?>> rows) =>
+      rows.map(Alert.fromMap).toList();
+
+  List<Report> _reportsFromRows(List<Map<String, Object?>> rows) =>
+      rows.map(Report.fromMap).toList();
 }

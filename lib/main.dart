@@ -82,7 +82,11 @@ class MySumberApp extends StatelessWidget {
           create: (_) {
             final baseline = BaselineService();
             final nrw = NrwService();
-            final repository = LeakageRepository();
+            final repository = LeakageRepository.cached(
+              client: Supabase.instance.client,
+              database: database,
+              cacheStatus: cacheStatus,
+            );
             final simulation = SimulationService(
               baseline: baseline,
               repository: repository,
