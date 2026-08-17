@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'core/local_database/cache_status.dart';
+import 'core/local_database/local_database.dart';
 import 'theme/tokens.dart';
 
 import 'modules/admin/screens/abnormal_production_screen.dart';
@@ -47,16 +49,28 @@ Future<void> main() async {
     url: 'https://tnmznkdvrrpigevxdfet.supabase.co',
     publishableKey: 'sb_publishable_rPQeDFFfv1HQoYnqN2g9QQ_bLBVlaZE',
   );
-  runApp(const MySumberApp());
+  runApp(MySumberApp(
+    database: LocalDatabase.defaults(),
+    cacheStatus: CacheStatus(),
+  ));
 }
 
 class MySumberApp extends StatelessWidget {
-  const MySumberApp({super.key});
+  const MySumberApp({
+    super.key,
+    required this.database,
+    required this.cacheStatus,
+  });
+
+  final LocalDatabase database;
+  final CacheStatus cacheStatus;
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        Provider<LocalDatabase>.value(value: database),
+        ChangeNotifierProvider<CacheStatus>.value(value: cacheStatus),
         ChangeNotifierProvider<RoleState>(
           create: (_) {
             final roleState = RoleState();
@@ -87,7 +101,11 @@ class MySumberApp extends StatelessWidget {
         ),
         ChangeNotifierProvider<DatasetState>(
           create: (_) => DatasetState(
-            repository: DatasetRepository(client: Supabase.instance.client),
+            repository: DatasetRepository(
+              client: Supabase.instance.client,
+              database: database,
+              cacheStatus: cacheStatus,
+            ),
           ),
         ),
         ChangeNotifierProvider<UsageState>(
