@@ -39,6 +39,7 @@ import 'modules/usage/screens/customer_home_screen.dart';
 import 'modules/usage/screens/compare_usage_screen.dart';
 import 'modules/usage/screens/profile_setup_screen.dart';
 import 'modules/usage/screens/report_problem_screen.dart';
+import 'modules/usage/data/usage_repository.dart';
 import 'modules/usage/services/customer_compact_layout.dart';
 import 'modules/usage/state/usage_state.dart';
 import 'modules/usage/widgets/customer_compact_rail.dart';
@@ -113,7 +114,13 @@ class MySumberApp extends StatelessWidget {
           ),
         ),
         ChangeNotifierProvider<UsageState>(
-          create: (_) => UsageState(),
+          create: (_) => UsageState(
+            repository: UsageRepository.cached(
+              client: Supabase.instance.client,
+              database: database,
+              cacheStatus: cacheStatus,
+            ),
+          ),
         ),
       ],
       child: MaterialApp(
