@@ -45,9 +45,9 @@ Successful Supabase results remain authoritative. Local database write failures 
 
 ### Authentication gate
 
-`RoleState.checkExistingSession()` still requires `Supabase.auth.currentSession`. The local profile cache never creates a session and cannot make a logged-out user appear logged in.
+`RoleState.checkExistingSession()` still requires a non-expired `Supabase.auth.currentSession`. Supabase Flutter restores sessions from local storage before any refresh completes, so `session.isExpired` must be checked. The local profile cache never creates a session and cannot make a logged-out or expired-session user appear logged in.
 
-When a session exists, `_applyProfile(session.user)` uses the cached repository flow. A successful offline fallback restores the same role mapping used online (`customer` becomes the app's `user` role). Explicit logout clears the in-memory role and Supabase session; cached rows may remain keyed by user ID but are inaccessible without a matching restored session.
+When a valid session exists, `_applyProfile(session.user)` uses the cached repository flow. A successful offline fallback restores the same role mapping used online (`customer` becomes the app's `user` role). The Supabase auth-state subscription handles stream errors so an offline token refresh cannot become an unhandled exception. Explicit logout clears the in-memory role and Supabase session; cached rows may remain keyed by user ID but are inaccessible without a matching restored session.
 
 ## Security Behaviour
 
@@ -94,7 +94,7 @@ If there is no Supabase session or no matching cached profile, the user remains 
 ## Success Criteria
 
 - A user who previously logged in online can force-stop and cold-start the app offline without being incorrectly returned to Login.
-- Cold-start access requires an existing Supabase session and a matching locally cached profile.
+- Cold-start access requires an existing, non-expired Supabase session and a matching locally cached profile.
 - Existing equipment, readings, alerts, reports, and usage caches survive the database migration.
 - Permission failures cannot be bypassed with cached role data.
 - No authentication secret is added to the local business database.
