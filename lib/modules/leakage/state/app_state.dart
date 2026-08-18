@@ -149,6 +149,17 @@ class AppState extends ChangeNotifier {
   List<Alert> faultAlerts([Utility? utility]) => _bySeverity(_alerts.where(
       (a) => a.status == AlertStatus.faults && _matchesUtility(a, utility)));
 
+  /// Alerts for the admin Oversight Alert Queue tab. Mirrors
+  /// [reportsFiltered]: each argument narrows the list, null means "all".
+  List<Alert> alertsFiltered({Utility? utility, String? state, String? status}) {
+    return _bySeverity(_alerts.where((a) {
+      if (!_matchesUtility(a, utility)) return false;
+      if (state != null && a.state != state) return false;
+      if (status != null && a.status != status) return false;
+      return true;
+    }));
+  }
+
   /// Reports for the admin Oversight Reports tab, filtered by the alert's
   /// utility/state and the report's own outcome.
   List<Report> reportsFiltered(

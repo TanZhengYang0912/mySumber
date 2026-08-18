@@ -256,7 +256,7 @@ class _AlertQueueScreenState extends State<AlertQueueScreen>
                       .length,
                   selected: _status == AlertStatus.pending,
                   onTap: () => setState(() => _status = AlertStatus.pending),
-                  color: statusColor(AlertStatus.pending),
+                  color: AppColors.workerPrimary,
                 ),
                 SegmentedChip(
                   label: 'Investigating',
@@ -266,7 +266,7 @@ class _AlertQueueScreenState extends State<AlertQueueScreen>
                   selected: _status == AlertStatus.investigating,
                   onTap: () =>
                       setState(() => _status = AlertStatus.investigating),
-                  color: statusColor(AlertStatus.investigating),
+                  color: AppColors.workerPrimary,
                 ),
                 SegmentedChip(
                   label: 'Not Fixed',
@@ -275,7 +275,7 @@ class _AlertQueueScreenState extends State<AlertQueueScreen>
                       .length,
                   selected: _status == AlertStatus.notFixed,
                   onTap: () => setState(() => _status = AlertStatus.notFixed),
-                  color: statusColor(AlertStatus.notFixed),
+                  color: AppColors.workerPrimary,
                 ),
               ],
             ),

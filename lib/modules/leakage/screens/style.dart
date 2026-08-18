@@ -16,24 +16,10 @@ Color severityColor(String severity) {
   }
 }
 
-Color statusColor(String status) {
-  switch (status) {
-    case AlertStatus.pending:
-      return Colors.blueGrey.shade500;
-    case AlertStatus.investigating:
-      return Colors.blue.shade600;
-    case AlertStatus.resolved:
-      return Colors.green.shade600;
-    case AlertStatus.notFixed:
-      return Colors.red.shade600;
-    case AlertStatus.dismissed:
-      return Colors.grey;
-    case AlertStatus.faults:
-      return Colors.deepOrange.shade400;
-    default:
-      return Colors.blueGrey;
-  }
-}
+/// Alert status is deliberately monochrome. Severity already carries colour
+/// on the same card, so colouring status too made every list read as noise —
+/// the pill still labels the status, it just no longer competes for attention.
+Color statusColor(String status) => Colors.blueGrey.shade500;
 
 /// What kind of anomaly this is, in worker-facing words. Household alerts show
 /// their detection signature (Sudden burst, Creeping leak, ...) because the
