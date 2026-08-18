@@ -1620,6 +1620,357 @@ class LocalCustomerUtilityEntriesCompanion
   }
 }
 
+class $LocalAccountProfilesTable extends LocalAccountProfiles
+    with TableInfo<$LocalAccountProfilesTable, LocalAccountProfile> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LocalAccountProfilesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
+  @override
+  late final GeneratedColumn<String> userId = GeneratedColumn<String>(
+      'user_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _fullNameMeta =
+      const VerificationMeta('fullName');
+  @override
+  late final GeneratedColumn<String> fullName = GeneratedColumn<String>(
+      'full_name', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _emailMeta = const VerificationMeta('email');
+  @override
+  late final GeneratedColumn<String> email = GeneratedColumn<String>(
+      'email', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _roleMeta = const VerificationMeta('role');
+  @override
+  late final GeneratedColumn<String> role = GeneratedColumn<String>(
+      'role', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+      'status', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _verifiedAtMeta =
+      const VerificationMeta('verifiedAt');
+  @override
+  late final GeneratedColumn<DateTime> verifiedAt = GeneratedColumn<DateTime>(
+      'verified_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [userId, fullName, email, role, status, verifiedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'local_account_profiles';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<LocalAccountProfile> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('user_id')) {
+      context.handle(_userIdMeta,
+          userId.isAcceptableOrUnknown(data['user_id']!, _userIdMeta));
+    } else if (isInserting) {
+      context.missing(_userIdMeta);
+    }
+    if (data.containsKey('full_name')) {
+      context.handle(_fullNameMeta,
+          fullName.isAcceptableOrUnknown(data['full_name']!, _fullNameMeta));
+    } else if (isInserting) {
+      context.missing(_fullNameMeta);
+    }
+    if (data.containsKey('email')) {
+      context.handle(
+          _emailMeta, email.isAcceptableOrUnknown(data['email']!, _emailMeta));
+    } else if (isInserting) {
+      context.missing(_emailMeta);
+    }
+    if (data.containsKey('role')) {
+      context.handle(
+          _roleMeta, role.isAcceptableOrUnknown(data['role']!, _roleMeta));
+    } else if (isInserting) {
+      context.missing(_roleMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(_statusMeta,
+          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+    } else if (isInserting) {
+      context.missing(_statusMeta);
+    }
+    if (data.containsKey('verified_at')) {
+      context.handle(
+          _verifiedAtMeta,
+          verifiedAt.isAcceptableOrUnknown(
+              data['verified_at']!, _verifiedAtMeta));
+    } else if (isInserting) {
+      context.missing(_verifiedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {userId};
+  @override
+  LocalAccountProfile map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LocalAccountProfile(
+      userId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}user_id'])!,
+      fullName: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}full_name'])!,
+      email: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}email'])!,
+      role: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}role'])!,
+      status: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
+      verifiedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}verified_at'])!,
+    );
+  }
+
+  @override
+  $LocalAccountProfilesTable createAlias(String alias) {
+    return $LocalAccountProfilesTable(attachedDatabase, alias);
+  }
+}
+
+class LocalAccountProfile extends DataClass
+    implements Insertable<LocalAccountProfile> {
+  final String userId;
+  final String fullName;
+  final String email;
+  final String role;
+  final String status;
+  final DateTime verifiedAt;
+  const LocalAccountProfile(
+      {required this.userId,
+      required this.fullName,
+      required this.email,
+      required this.role,
+      required this.status,
+      required this.verifiedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['user_id'] = Variable<String>(userId);
+    map['full_name'] = Variable<String>(fullName);
+    map['email'] = Variable<String>(email);
+    map['role'] = Variable<String>(role);
+    map['status'] = Variable<String>(status);
+    map['verified_at'] = Variable<DateTime>(verifiedAt);
+    return map;
+  }
+
+  LocalAccountProfilesCompanion toCompanion(bool nullToAbsent) {
+    return LocalAccountProfilesCompanion(
+      userId: Value(userId),
+      fullName: Value(fullName),
+      email: Value(email),
+      role: Value(role),
+      status: Value(status),
+      verifiedAt: Value(verifiedAt),
+    );
+  }
+
+  factory LocalAccountProfile.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LocalAccountProfile(
+      userId: serializer.fromJson<String>(json['userId']),
+      fullName: serializer.fromJson<String>(json['fullName']),
+      email: serializer.fromJson<String>(json['email']),
+      role: serializer.fromJson<String>(json['role']),
+      status: serializer.fromJson<String>(json['status']),
+      verifiedAt: serializer.fromJson<DateTime>(json['verifiedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'userId': serializer.toJson<String>(userId),
+      'fullName': serializer.toJson<String>(fullName),
+      'email': serializer.toJson<String>(email),
+      'role': serializer.toJson<String>(role),
+      'status': serializer.toJson<String>(status),
+      'verifiedAt': serializer.toJson<DateTime>(verifiedAt),
+    };
+  }
+
+  LocalAccountProfile copyWith(
+          {String? userId,
+          String? fullName,
+          String? email,
+          String? role,
+          String? status,
+          DateTime? verifiedAt}) =>
+      LocalAccountProfile(
+        userId: userId ?? this.userId,
+        fullName: fullName ?? this.fullName,
+        email: email ?? this.email,
+        role: role ?? this.role,
+        status: status ?? this.status,
+        verifiedAt: verifiedAt ?? this.verifiedAt,
+      );
+  LocalAccountProfile copyWithCompanion(LocalAccountProfilesCompanion data) {
+    return LocalAccountProfile(
+      userId: data.userId.present ? data.userId.value : this.userId,
+      fullName: data.fullName.present ? data.fullName.value : this.fullName,
+      email: data.email.present ? data.email.value : this.email,
+      role: data.role.present ? data.role.value : this.role,
+      status: data.status.present ? data.status.value : this.status,
+      verifiedAt:
+          data.verifiedAt.present ? data.verifiedAt.value : this.verifiedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LocalAccountProfile(')
+          ..write('userId: $userId, ')
+          ..write('fullName: $fullName, ')
+          ..write('email: $email, ')
+          ..write('role: $role, ')
+          ..write('status: $status, ')
+          ..write('verifiedAt: $verifiedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(userId, fullName, email, role, status, verifiedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LocalAccountProfile &&
+          other.userId == this.userId &&
+          other.fullName == this.fullName &&
+          other.email == this.email &&
+          other.role == this.role &&
+          other.status == this.status &&
+          other.verifiedAt == this.verifiedAt);
+}
+
+class LocalAccountProfilesCompanion
+    extends UpdateCompanion<LocalAccountProfile> {
+  final Value<String> userId;
+  final Value<String> fullName;
+  final Value<String> email;
+  final Value<String> role;
+  final Value<String> status;
+  final Value<DateTime> verifiedAt;
+  final Value<int> rowid;
+  const LocalAccountProfilesCompanion({
+    this.userId = const Value.absent(),
+    this.fullName = const Value.absent(),
+    this.email = const Value.absent(),
+    this.role = const Value.absent(),
+    this.status = const Value.absent(),
+    this.verifiedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  LocalAccountProfilesCompanion.insert({
+    required String userId,
+    required String fullName,
+    required String email,
+    required String role,
+    required String status,
+    required DateTime verifiedAt,
+    this.rowid = const Value.absent(),
+  })  : userId = Value(userId),
+        fullName = Value(fullName),
+        email = Value(email),
+        role = Value(role),
+        status = Value(status),
+        verifiedAt = Value(verifiedAt);
+  static Insertable<LocalAccountProfile> custom({
+    Expression<String>? userId,
+    Expression<String>? fullName,
+    Expression<String>? email,
+    Expression<String>? role,
+    Expression<String>? status,
+    Expression<DateTime>? verifiedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (userId != null) 'user_id': userId,
+      if (fullName != null) 'full_name': fullName,
+      if (email != null) 'email': email,
+      if (role != null) 'role': role,
+      if (status != null) 'status': status,
+      if (verifiedAt != null) 'verified_at': verifiedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  LocalAccountProfilesCompanion copyWith(
+      {Value<String>? userId,
+      Value<String>? fullName,
+      Value<String>? email,
+      Value<String>? role,
+      Value<String>? status,
+      Value<DateTime>? verifiedAt,
+      Value<int>? rowid}) {
+    return LocalAccountProfilesCompanion(
+      userId: userId ?? this.userId,
+      fullName: fullName ?? this.fullName,
+      email: email ?? this.email,
+      role: role ?? this.role,
+      status: status ?? this.status,
+      verifiedAt: verifiedAt ?? this.verifiedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (userId.present) {
+      map['user_id'] = Variable<String>(userId.value);
+    }
+    if (fullName.present) {
+      map['full_name'] = Variable<String>(fullName.value);
+    }
+    if (email.present) {
+      map['email'] = Variable<String>(email.value);
+    }
+    if (role.present) {
+      map['role'] = Variable<String>(role.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (verifiedAt.present) {
+      map['verified_at'] = Variable<DateTime>(verifiedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LocalAccountProfilesCompanion(')
+          ..write('userId: $userId, ')
+          ..write('fullName: $fullName, ')
+          ..write('email: $email, ')
+          ..write('role: $role, ')
+          ..write('status: $status, ')
+          ..write('verifiedAt: $verifiedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $LocalSyncMetadataTable extends LocalSyncMetadata
     with TableInfo<$LocalSyncMetadataTable, LocalSyncMetadataData> {
   @override
@@ -1827,6 +2178,8 @@ abstract class _$LocalDatabase extends GeneratedDatabase {
   late final $LocalReportsTable localReports = $LocalReportsTable(this);
   late final $LocalCustomerUtilityEntriesTable localCustomerUtilityEntries =
       $LocalCustomerUtilityEntriesTable(this);
+  late final $LocalAccountProfilesTable localAccountProfiles =
+      $LocalAccountProfilesTable(this);
   late final $LocalSyncMetadataTable localSyncMetadata =
       $LocalSyncMetadataTable(this);
   @override
@@ -1840,6 +2193,7 @@ abstract class _$LocalDatabase extends GeneratedDatabase {
         localAlerts,
         localReports,
         localCustomerUtilityEntries,
+        localAccountProfiles,
         localSyncMetadata
       ];
 }
@@ -2795,6 +3149,200 @@ typedef $$LocalCustomerUtilityEntriesTableProcessedTableManager
         ),
         LocalCustomerUtilityEntry,
         PrefetchHooks Function()>;
+typedef $$LocalAccountProfilesTableCreateCompanionBuilder
+    = LocalAccountProfilesCompanion Function({
+  required String userId,
+  required String fullName,
+  required String email,
+  required String role,
+  required String status,
+  required DateTime verifiedAt,
+  Value<int> rowid,
+});
+typedef $$LocalAccountProfilesTableUpdateCompanionBuilder
+    = LocalAccountProfilesCompanion Function({
+  Value<String> userId,
+  Value<String> fullName,
+  Value<String> email,
+  Value<String> role,
+  Value<String> status,
+  Value<DateTime> verifiedAt,
+  Value<int> rowid,
+});
+
+class $$LocalAccountProfilesTableFilterComposer
+    extends Composer<_$LocalDatabase, $LocalAccountProfilesTable> {
+  $$LocalAccountProfilesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get userId => $composableBuilder(
+      column: $table.userId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get fullName => $composableBuilder(
+      column: $table.fullName, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get email => $composableBuilder(
+      column: $table.email, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get role => $composableBuilder(
+      column: $table.role, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get verifiedAt => $composableBuilder(
+      column: $table.verifiedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$LocalAccountProfilesTableOrderingComposer
+    extends Composer<_$LocalDatabase, $LocalAccountProfilesTable> {
+  $$LocalAccountProfilesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get userId => $composableBuilder(
+      column: $table.userId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get fullName => $composableBuilder(
+      column: $table.fullName, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get email => $composableBuilder(
+      column: $table.email, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get role => $composableBuilder(
+      column: $table.role, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get verifiedAt => $composableBuilder(
+      column: $table.verifiedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$LocalAccountProfilesTableAnnotationComposer
+    extends Composer<_$LocalDatabase, $LocalAccountProfilesTable> {
+  $$LocalAccountProfilesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get userId =>
+      $composableBuilder(column: $table.userId, builder: (column) => column);
+
+  GeneratedColumn<String> get fullName =>
+      $composableBuilder(column: $table.fullName, builder: (column) => column);
+
+  GeneratedColumn<String> get email =>
+      $composableBuilder(column: $table.email, builder: (column) => column);
+
+  GeneratedColumn<String> get role =>
+      $composableBuilder(column: $table.role, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get verifiedAt => $composableBuilder(
+      column: $table.verifiedAt, builder: (column) => column);
+}
+
+class $$LocalAccountProfilesTableTableManager extends RootTableManager<
+    _$LocalDatabase,
+    $LocalAccountProfilesTable,
+    LocalAccountProfile,
+    $$LocalAccountProfilesTableFilterComposer,
+    $$LocalAccountProfilesTableOrderingComposer,
+    $$LocalAccountProfilesTableAnnotationComposer,
+    $$LocalAccountProfilesTableCreateCompanionBuilder,
+    $$LocalAccountProfilesTableUpdateCompanionBuilder,
+    (
+      LocalAccountProfile,
+      BaseReferences<_$LocalDatabase, $LocalAccountProfilesTable,
+          LocalAccountProfile>
+    ),
+    LocalAccountProfile,
+    PrefetchHooks Function()> {
+  $$LocalAccountProfilesTableTableManager(
+      _$LocalDatabase db, $LocalAccountProfilesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LocalAccountProfilesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$LocalAccountProfilesTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$LocalAccountProfilesTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> userId = const Value.absent(),
+            Value<String> fullName = const Value.absent(),
+            Value<String> email = const Value.absent(),
+            Value<String> role = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<DateTime> verifiedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              LocalAccountProfilesCompanion(
+            userId: userId,
+            fullName: fullName,
+            email: email,
+            role: role,
+            status: status,
+            verifiedAt: verifiedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String userId,
+            required String fullName,
+            required String email,
+            required String role,
+            required String status,
+            required DateTime verifiedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              LocalAccountProfilesCompanion.insert(
+            userId: userId,
+            fullName: fullName,
+            email: email,
+            role: role,
+            status: status,
+            verifiedAt: verifiedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$LocalAccountProfilesTableProcessedTableManager
+    = ProcessedTableManager<
+        _$LocalDatabase,
+        $LocalAccountProfilesTable,
+        LocalAccountProfile,
+        $$LocalAccountProfilesTableFilterComposer,
+        $$LocalAccountProfilesTableOrderingComposer,
+        $$LocalAccountProfilesTableAnnotationComposer,
+        $$LocalAccountProfilesTableCreateCompanionBuilder,
+        $$LocalAccountProfilesTableUpdateCompanionBuilder,
+        (
+          LocalAccountProfile,
+          BaseReferences<_$LocalDatabase, $LocalAccountProfilesTable,
+              LocalAccountProfile>
+        ),
+        LocalAccountProfile,
+        PrefetchHooks Function()>;
 typedef $$LocalSyncMetadataTableCreateCompanionBuilder
     = LocalSyncMetadataCompanion Function({
   required String scope,
@@ -2946,6 +3494,8 @@ class $LocalDatabaseManager {
       get localCustomerUtilityEntries =>
           $$LocalCustomerUtilityEntriesTableTableManager(
               _db, _db.localCustomerUtilityEntries);
+  $$LocalAccountProfilesTableTableManager get localAccountProfiles =>
+      $$LocalAccountProfilesTableTableManager(_db, _db.localAccountProfiles);
   $$LocalSyncMetadataTableTableManager get localSyncMetadata =>
       $$LocalSyncMetadataTableTableManager(_db, _db.localSyncMetadata);
 }

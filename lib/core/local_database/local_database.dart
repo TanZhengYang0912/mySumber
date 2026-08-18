@@ -65,6 +65,18 @@ class LocalCustomerUtilityEntries extends Table {
   Set<Column<Object>> get primaryKey => {remoteId, userId};
 }
 
+class LocalAccountProfiles extends Table {
+  TextColumn get userId => text()();
+  TextColumn get fullName => text()();
+  TextColumn get email => text()();
+  TextColumn get role => text()();
+  TextColumn get status => text()();
+  DateTimeColumn get verifiedAt => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {userId};
+}
+
 class LocalSyncMetadata extends Table {
   TextColumn get scope => text()();
   DateTimeColumn get syncedAt => dateTime()();
@@ -80,15 +92,29 @@ class LocalSyncMetadata extends Table {
   LocalAlerts,
   LocalReports,
   LocalCustomerUtilityEntries,
+  LocalAccountProfiles,
   LocalSyncMetadata,
 ])
 class LocalDatabase extends _$LocalDatabase {
-  LocalDatabase.defaults() : super(driftDatabase(name: 'mysumber_cache'));
+  LocalDatabase([QueryExecutor? executor])
+      : super(executor ?? driftDatabase(name: 'mysumber_cache'));
 
-  LocalDatabase.forTesting(super.executor);
+  LocalDatabase.defaults() : this();
+
+  LocalDatabase.forTesting(QueryExecutor executor) : this(executor);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (migrator) => migrator.createAll(),
+        onUpgrade: (migrator, from, to) async {
+          if (from < 2) {
+            await migrator.createTable(localAccountProfiles);
+          }
+        },
+      );
 
   Future<void> replaceEquipmentNodes(
     List<Map<String, Object?>> rows,
@@ -319,6 +345,41 @@ class LocalDatabase extends _$LocalDatabase {
         .get();
     return rows.map((row) => _decode(row.payload)).toList();
   }
+
+  Future<void> upsertAccountProfile(
+    Map<String, Object?> row,
+    DateTime verifiedAt,
+  ) =>
+      into(localAccountProfiles).insertOnConflictUpdate(
+        LocalAccountProfilesCompanion.insert(
+          userId: _string(row, 'id'),
+          fullName: _string(row, 'full_name'),
+          email: _string(row, 'email'),
+          role: _string(row, 'role'),
+          status: _string(row, 'status'),
+          verifiedAt: verifiedAt,
+        ),
+      );
+
+  Future<Map<String, Object?>?> accountProfile(String userId) async {
+    final row = await (select(localAccountProfiles)
+          ..where((profile) => profile.userId.equals(userId)))
+        .getSingleOrNull();
+    if (row == null) return null;
+    return {
+      'id': row.userId,
+      'full_name': row.fullName,
+      'email': row.email,
+      'role': row.role,
+      'status': row.status,
+      'verified_at': row.verifiedAt.toUtc(),
+    };
+  }
+
+  Future<void> deleteAccountProfile(String userId) =>
+      (delete(localAccountProfiles)
+            ..where((profile) => profile.userId.equals(userId)))
+          .go();
 
   Future<void> setLastSync(String scope, DateTime syncedAt) =>
       into(localSyncMetadata).insertOnConflictUpdate(

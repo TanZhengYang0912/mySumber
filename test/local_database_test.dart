@@ -125,4 +125,45 @@ void main() {
     expect(await database.reports(), hasLength(1));
     expect(await database.lastSync('alerts'), syncedAt);
   });
+
+  test('stores, isolates, updates, and deletes verified account profiles',
+      () async {
+    final firstVerifiedAt = DateTime.utc(2026, 8, 19, 1);
+    await database.upsertAccountProfile({
+      'id': 'user-a',
+      'full_name': 'Admin A',
+      'email': 'a@example.com',
+      'role': 'admin',
+      'status': 'active',
+    }, firstVerifiedAt);
+    await database.upsertAccountProfile({
+      'id': 'user-b',
+      'full_name': 'Worker B',
+      'email': 'b@example.com',
+      'role': 'worker',
+      'status': 'active',
+    }, DateTime.utc(2026, 8, 19, 2));
+
+    expect((await database.accountProfile('user-a'))?['role'], 'admin');
+    expect((await database.accountProfile('user-a'))?['verified_at'],
+        firstVerifiedAt);
+    expect((await database.accountProfile('user-b'))?['role'], 'worker');
+    expect(await database.accountProfile('user-c'), isNull);
+
+    await database.upsertAccountProfile({
+      'id': 'user-a',
+      'full_name': 'Admin A Updated',
+      'email': 'a@example.com',
+      'role': 'admin',
+      'status': 'inactive',
+    }, DateTime.utc(2026, 8, 19, 3));
+
+    expect((await database.accountProfile('user-a'))?['status'], 'inactive');
+    expect((await database.accountProfile('user-b'))?['status'], 'active');
+
+    await database.deleteAccountProfile('user-a');
+
+    expect(await database.accountProfile('user-a'), isNull);
+    expect(await database.accountProfile('user-b'), isNotNull);
+  });
 }
