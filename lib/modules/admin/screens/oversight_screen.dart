@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../../theme/segmented_chips.dart';
 import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
 import '../../leakage/models/alert.dart';
@@ -32,6 +33,7 @@ class _OversightScreenState extends State<OversightScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _outerTab;
   Utility? _alertUtility;
+  String _alertStatus = AlertStatus.pending;
   Utility? _reportUtility;
   String? _reportOutcome;
   String? _reportState;
@@ -225,14 +227,9 @@ class _OversightScreenState extends State<OversightScreen>
         _landscapeStatuses.contains(AlertStatus.pending)) {
       return 'Pending alerts';
     }
-    if (_landscapeStatuses.length == 2 &&
-        _landscapeStatuses.contains(AlertStatus.investigating) &&
-        _landscapeStatuses.contains(AlertStatus.notFixed)) {
-      return 'Ongoing alerts';
-    }
     if (_landscapeStatuses.length == 1 &&
         _landscapeStatuses.contains(AlertStatus.resolved)) {
-      return 'Solved alerts';
+      return 'Resolved alerts';
     }
     if (_landscapeStatuses.length == 1 &&
         _landscapeStatuses.contains(AlertStatus.faults)) {
@@ -258,11 +255,9 @@ class _OversightScreenState extends State<OversightScreen>
           runSpacing: 8,
           children: [
             _landscapeStatusChip('Pending', {AlertStatus.pending}),
-            _landscapeStatusChip(
-              'Ongoing',
-              {AlertStatus.investigating, AlertStatus.notFixed},
-            ),
-            _landscapeStatusChip('Solved', {AlertStatus.resolved}),
+            _landscapeStatusChip('Investigating', {AlertStatus.investigating}),
+            _landscapeStatusChip('Not Fixed', {AlertStatus.notFixed}),
+            _landscapeStatusChip('Resolved', {AlertStatus.resolved}),
             _landscapeStatusChip('Faults', {AlertStatus.faults}),
           ],
         ),
@@ -422,67 +417,117 @@ class _OversightScreenState extends State<OversightScreen>
 
   Widget _alertQueueTab(AppState app) {
     final pending = app.pendingAlerts(_alertUtility);
-    final ongoing = app.ongoingAlerts(_alertUtility);
+    final investigating = app.investigatingAlerts(_alertUtility);
+    final notFixed = app.notFixedAlerts(_alertUtility);
     final solved = app.solvedAlerts(_alertUtility);
     final faults = app.faultAlerts(_alertUtility);
+    final active = _activeStatusGroup(
+        pending, investigating, notFixed, solved, faults);
 
-    return DefaultTabController(
-      length: 4,
-      child: Column(
-        children: [
-          Container(
-            color: AppColors.surface,
-            child: TabBar(
-              isScrollable: true,
-              tabAlignment: TabAlignment.start,
-              labelColor: AppColors.adminPrimary,
-              unselectedLabelColor: AppColors.textSecondary,
-              indicatorColor: AppColors.adminPrimary,
-              indicatorWeight: 3,
-              labelStyle:
-                  const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-              tabs: [
-                _statusTab('Pending', pending.length),
-                _statusTab('Ongoing', ongoing.length),
-                _statusTab('Solved', solved.length),
-                _statusTab('Faults', faults.length),
-              ],
-            ),
+    return Column(
+      children: [
+        Container(
+          color: AppColors.surface,
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+          child: SegmentedChipRow(
+            children: [
+              SegmentedChip(
+                label: 'Pending',
+                count: pending.length,
+                selected: _alertStatus == AlertStatus.pending,
+                onTap: () => setState(() => _alertStatus = AlertStatus.pending),
+                color: AppColors.adminPrimary,
+              ),
+              SegmentedChip(
+                label: 'Investigating',
+                count: investigating.length,
+                selected: _alertStatus == AlertStatus.investigating,
+                onTap: () =>
+                    setState(() => _alertStatus = AlertStatus.investigating),
+                color: AppColors.adminPrimary,
+              ),
+              SegmentedChip(
+                label: 'Not Fixed',
+                count: notFixed.length,
+                selected: _alertStatus == AlertStatus.notFixed,
+                onTap: () =>
+                    setState(() => _alertStatus = AlertStatus.notFixed),
+                color: AppColors.adminPrimary,
+              ),
+              SegmentedChip(
+                label: 'Resolved',
+                count: solved.length,
+                selected: _alertStatus == AlertStatus.resolved,
+                onTap: () =>
+                    setState(() => _alertStatus = AlertStatus.resolved),
+                color: AppColors.adminPrimary,
+              ),
+              SegmentedChip(
+                label: 'Faults',
+                count: faults.length,
+                selected: _alertStatus == AlertStatus.faults,
+                onTap: () => setState(() => _alertStatus = AlertStatus.faults),
+                color: AppColors.adminPrimary,
+              ),
+            ],
           ),
-          const Divider(height: 1),
-          Container(
-            color: AppColors.canvas,
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-            child: _utilityToggle(
-                _alertUtility, (u) => setState(() => _alertUtility = u)),
+        ),
+        const Divider(height: 1),
+        Container(
+          color: AppColors.canvas,
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+          child: SegmentedChipRow(
+            spacing: 8,
+            children: [
+              SegmentedChip(
+                label: 'All',
+                selected: _alertUtility == null,
+                onTap: () => setState(() => _alertUtility = null),
+                color: AppColors.adminPrimary,
+              ),
+              SegmentedChip(
+                label: 'Water',
+                icon: Icons.water_drop_outlined,
+                selected: _alertUtility == Utility.water,
+                onTap: () => setState(() => _alertUtility = Utility.water),
+                color: AppColors.adminPrimary,
+              ),
+              SegmentedChip(
+                label: 'Electricity',
+                icon: Icons.electric_bolt_outlined,
+                selected: _alertUtility == Utility.electricity,
+                onTap: () =>
+                    setState(() => _alertUtility = Utility.electricity),
+                color: AppColors.adminPrimary,
+              ),
+            ],
           ),
-          Expanded(
-            child: TabBarView(
-              children: [
-                _alertList(pending, 'No pending alerts.'),
-                _alertList(ongoing, 'No ongoing investigations.'),
-                _alertList(solved, 'No solved alerts yet.'),
-                _alertList(faults, 'No faults yet.'),
-              ],
-            ),
-          ),
-        ],
-      ),
+        ),
+        Expanded(child: _alertList(active.alerts, active.empty)),
+      ],
     );
   }
 
-  Widget _statusTab(String label, int count) {
-    return Tab(
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(label),
-          const SizedBox(width: 6),
-          _countBadge(count),
-        ],
-      ),
-    );
-  }
+  ({List<Alert> alerts, String empty}) _activeStatusGroup(
+    List<Alert> pending,
+    List<Alert> investigating,
+    List<Alert> notFixed,
+    List<Alert> solved,
+    List<Alert> faults,
+  ) =>
+      switch (_alertStatus) {
+        AlertStatus.investigating => (
+            alerts: investigating,
+            empty: 'No investigations in progress.'
+          ),
+        AlertStatus.notFixed => (
+            alerts: notFixed,
+            empty: 'No alerts awaiting follow-up.'
+          ),
+        AlertStatus.resolved => (alerts: solved, empty: 'No resolved alerts yet.'),
+        AlertStatus.faults => (alerts: faults, empty: 'No faults yet.'),
+        _ => (alerts: pending, empty: 'No pending alerts.'),
+      };
 
   Widget _alertList(List<Alert> alerts, String emptyMessage) {
     if (alerts.isEmpty) {
@@ -752,57 +797,6 @@ class _OversightScreenState extends State<OversightScreen>
   }
 
   // --- Shared controls ---
-
-  Widget _utilityToggle(Utility? current, ValueChanged<Utility?> onChanged) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        _utilityChip('All', current == null, () => onChanged(null)),
-        _utilityChip(
-            'Water', current == Utility.water, () => onChanged(Utility.water),
-            icon: Icons.water_drop_outlined),
-        _utilityChip('Electricity', current == Utility.electricity,
-            () => onChanged(Utility.electricity),
-            icon: Icons.electric_bolt_outlined),
-      ],
-    );
-  }
-
-  Widget _utilityChip(String label, bool selected, VoidCallback onTap,
-      {IconData? icon}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.adminPrimary : AppColors.surface,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-              color: selected ? AppColors.adminPrimary : AppColors.divider),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null) ...[
-              Icon(icon,
-                  size: 14,
-                  color: selected ? Colors.white : AppColors.textPrimary),
-              const SizedBox(width: 4),
-            ],
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: selected ? Colors.white : AppColors.textPrimary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   static Widget _landscapeContent({
     required bool isFixed,

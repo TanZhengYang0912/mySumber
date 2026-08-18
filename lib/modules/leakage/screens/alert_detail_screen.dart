@@ -5,8 +5,8 @@ import 'package:provider/provider.dart';
 import '../../../theme/tokens.dart';
 import '../models/alert.dart';
 import '../models/report.dart';
-import '../services/worker_compact_layout.dart';
 import '../state/app_state.dart';
+import '../widgets/adaptive_flow.dart';
 import 'alert_evidence.dart';
 import 'network_error.dart';
 import 'report_form_screen.dart';
@@ -38,184 +38,105 @@ class AlertDetailScreen extends StatelessWidget {
     final primary = alert.isElectricity
         ? AppColors.electricityAccent
         : AppColors.workerPrimary;
-    final isPhoneLandscape =
-        usesWorkerPhoneLandscape(MediaQuery.sizeOf(context));
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
       appBar: AppBar(
-        title: Text(isPhoneLandscape ? alert.title : alert.state),
+        title: Text(alert.title),
         backgroundColor: primary,
         foregroundColor: Colors.white,
       ),
-      body: isPhoneLandscape
-          ? _phoneLandscapeBody(context, app, alert, subtitle)
-          : ListView(
-              padding: const EdgeInsets.all(14),
-              children: [
-                AppCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(children: [
-                        Pill(Severity.label(alert.severity),
-                            color: severityColor(alert.severity)),
-                        const SizedBox(width: 8),
-                        Pill(AlertStatus.label(alert.status),
-                            color: statusColor(alert.status)),
-                      ]),
-                      const SizedBox(height: 8),
-                      Text(alert.title,
-                          style: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.textPrimary)),
-                      const SizedBox(height: 4),
-                      Text(subtitle,
-                          style: const TextStyle(
-                              fontSize: 12, color: AppColors.textSecondary)),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 10),
-                AppCard(
-                  child: alertEvidence(context, app, alert),
-                ),
-                const SizedBox(height: 10),
-                AppCard(
-                  background: const Color(0xFFF0F9FF),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(Icons.lightbulb_outline,
-                          size: 18, color: AppColors.workerPrimary),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(alert.explanation,
-                            style: const TextStyle(
-                                fontSize: 13,
-                                height: 1.5,
-                                color: AppColors.textPrimary)),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _actions(context, app, alert, reports, primary),
-                const SizedBox(height: 24),
-              ],
-            ),
-      bottomNavigationBar: isPhoneLandscape
-          ? _phoneLandscapeAction(context, app, alert, primary)
-          : null,
-    );
-  }
-
-  Widget _phoneLandscapeBody(
-    BuildContext context,
-    AppState app,
-    Alert alert,
-    String subtitle,
-  ) {
-    return Semantics(
-      label: 'Landscape alert details',
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: AppCard(
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(children: [
-                        Pill(Severity.label(alert.severity),
-                            color: severityColor(alert.severity)),
-                        const SizedBox(width: 8),
-                        Pill(AlertStatus.label(alert.status),
-                            color: statusColor(alert.status)),
-                      ]),
-                      const SizedBox(height: 8),
-                      Text(alert.title,
-                          style: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.textPrimary)),
-                      const SizedBox(height: 4),
-                      Text(subtitle,
-                          style: const TextStyle(
-                              fontSize: 12, color: AppColors.textSecondary)),
-                      const SizedBox(height: 14),
-                      alertEvidence(context, app, alert),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: AppCard(
-                background: const Color(0xFFF0F9FF),
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.lightbulb_outline,
-                              size: 18, color: AppColors.workerPrimary),
-                          const SizedBox(width: 8),
-                          const Text(
-                            'System Detection Context',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Text(alert.explanation,
-                          style: const TextStyle(
-                              fontSize: 13,
-                              height: 1.5,
-                              color: AppColors.textPrimary)),
-                      if (alert.hasAiAnalysis) ...[
-                        const SizedBox(height: 12),
-                        const Divider(height: 1, color: AppColors.divider),
-                        Material(
-                          color: Colors.transparent,
-                          child: ExpansionTile(
-                            tilePadding: EdgeInsets.zero,
-                            childrenPadding:
-                                const EdgeInsets.fromLTRB(0, 0, 0, 4),
-                            leading: const Icon(Icons.auto_awesome_outlined,
-                                size: 18, color: AppColors.workerPrimary),
-                            title: const Text(
-                              'AI Assessment',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                            children: [_aiAssessmentDetails(alert)],
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+      body: AdaptiveFlow(
+        builder: (full, half) => [
+          SizedBox(width: full, child: _summaryCard(alert, subtitle)),
+          SizedBox(
+            width: half,
+            child: AppCard(child: alertEvidence(context, app, alert)),
+          ),
+          SizedBox(width: half, child: _detectionContextCard(alert)),
+          SizedBox(
+            width: full,
+            child: _actions(context, app, alert, reports, primary),
+          ),
+        ],
       ),
     );
   }
+
+  Widget _summaryCard(Alert alert, String subtitle) => AppCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Pill(Severity.label(alert.severity),
+                  color: severityColor(alert.severity)),
+              const SizedBox(width: 8),
+              Pill(AlertStatus.label(alert.status),
+                  color: statusColor(alert.status)),
+            ]),
+            const SizedBox(height: 8),
+            Text(alert.title,
+                style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary)),
+            const SizedBox(height: 4),
+            Text(subtitle,
+                style: const TextStyle(
+                    fontSize: 12, color: AppColors.textSecondary)),
+          ],
+        ),
+      );
+
+  Widget _detectionContextCard(Alert alert) => AppCard(
+        background: const Color(0xFFF0F9FF),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.lightbulb_outline,
+                    size: 18, color: AppColors.workerPrimary),
+                const SizedBox(width: 8),
+                const Text(
+                  'System Detection Context',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(alert.explanation,
+                style: const TextStyle(
+                    fontSize: 13, height: 1.5, color: AppColors.textPrimary)),
+            if (alert.hasAiAnalysis) ...[
+              const SizedBox(height: 12),
+              const Divider(height: 1, color: AppColors.divider),
+              Material(
+                color: Colors.transparent,
+                child: ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  childrenPadding: const EdgeInsets.fromLTRB(0, 0, 0, 4),
+                  leading: const Icon(Icons.auto_awesome_outlined,
+                      size: 18, color: AppColors.workerPrimary),
+                  title: const Text(
+                    'AI Assessment',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  children: [_aiAssessmentDetails(alert)],
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
 
   Widget _aiValue(String label, String value) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -259,40 +180,6 @@ class AlertDetailScreen extends StatelessWidget {
           ],
         ),
       );
-
-  Widget? _phoneLandscapeAction(
-      BuildContext context, AppState app, Alert alert, Color primary) {
-    late final String label;
-    late final IconData icon;
-    late final VoidCallback onTap;
-
-    if (alert.status == AlertStatus.pending) {
-      label = 'Start Investigation';
-      icon = Icons.play_arrow;
-      onTap = () =>
-          _updateStatus(context, app, alert.id!, AlertStatus.investigating);
-    } else if (alert.status == AlertStatus.investigating) {
-      label = 'Write Report';
-      icon = Icons.edit_note;
-      onTap = () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => ReportFormScreen(alert: alert)));
-    } else if (alert.status == AlertStatus.notFixed) {
-      label = 'Re-Investigate';
-      icon = Icons.refresh;
-      onTap = () =>
-          _updateStatus(context, app, alert.id!, AlertStatus.investigating);
-    } else {
-      return null;
-    }
-
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-        child: _primaryBtn(context, label, icon, primary, onTap),
-      ),
-    );
-  }
 
   Future<void> _updateStatus(
       BuildContext context, AppState app, int alertId, String status) async {
