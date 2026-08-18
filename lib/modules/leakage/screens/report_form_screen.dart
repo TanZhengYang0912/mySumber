@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../../theme/tokens.dart';
 import '../models/alert.dart';
 import '../models/report.dart';
+import '../services/report_presets.dart';
 import '../state/app_state.dart';
 import 'network_error.dart';
 
@@ -71,6 +72,8 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SectionLabel('FINDINGS'),
+                const SizedBox(height: 8),
+                _presetChips(findingsPresets(widget.alert.utility), _findings),
                 const SizedBox(height: 10),
                 TextField(
                   controller: _findings,
@@ -89,6 +92,8 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SectionLabel('ACTION TAKEN'),
+                const SizedBox(height: 8),
+                _presetChips(actionPresets(widget.alert.utility), _action),
                 const SizedBox(height: 10),
                 TextField(
                   controller: _action,
@@ -142,6 +147,23 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
           const SizedBox(height: 24),
         ],
       ),
+    );
+  }
+
+  Widget _presetChips(List<String> presets, TextEditingController controller) {
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: presets
+          .map((preset) => ActionChip(
+                label: Text(preset, style: const TextStyle(fontSize: 12)),
+                onPressed: () => setState(() {
+                  controller.text = appendPreset(controller.text, preset);
+                }),
+                side: const BorderSide(color: AppColors.divider),
+                backgroundColor: AppColors.canvas,
+              ))
+          .toList(),
     );
   }
 

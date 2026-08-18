@@ -7,7 +7,6 @@ import '../models/alert.dart';
 class WorkerDashboardSummary {
   final Utility utility;
   final Alert? priorityAlert;
-  final Alert? impactAlert;
   final int pendingCount;
   final int investigatingCount;
   final int followUpCount;
@@ -16,7 +15,6 @@ class WorkerDashboardSummary {
   const WorkerDashboardSummary({
     required this.utility,
     required this.priorityAlert,
-    required this.impactAlert,
     required this.pendingCount,
     required this.investigatingCount,
     required this.followUpCount,
@@ -34,25 +32,10 @@ WorkerDashboardSummary summarizeWorkerDashboard({
   final active = utilityAlerts.where((alert) => alert.isUnresolved).toList();
 
   final priority = [...active]..sort(_comparePriority);
-  final networkLoss = active.where((alert) => alert.isLossBalance).toList();
-  final household =
-      active.where((alert) => alert.alertType == AlertType.household).toList();
-
-  Alert? impact;
-  if (networkLoss.isNotEmpty) {
-    networkLoss.sort((a, b) => (b.lossPct ?? 0).compareTo(a.lossPct ?? 0));
-    impact = networkLoss.first;
-  } else if (household.isNotEmpty) {
-    household.sort((a, b) => b.ratio.compareTo(a.ratio));
-    impact = household.first;
-  } else if (priority.isNotEmpty) {
-    impact = priority.first;
-  }
 
   return WorkerDashboardSummary(
     utility: utility,
     priorityAlert: priority.isEmpty ? null : priority.first,
-    impactAlert: impact,
     pendingCount: utilityAlerts
         .where((alert) => alert.status == AlertStatus.pending)
         .length,
