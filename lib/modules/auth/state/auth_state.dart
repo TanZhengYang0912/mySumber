@@ -19,26 +19,35 @@ bool hasPendingPasswordSetup(User user) =>
     user.userMetadata?['must_set_password'] == true;
 
 class RoleState extends ChangeNotifier {
-  RoleState({AccountRepository? accountRepository})
-      : _accountRepository = accountRepository ?? AccountRepository() {
-    _authSubscription =
-        Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+  RoleState({
+    AccountRepository? accountRepository,
+    Session? Function()? currentSession,
+    Stream<AuthState>? authStateChanges,
+  })  : _accountRepository = accountRepository ?? AccountRepository(),
+        _currentSession = currentSession ??
+            (() => Supabase.instance.client.auth.currentSession) {
+    final changes =
+        authStateChanges ?? Supabase.instance.client.auth.onAuthStateChange;
+    _authSubscription = changes.listen((data) {
       final session = data.session;
       if (data.event == AuthChangeEvent.passwordRecovery) {
         _requiresPasswordReset = true;
         notifyListeners();
       }
-      if (session != null && !_verifyingCredentials) {
+      if (session != null && !session.isExpired && !_verifyingCredentials) {
         if (hasPendingPasswordSetup(session.user)) {
           _requiresPasswordReset = true;
           notifyListeners();
         }
         unawaited(_applyProfile(session.user));
       }
+    }, onError: (Object _, StackTrace __) {
+      debugPrint('Auth state update unavailable while offline.');
     });
   }
 
   final AccountRepository _accountRepository;
+  final Session? Function() _currentSession;
   AccountProfile? _profile;
   String? _userRole;
   String? _email;
@@ -261,8 +270,8 @@ class RoleState extends ChangeNotifier {
 
   Future<void> checkExistingSession() async {
     try {
-      final session = Supabase.instance.client.auth.currentSession;
-      if (session != null) {
+      final session = _currentSession();
+      if (session != null && !session.isExpired) {
         await _applyProfile(session.user);
       }
     } catch (e) {

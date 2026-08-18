@@ -14,6 +14,7 @@ import 'modules/admin/screens/worker_accounts_screen.dart';
 import 'modules/admin/services/admin_tablet_layout.dart';
 import 'modules/admin/widgets/admin_compact_rail.dart';
 
+import 'modules/auth/data/account_repository.dart';
 import 'modules/auth/screens/login_screen.dart';
 import 'modules/auth/screens/reset_password_screen.dart';
 import 'modules/auth/state/auth_state.dart' show RoleState;
@@ -75,7 +76,13 @@ class MySumberApp extends StatelessWidget {
         ChangeNotifierProvider<CacheStatus>.value(value: cacheStatus),
         ChangeNotifierProvider<RoleState>(
           create: (_) {
-            final roleState = RoleState();
+            final roleState = RoleState(
+              accountRepository: AccountRepository.cached(
+                client: Supabase.instance.client,
+                database: database,
+                cacheStatus: cacheStatus,
+              ),
+            );
             roleState.checkExistingSession();
             return roleState;
           },
