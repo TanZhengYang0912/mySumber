@@ -35,6 +35,7 @@ class AppState extends ChangeNotifier {
 
   List<Alert> _alerts = [];
   List<Report> _reports = [];
+  Map<String, String> _workerNames = {};
   List<ElectricityRecord> _electricityRecords = [];
   bool _loading = true;
   final Set<int> _generatingAnomalyIds = {};
@@ -58,6 +59,7 @@ class AppState extends ChangeNotifier {
   String get workerName => 'Worker X';
   List<Alert> get alerts => _alerts;
   List<Report> get reports => _reports;
+  Map<String, String> get workerNames => _workerNames;
   bool get loading => _loading;
 
   bool isGeneratingAnomalyAnalysis(int alertId) =>
@@ -479,6 +481,7 @@ class AppState extends ChangeNotifier {
   Future<void> refresh() async {
     _alerts = await repository.alerts();
     _reports = await repository.reports();
+    _workerNames = await repository.workerNames();
     notifyListeners();
   }
 
@@ -592,8 +595,9 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> updateAlertStatus(int alertId, String status,
-      {String? handledBy}) async {
-    await repository.updateAlertStatus(alertId, status, handledBy: handledBy);
+      {String? handledBy, String? handledById}) async {
+    await repository.updateAlertStatus(alertId, status,
+        handledBy: handledBy, handledById: handledById);
     await refresh();
   }
 

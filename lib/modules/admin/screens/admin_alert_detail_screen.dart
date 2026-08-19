@@ -34,8 +34,9 @@ class _AdminAlertDetailScreenState extends State<AdminAlertDetailScreen> {
         ? AlertStatus.faults
         : AlertStatus.pending;
     try {
+      final role = context.read<RoleState>();
       await app.updateAlertStatus(alert.id!, next,
-          handledBy: context.read<RoleState>().displayName);
+          handledBy: role.displayName, handledById: role.userId);
     } catch (_) {
       if (mounted) showNetworkErrorSnackBar(context);
     } finally {

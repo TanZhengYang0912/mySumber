@@ -49,6 +49,10 @@ app.*.map.json
 /.superpowers/
 # MCP servers are per-developer (own Supabase account + own OAuth)
 .mcp.json
+# Claude Code / agent tooling — per-developer, not project config
+.claude/
+.codex/
+AGENTS.md
 
 # API keys — never commit
 lib/config.dart

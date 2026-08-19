@@ -204,10 +204,12 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
       return;
     }
     final now = DateTime.now();
-    final worker = context.read<RoleState>().displayName;
+    final role = context.read<RoleState>();
+    final worker = role.displayName;
     final report = Report(
       alertId: widget.alert.id!,
       workerName: worker,
+      workerId: role.userId,
       findings: _findings.text.trim(),
       actionTaken: _action.text.trim(),
       outcome: _outcome!,
@@ -222,6 +224,7 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
             ? AlertStatus.resolved
             : AlertStatus.notFixed,
         handledBy: worker,
+        handledById: role.userId,
       );
       if (mounted) Navigator.of(context).pop();
     } catch (_) {

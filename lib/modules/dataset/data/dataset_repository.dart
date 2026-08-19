@@ -133,10 +133,39 @@ class DatasetRepository {
         .select()
         .order('facility_name')
         .order('node_name');
-    return rows
-        .map((row) => canonicalizeEquipmentNode(
-            EquipmentNode.fromMap(Map<String, Object?>.from(row))))
-        .toList();
+
+    final facilities = {
+      for (final row in await client.from('facilities').select('facility_id, name, city'))
+        row['facility_id'] as String: (
+          name: row['name'] as String,
+          city: row['city'] as String,
+        ),
+    };
+    final manufacturers = {
+      for (final row in await client.from('manufacturers').select('manufacturer_id, name'))
+        row['manufacturer_id'] as String: row['name'] as String,
+    };
+    final models = {
+      for (final row in await client.from('equipment_models').select('model_id, model_name'))
+        row['model_id'] as String: row['model_name'] as String,
+    };
+    final firmwares = {
+      for (final row in await client.from('firmware_catalog').select('firmware_id, version'))
+        row['firmware_id'] as String: row['version'] as String,
+    };
+
+    return rows.map((row) {
+      final node = canonicalizeEquipmentNode(
+          EquipmentNode.fromMap(Map<String, Object?>.from(row)));
+      final facility = facilities[node.facilityId];
+      return node.copyWith(
+        facilityName: facility?.name ?? node.facilityName,
+        facilityCity: facility?.city ?? node.facilityCity,
+        manufacturer: manufacturers[node.manufacturerId] ?? node.manufacturer,
+        modelName: models[node.modelId] ?? node.modelName,
+        firmwareVersion: firmwares[node.firmwareId] ?? node.firmwareVersion,
+      );
+    }).toList();
   }
 
   Future<EquipmentImportCatalog> fetchImportCatalog() async {

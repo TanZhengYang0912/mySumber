@@ -36,9 +36,7 @@ class AlertDetailScreen extends StatelessWidget {
     final reports = _reportsFor(app, alertId);
     final date = DateFormat('d MMM y').format(alert.detectedAt);
     final subtitle = alertSubtitle(alert, date);
-    final primary = alert.isElectricity
-        ? AppColors.electricityAccent
-        : AppColors.workerPrimary;
+    const primary = AppColors.workerPrimary;
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -182,9 +180,10 @@ class AlertDetailScreen extends StatelessWidget {
 
   Future<void> _updateStatus(
       BuildContext context, AppState app, int alertId, String status) async {
+    final role = context.read<RoleState>();
     try {
       await app.updateAlertStatus(alertId, status,
-          handledBy: context.read<RoleState>().displayName);
+          handledBy: role.displayName, handledById: role.userId);
     } catch (_) {
       if (context.mounted) showNetworkErrorSnackBar(context);
     }
@@ -248,11 +247,34 @@ class AlertDetailScreen extends StatelessWidget {
           () => _updateStatus(
               context, app, alert.id!, AlertStatus.investigating)));
     } else if (alert.status == AlertStatus.investigating) {
-      children.add(
-          _primaryBtn(context, 'Write Report', Icons.edit_note, primary, () {
-        Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => ReportFormScreen(alert: alert)));
-      }));
+      final currentUserId = context.read<RoleState>().userId;
+      if (alertLockedForUser(alert, currentUserId)) {
+        children.add(AppCard(
+          child: Row(
+            children: [
+              const Icon(Icons.lock_outline,
+                  size: 18, color: AppColors.textSecondary),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Being investigated by '
+                  '${app.workerNames[alert.handledById] ?? alert.handledBy} — '
+                  'only they can '
+                  'submit a report.',
+                  style: const TextStyle(
+                      fontSize: 13, color: AppColors.textSecondary),
+                ),
+              ),
+            ],
+          ),
+        ));
+      } else {
+        children.add(
+            _primaryBtn(context, 'Write Report', Icons.edit_note, primary, () {
+          Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => ReportFormScreen(alert: alert)));
+        }));
+      }
     } else if (alert.status == AlertStatus.notFixed) {
       children.add(_primaryBtn(
           context,

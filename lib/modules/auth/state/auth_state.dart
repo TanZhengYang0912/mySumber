@@ -66,6 +66,7 @@ class RoleState extends ChangeNotifier {
   String? get userRole => _userRole;
   AccountProfile? get profile => _profile;
   String? get email => _email;
+  String? get userId => Supabase.instance.client.auth.currentUser?.id;
   bool get isLoggedIn => _userRole != null;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;

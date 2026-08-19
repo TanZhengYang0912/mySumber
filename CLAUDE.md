@@ -300,6 +300,7 @@ RoleState (Provider) — lib/modules/auth/state/auth_state.dart
 3. **Sync `main` before starting new work** — Avoid painful merges
 4. **Use branches** — Create feature branch like `yourname-module1`
 5. **Create PRs** — Get reviewed before merging to `main`
+6. **Reuse shared UI before writing new UI** — check `lib/theme/` (`filter_controls.dart`, `segmented_chips.dart`, `page_header.dart`, `tokens.dart`) and `lib/modules/leakage/screens/style.dart` for an existing widget before hand-rolling a new filter bar, card, or pill. Worker and Admin screens that show the same kind of thing (an alert, a report, a filter row) should render off the *same* widget, not two copies that can drift apart.
 
 ---
 
@@ -426,7 +427,7 @@ flutter pub upgrade            # Upgrade all dependencies
 - **Public anon key** is intentionally embedded in `lib/main.dart`
 - **Never commit service_role key** to GitHub
 
-This is a deliberate simplification for the assignment—all team members share a single "Worker X" persona.
+Historically this was a deliberate simplification — all team members shared a single "Worker X" persona. That's no longer true: each worker account now has its own display name, and alerts carry per-worker ownership (`handled_by`/`handled_by_id` on `alerts`) — once a worker starts investigating an alert, only they can submit the report that resolves or closes it out. Not Fixed resets ownership, so any worker can pick a failed attempt back up.
 
 ---
 

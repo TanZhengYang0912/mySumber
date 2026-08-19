@@ -32,6 +32,15 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
     super.dispose();
   }
 
+  void _clearFilters() {
+    setState(() {
+      _search.clear();
+      _state = null;
+      _outcome = null;
+      _utility = null;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
@@ -85,37 +94,18 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
             child: Column(
               children: [
-                FilterSearchField(
-                  controller: _search,
-                  hint: 'Search location or alert',
+                ReportFilterBar(
+                  searchController: _search,
+                  onSearchChanged: (_) => setState(() {}),
+                  onSearchClear: () => setState(_search.clear),
                   accent: AppColors.workerPrimary,
-                  onChanged: (_) => setState(() {}),
-                  onClear: () => setState(_search.clear),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: FilterDropdown(
-                        value: _state,
-                        allLabel: 'All States',
-                        options: states,
-                        counts: stateCounts,
-                        onChanged: (v) => setState(() => _state = v),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: FilterDropdown(
-                        value: _outcome,
-                        allLabel: 'All Outcomes',
-                        options: const [ReportOutcome.fixed, ReportOutcome.notFixed],
-                        labelFor: ReportOutcome.label,
-                        counts: outcomeCounts,
-                        onChanged: (v) => setState(() => _outcome = v),
-                      ),
-                    ),
-                  ],
+                  selectedState: _state,
+                  states: states,
+                  stateCounts: stateCounts,
+                  onStateChanged: (v) => setState(() => _state = v),
+                  selectedOutcome: _outcome,
+                  outcomeCounts: outcomeCounts,
+                  onOutcomeChanged: (v) => setState(() => _outcome = v),
                 ),
                 const SizedBox(height: 10),
                 UtilityChips(
@@ -125,6 +115,13 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                   waterCount: utilityCounts['water'] ?? 0,
                   electricityCount: utilityCounts['electricity'] ?? 0,
                   onChanged: (u) => setState(() => _utility = u),
+                ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: _clearFilters,
+                    child: const Text('Clear filters'),
+                  ),
                 ),
               ],
             ),
@@ -144,6 +141,8 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                         report: report,
                         locationLabel: alert?.title ?? 'Alert #${report.alertId}',
                         utility: alert?.utility,
+                        resolvedWorkerName:
+                            app.workerNames[report.workerId] ?? report.workerName,
                         onTap: () => Navigator.of(context).push(MaterialPageRoute(
                             builder: (_) => ReportViewScreen(report: report))),
                       );

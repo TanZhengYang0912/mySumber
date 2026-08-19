@@ -106,6 +106,7 @@ class Alert {
   /// Who last moved this alert's status — the display name of the worker or
   /// admin who pressed the button. Null for alerts nobody has touched yet.
   final String? handledBy;
+  final String? handledById;
   final bool isDeleted;
   final double? producedMld;
   final double? billedMld;
@@ -137,6 +138,7 @@ class Alert {
     required this.explanation,
     this.status = AlertStatus.pending,
     this.handledBy,
+    this.handledById,
     this.isDeleted = false,
     this.producedMld,
     this.billedMld,
@@ -197,6 +199,7 @@ class Alert {
         'explanation': explanation,
         'status': status,
         'handled_by': handledBy,
+        'handled_by_id': handledById,
         'is_deleted': isDeleted,
         'produced_mld': producedMld,
         'billed_mld': billedMld,
@@ -231,6 +234,7 @@ class Alert {
         explanation: map['explanation'] as String,
         status: map['status'] as String,
         handledBy: map['handled_by'] as String?,
+        handledById: map['handled_by_id'] as String?,
         isDeleted: map['is_deleted'] as bool,
         producedMld: (map['produced_mld'] as num?)?.toDouble(),
         billedMld: (map['billed_mld'] as num?)?.toDouble(),
@@ -251,6 +255,7 @@ class Alert {
     int? id,
     String? status,
     String? handledBy,
+    String? handledById,
     bool? isDeleted,
     String? equipmentNodeId,
     String? facilityName,
@@ -281,6 +286,7 @@ class Alert {
         explanation: explanation,
         status: status ?? this.status,
         handledBy: handledBy ?? this.handledBy,
+        handledById: handledById ?? this.handledById,
         isDeleted: isDeleted ?? this.isDeleted,
         producedMld: producedMld,
         billedMld: billedMld,

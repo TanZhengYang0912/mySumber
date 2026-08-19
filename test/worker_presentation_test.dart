@@ -83,35 +83,42 @@ void main() {
 
   test('handledLabel is null for a pending alert', () {
     expect(
-      handledLabel(_alert(
-        alertType: AlertType.household,
-        signature: LeakSignature.suddenBurst,
-        status: AlertStatus.pending,
-        handledBy: 'Aisyah',
-      )),
+      handledLabel(
+        _alert(
+          alertType: AlertType.household,
+          signature: LeakSignature.suddenBurst,
+          status: AlertStatus.pending,
+        ),
+        'Aisyah',
+      ),
       isNull,
     );
   });
 
-  test('handledLabel is null when nobody has touched the alert', () {
+  test('handledLabel is null when the resolved name is empty', () {
     expect(
-      handledLabel(_alert(
-        alertType: AlertType.household,
-        signature: LeakSignature.suddenBurst,
-        status: AlertStatus.investigating,
-      )),
+      handledLabel(
+        _alert(
+          alertType: AlertType.household,
+          signature: LeakSignature.suddenBurst,
+          status: AlertStatus.investigating,
+        ),
+        null,
+      ),
       isNull,
     );
   });
 
   test('handledLabel names who is investigating, undated', () {
     expect(
-      handledLabel(_alert(
-        alertType: AlertType.household,
-        signature: LeakSignature.suddenBurst,
-        status: AlertStatus.investigating,
-        handledBy: 'Aisyah',
-      )),
+      handledLabel(
+        _alert(
+          alertType: AlertType.household,
+          signature: LeakSignature.suddenBurst,
+          status: AlertStatus.investigating,
+        ),
+        'Aisyah',
+      ),
       'Investigating by Aisyah',
     );
   });
@@ -124,8 +131,8 @@ void main() {
           alertType: AlertType.household,
           signature: LeakSignature.suddenBurst,
           status: AlertStatus.resolved,
-          handledBy: 'Aisyah',
         ),
+        'Aisyah',
         DateTime(2026, 8, 3, 14, 20),
       ),
       'Resolved by Aisyah · 3 Aug 2026, 14:20',
@@ -143,6 +150,50 @@ void main() {
       updatedAt: DateTime(2026, 8, 3, 14, 20),
     );
 
-    expect(reportByline(report), 'By Aisyah · 3 Aug 2026, 14:20');
+    expect(reportByline(report, 'Aisyah'), 'By Aisyah · 3 Aug 2026, 14:20');
+  });
+
+  test('an investigating alert with no owner is not locked', () {
+    expect(
+      alertLockedForUser(
+        _alert(
+          alertType: AlertType.household,
+          signature: LeakSignature.suddenBurst,
+          status: AlertStatus.investigating,
+        ),
+        'viewer-id',
+      ),
+      isFalse,
+    );
+  });
+
+  test('an investigating alert is locked for a different worker', () {
+    final alert = _alert(
+      alertType: AlertType.household,
+      signature: LeakSignature.suddenBurst,
+      status: AlertStatus.investigating,
+      handledBy: 'X',
+    ).copyWith(handledById: 'owner-id');
+    expect(alertLockedForUser(alert, 'viewer-id'), isTrue);
+  });
+
+  test('an investigating alert is not locked for its own owner', () {
+    final alert = _alert(
+      alertType: AlertType.household,
+      signature: LeakSignature.suddenBurst,
+      status: AlertStatus.investigating,
+      handledBy: 'X',
+    ).copyWith(handledById: 'owner-id');
+    expect(alertLockedForUser(alert, 'owner-id'), isFalse);
+  });
+
+  test('a not-fixed alert is never locked — reopening is open to anyone', () {
+    final alert = _alert(
+      alertType: AlertType.household,
+      signature: LeakSignature.suddenBurst,
+      status: AlertStatus.notFixed,
+      handledBy: 'X',
+    ).copyWith(handledById: 'owner-id');
+    expect(alertLockedForUser(alert, 'viewer-id'), isFalse);
   });
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../modules/leakage/models/alert.dart';
+import '../modules/leakage/models/report.dart';
 import 'segmented_chips.dart';
 import 'tokens.dart';
 
@@ -172,6 +173,185 @@ class FilterDropdown extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         field,
+      ],
+    );
+  }
+}
+
+/// Search + State/Severity/[Status] in one row. Used by both the Worker's
+/// Alert Queue and the Admin's Oversight Alert Queue — one filter bar for
+/// both, so they can't drift out of sync again. Pass null [statusOptions]
+/// to hide the Status dropdown (Worker's Resolved tab has no per-item
+/// status to filter by).
+class AlertFilterBar extends StatelessWidget {
+  final TextEditingController searchController;
+  final ValueChanged<String> onSearchChanged;
+  final VoidCallback? onSearchClear;
+  final Color accent;
+
+  final String? selectedState;
+  final List<String> states;
+  final Map<String, int> stateCounts;
+  final ValueChanged<String?> onStateChanged;
+
+  final String? selectedSeverity;
+  final Map<String, int> severityCounts;
+  final ValueChanged<String?> onSeverityChanged;
+
+  final String? selectedStatus;
+  final List<String>? statusOptions;
+  final Map<String, int>? statusCounts;
+  final ValueChanged<String?>? onStatusChanged;
+
+  const AlertFilterBar({
+    super.key,
+    required this.searchController,
+    required this.onSearchChanged,
+    required this.selectedState,
+    required this.states,
+    required this.stateCounts,
+    required this.onStateChanged,
+    required this.selectedSeverity,
+    required this.severityCounts,
+    required this.onSeverityChanged,
+    this.onSearchClear,
+    this.accent = AppColors.adminPrimary,
+    this.selectedStatus,
+    this.statusOptions,
+    this.statusCounts,
+    this.onStatusChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final showStatus = statusOptions != null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        FilterSearchField(
+          controller: searchController,
+          hint: 'Type anything to search',
+          accent: accent,
+          onChanged: onSearchChanged,
+          onClear: onSearchClear,
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: FilterDropdown(
+                caption: 'State',
+                value: selectedState,
+                allLabel: 'All States',
+                options: states,
+                counts: stateCounts,
+                onChanged: onStateChanged,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: FilterDropdown(
+                caption: 'Severity',
+                value: selectedSeverity,
+                allLabel: 'All Severity',
+                options: const [Severity.high, Severity.medium, Severity.low],
+                labelFor: Severity.label,
+                counts: severityCounts,
+                onChanged: onSeverityChanged,
+              ),
+            ),
+            if (showStatus) ...[
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilterDropdown(
+                  caption: 'Status',
+                  value: selectedStatus,
+                  allLabel: 'All Status',
+                  options: statusOptions!,
+                  labelFor: AlertStatus.label,
+                  counts: statusCounts,
+                  onChanged: onStatusChanged!,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Search + State/Outcome in one row. Used by both the Worker's Report
+/// History and the Admin's Oversight Reports tab.
+class ReportFilterBar extends StatelessWidget {
+  final TextEditingController searchController;
+  final ValueChanged<String> onSearchChanged;
+  final VoidCallback? onSearchClear;
+  final Color accent;
+
+  final String? selectedState;
+  final List<String> states;
+  final Map<String, int> stateCounts;
+  final ValueChanged<String?> onStateChanged;
+
+  final String? selectedOutcome;
+  final Map<String, int> outcomeCounts;
+  final ValueChanged<String?> onOutcomeChanged;
+
+  const ReportFilterBar({
+    super.key,
+    required this.searchController,
+    required this.onSearchChanged,
+    required this.selectedState,
+    required this.states,
+    required this.stateCounts,
+    required this.onStateChanged,
+    required this.selectedOutcome,
+    required this.outcomeCounts,
+    required this.onOutcomeChanged,
+    this.onSearchClear,
+    this.accent = AppColors.adminPrimary,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        FilterSearchField(
+          controller: searchController,
+          hint: 'Type anything to search',
+          accent: accent,
+          onChanged: onSearchChanged,
+          onClear: onSearchClear,
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: FilterDropdown(
+                caption: 'State',
+                value: selectedState,
+                allLabel: 'All States',
+                options: states,
+                counts: stateCounts,
+                onChanged: onStateChanged,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: FilterDropdown(
+                caption: 'Outcome',
+                value: selectedOutcome,
+                allLabel: 'All Outcomes',
+                options: const [ReportOutcome.fixed, ReportOutcome.notFixed],
+                labelFor: ReportOutcome.label,
+                counts: outcomeCounts,
+                onChanged: onOutcomeChanged,
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }

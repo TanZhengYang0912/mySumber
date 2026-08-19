@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
 import '../../../theme/tokens.dart';
 import '../models/report.dart';
+import '../state/app_state.dart';
 import '../widgets/adaptive_flow.dart';
 
 /// Shared between the Worker's own report history and the Admin's Oversight
@@ -19,6 +21,8 @@ class ReportViewScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final resolvedName = context.watch<AppState>().workerNames[report.workerId] ??
+        report.workerName;
     final dateFormat = DateFormat('d MMM y, HH:mm');
     final isFixed = report.isFixed;
     final outcomeColor = isFixed ? AppColors.success : AppColors.critical;
@@ -34,7 +38,8 @@ class ReportViewScreen extends StatelessWidget {
         builder: (full, half) => [
           SizedBox(
             width: full,
-            child: _reporterCard(report, dateFormat, isFixed, outcomeColor),
+            child: _reporterCard(
+                report, resolvedName, dateFormat, isFixed, outcomeColor),
           ),
           SizedBox(
             width: half,
@@ -61,8 +66,8 @@ class ReportViewScreen extends StatelessWidget {
     );
   }
 
-  Widget _reporterCard(Report report, DateFormat dateFormat, bool isFixed,
-          Color outcomeColor) =>
+  Widget _reporterCard(Report report, String resolvedName,
+          DateFormat dateFormat, bool isFixed, Color outcomeColor) =>
       AppCard(
         child: Row(
           children: [
@@ -84,7 +89,7 @@ class ReportViewScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Report by ${report.workerName}',
+                  Text('Report by $resolvedName',
                       style: const TextStyle(
                           fontWeight: FontWeight.w700,
                           color: AppColors.textPrimary)),

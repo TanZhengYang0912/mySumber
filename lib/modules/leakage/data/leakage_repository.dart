@@ -44,10 +44,11 @@ class LeakageRepository {
   }
 
   Future<void> updateAlertStatus(int id, String status,
-      {String? handledBy}) async {
+      {String? handledBy, String? handledById}) async {
     await _client.from('alerts').update({
       'status': status,
       if (handledBy != null) 'handled_by': handledBy,
+      if (handledById != null) 'handled_by_id': handledById,
     }).eq('id', id);
   }
 
@@ -100,6 +101,14 @@ class LeakageRepository {
     }
     final rows = await query.order('updated_at', ascending: false);
     return rows.map((row) => Report.fromMap(row)).toList();
+  }
+
+  Future<Map<String, String>> workerNames() async {
+    final rows = await _client.from('profiles').select('id, full_name');
+    return {
+      for (final row in rows)
+        row['id'] as String: row['full_name'] as String? ?? '',
+    };
   }
 
   Future<void> setReportDeleted(int id, bool isDeleted) async {
