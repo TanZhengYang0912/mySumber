@@ -21,6 +21,8 @@ void main() {
 
     final functionSource = File(functionPath).readAsStringSync();
     expect(functionSource, contains("Deno.env.get('GROQ_API_KEY')"));
+    expect(functionSource, contains("const groqModel = 'openai/gpt-oss-20b'"));
+    expect(functionSource, isNot(contains('llama-3.1-8b-instant')));
     expect(functionSource, contains("profile.role !== 'admin'"));
     expect(functionSource, contains("profile.status !== 'active'"));
   });

@@ -460,6 +460,11 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> refresh() async {
+    try {
+      await repository.readings();
+    } catch (_) {
+      debugPrint('Could not refresh the local reading backup.');
+    }
     _alerts = await repository.alerts();
     _reports = await repository.reports();
     notifyListeners();
