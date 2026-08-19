@@ -107,6 +107,19 @@ class AppState extends ChangeNotifier {
   List<Alert> resolvedFor(Utility u) => _bySeverity(
       _alerts.where((a) => a.utility == u && a.status == AlertStatus.resolved));
 
+  /// When an alert was actually closed out. Alerts carry no `resolved_at`
+  /// column, so the timestamp comes from the newest report filed against it —
+  /// which is the moment a worker submitted the outcome that changed the
+  /// status. Null when no report exists (status was changed by hand).
+  DateTime? resolvedAtFor(int alertId) {
+    final filed =
+        _reports.where((r) => r.alertId == alertId).toList(growable: false);
+    if (filed.isEmpty) return null;
+    return filed
+        .map((r) => r.createdAt)
+        .reduce((a, b) => a.isAfter(b) ? a : b);
+  }
+
   List<Report> reportsFor(Utility u) {
     final ids = _alerts
         .where((a) => a.utility == u)
@@ -123,11 +136,12 @@ class AppState extends ChangeNotifier {
   List<Alert> pendingAlerts([Utility? utility]) => _bySeverity(_alerts.where(
       (a) => a.status == AlertStatus.pending && _matchesUtility(a, utility)));
 
-  List<Alert> ongoingAlerts([Utility? utility]) =>
-      _bySeverity(_alerts.where((a) =>
-          (a.status == AlertStatus.investigating ||
-              a.status == AlertStatus.notFixed) &&
-          _matchesUtility(a, utility)));
+  List<Alert> investigatingAlerts([Utility? utility]) => _bySeverity(
+      _alerts.where((a) =>
+          a.status == AlertStatus.investigating && _matchesUtility(a, utility)));
+
+  List<Alert> notFixedAlerts([Utility? utility]) => _bySeverity(_alerts.where(
+      (a) => a.status == AlertStatus.notFixed && _matchesUtility(a, utility)));
 
   List<Alert> solvedAlerts([Utility? utility]) => _bySeverity(_alerts.where(
       (a) => a.status == AlertStatus.resolved && _matchesUtility(a, utility)));

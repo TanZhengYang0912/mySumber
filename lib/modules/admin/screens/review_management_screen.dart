@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import '../../../theme/segmented_chips.dart';
 import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
 import '../../leakage/models/alert.dart';
 import '../../leakage/state/app_state.dart';
+import '../../leakage/screens/style.dart';
 import '../services/admin_tablet_layout.dart';
 import '../services/anomaly_review_filter.dart';
 import '../widgets/landscape_filter_menu.dart';
@@ -222,11 +224,7 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
   Widget _landscapeStatusLabel() {
     final label = _statuses.length == AlertStatus.all.length
         ? 'All'
-        : _statuses.length == 2 &&
-                _statuses.contains(AlertStatus.investigating) &&
-                _statuses.contains(AlertStatus.notFixed)
-            ? 'Ongoing'
-            : AlertStatus.label(_statuses.first);
+        : AlertStatus.label(_statuses.first);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
@@ -638,11 +636,10 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
 
   Widget _summary(List<Alert> alerts) {
     final pending = alerts.where((a) => a.status == AlertStatus.pending).length;
-    final ongoing = alerts
-        .where((a) =>
-            a.status == AlertStatus.investigating ||
-            a.status == AlertStatus.notFixed)
-        .length;
+    final investigating =
+        alerts.where((a) => a.status == AlertStatus.investigating).length;
+    final notFixed =
+        alerts.where((a) => a.status == AlertStatus.notFixed).length;
     final high = alerts.where((a) => a.severity == Severity.high).length;
 
     return SizedBox(
@@ -653,8 +650,10 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
         children: [
           _summaryCard('Pending', '$pending', Icons.pending_actions,
               AppColors.warningSurface, AppColors.warning),
-          _summaryCard('Ongoing', '$ongoing', Icons.sync,
+          _summaryCard('Investigating', '$investigating', Icons.sync,
               AppColors.waterSurface, AppColors.waterAccent),
+          _summaryCard('Not Fixed', '$notFixed', Icons.assignment_return,
+              AppColors.criticalSurface, AppColors.critical),
           _summaryCard('High severity', '$high', Icons.priority_high,
               AppColors.criticalSurface, AppColors.critical),
         ],
@@ -785,11 +784,9 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
     final options = <({String label, Set<String> values})>[
       (label: 'All', values: AlertStatus.all.toSet()),
       (label: 'Pending', values: {AlertStatus.pending}),
-      (
-        label: 'Ongoing',
-        values: {AlertStatus.investigating, AlertStatus.notFixed},
-      ),
-      (label: 'Solved', values: {AlertStatus.resolved}),
+      (label: 'Investigating', values: {AlertStatus.investigating}),
+      (label: 'Not Fixed', values: {AlertStatus.notFixed}),
+      (label: 'Resolved', values: {AlertStatus.resolved}),
       (label: 'Faults', values: {AlertStatus.faults}),
     ];
     return Wrap(
@@ -801,16 +798,11 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
             builder: (context) {
               final selected = _statuses.length == option.values.length &&
                   _statuses.containsAll(option.values);
-              return FilterChip(
-                label: Text(option.label),
+              return SegmentedChip(
+                label: option.label,
                 selected: selected,
-                onSelected: (_) => setState(() => _statuses = option.values),
-                selectedColor: AppColors.adminPrimary,
-                checkmarkColor: Colors.white,
-                labelStyle: TextStyle(
-                  color: selected ? Colors.white : AppColors.textPrimary,
-                  fontWeight: FontWeight.w600,
-                ),
+                onTap: () => setState(() => _statuses = option.values),
+                color: AppColors.adminPrimary,
               );
             },
           ),
@@ -819,27 +811,30 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
   }
 
   Widget _utilityChips() {
-    return Wrap(
+    return SegmentedChipRow(
       spacing: 8,
       children: [
-        _utilityChip('All utilities', null),
-        _utilityChip('Water', Utility.water),
-        _utilityChip('Electricity', Utility.electricity),
+        SegmentedChip(
+          label: 'All utilities',
+          selected: _utility == null,
+          onTap: () => setState(() => _utility = null),
+          color: AppColors.adminPrimary,
+        ),
+        SegmentedChip(
+          label: 'Water',
+          icon: Icons.water_drop_outlined,
+          selected: _utility == Utility.water,
+          onTap: () => setState(() => _utility = Utility.water),
+          color: AppColors.adminPrimary,
+        ),
+        SegmentedChip(
+          label: 'Electricity',
+          icon: Icons.electric_bolt_outlined,
+          selected: _utility == Utility.electricity,
+          onTap: () => setState(() => _utility = Utility.electricity),
+          color: AppColors.adminPrimary,
+        ),
       ],
-    );
-  }
-
-  Widget _utilityChip(String label, Utility? utility) {
-    final selected = _utility == utility;
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) => setState(() => _utility = utility),
-      selectedColor: AppColors.adminPrimary,
-      labelStyle: TextStyle(
-        color: selected ? Colors.white : AppColors.textPrimary,
-        fontWeight: FontWeight.w600,
-      ),
     );
   }
 
@@ -1182,7 +1177,7 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
   }
 
   Widget _statusPill(String status) {
-    return Pill(AlertStatus.label(status), color: _statusColor(status));
+    return Pill(AlertStatus.label(status), color: statusColor(status));
   }
 
   Widget _severityPill(String severity) {
@@ -1242,22 +1237,6 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
     }
   }
 
-  Color _statusColor(String status) {
-    switch (status) {
-      case AlertStatus.pending:
-        return AppColors.textSecondary;
-      case AlertStatus.investigating:
-        return AppColors.waterAccent;
-      case AlertStatus.resolved:
-        return AppColors.success;
-      case AlertStatus.notFixed:
-        return AppColors.critical;
-      case AlertStatus.faults:
-        return AppColors.warning;
-      default:
-        return AppColors.textSecondary;
-    }
-  }
 }
 
 class _FilterCaption extends StatelessWidget {

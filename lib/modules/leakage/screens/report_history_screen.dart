@@ -2,13 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../../theme/segmented_chips.dart';
 import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
 import '../models/alert.dart';
 import '../models/report.dart';
-import '../services/worker_compact_layout.dart';
 import '../state/app_state.dart';
-import '../widgets/worker_landscape_filter_menu.dart';
 import 'report_view_screen.dart';
 
 class ReportHistoryScreen extends StatefulWidget {
@@ -23,14 +22,6 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
   String _filter = 'all';
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
-
-  int get _activeFilterCount =>
-      (_searchQuery.isNotEmpty ? 1 : 0) + (_filter != 'all' ? 1 : 0);
-
-  void _clearFilters() {
-    _searchCtrl.clear();
-    setState(() => _filter = 'all');
-  }
 
   @override
   void initState() {
@@ -51,8 +42,6 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
     final app = context.watch<AppState>();
     final all = app.reportsFor(widget.utility);
     final dateFormat = DateFormat('d MMM y, HH:mm');
-    final isPhoneLandscape =
-        usesWorkerPhoneLandscape(MediaQuery.sizeOf(context));
 
     final reports = all.where((r) {
       if (_filter == 'fixed' && !r.isFixed) return false;
@@ -89,36 +78,23 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(38),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    'Report History',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                if (isPhoneLandscape)
-                  WorkerLandscapeFilterMenu(
-                    activeCount: _activeFilterCount,
-                    child: _landscapeFilterControls(all),
-                  ),
-              ],
+          child: const Padding(
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Text(
+              'Report History',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
         ),
       ),
       body: Column(
         children: [
-          if (!isPhoneLandscape) ...[
-            _searchBar(),
-            _filterBar(all),
-          ],
+          _searchBar(),
+          _filterBar(all),
           Expanded(
             child: reports.isEmpty
                 ? const Center(
@@ -185,122 +161,31 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
     return Container(
       color: AppColors.surface,
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-      child: Row(
+      child: SegmentedChipRow(
+        spacing: 8,
         children: [
-          _chip('All', 'all', all.length),
-          const SizedBox(width: 8),
-          _chip('Fixed', 'fixed', fixedCount, color: AppColors.success),
-          const SizedBox(width: 8),
-          _chip('Not Fixed', 'notFixed', notFixedCount,
-              color: AppColors.critical),
+          SegmentedChip(
+            label: 'All',
+            count: all.length,
+            selected: _filter == 'all',
+            onTap: () => setState(() => _filter = 'all'),
+            color: AppColors.workerPrimary,
+          ),
+          SegmentedChip(
+            label: 'Fixed',
+            count: fixedCount,
+            selected: _filter == 'fixed',
+            onTap: () => setState(() => _filter = 'fixed'),
+            color: AppColors.success,
+          ),
+          SegmentedChip(
+            label: 'Not Fixed',
+            count: notFixedCount,
+            selected: _filter == 'notFixed',
+            onTap: () => setState(() => _filter = 'notFixed'),
+            color: AppColors.critical,
+          ),
         ],
-      ),
-    );
-  }
-
-  Widget _landscapeFilterControls(List<Report> all) {
-    final fixedCount = all.where((r) => r.isFixed).length;
-    final notFixedCount = all.where((r) => !r.isFixed).length;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            const Expanded(child: SectionLabel('Filter reports')),
-            TextButton(onPressed: _clearFilters, child: const Text('Clear')),
-          ],
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _searchCtrl,
-          style: const TextStyle(fontSize: 14),
-          decoration: InputDecoration(
-            hintText: 'Search location or description',
-            hintStyle: const TextStyle(color: AppColors.textTertiary),
-            prefixIcon: const Icon(Icons.search,
-                color: AppColors.textTertiary, size: 20),
-            suffixIcon: _searchQuery.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.close,
-                        size: 18, color: AppColors.textTertiary),
-                    onPressed: _searchCtrl.clear,
-                  )
-                : null,
-            isDense: true,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.divider),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.divider),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.workerPrimary),
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        const SectionLabel('Status'),
-        const SizedBox(height: 6),
-        Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: [
-            _landscapeChip('All', 'all', all.length),
-            _landscapeChip('Fixed', 'fixed', fixedCount,
-                color: AppColors.success),
-            _landscapeChip('Not Fixed', 'notFixed', notFixedCount,
-                color: AppColors.critical),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _landscapeChip(String label, String value, int count, {Color? color}) {
-    final selected = _filter == value;
-    final chipColor = color ?? AppColors.workerPrimary;
-    return ChoiceChip(
-      label: Text('$label ($count)'),
-      selected: selected,
-      onSelected: (_) => setState(() => _filter = value),
-      showCheckmark: false,
-      selectedColor: chipColor.withValues(alpha: 0.14),
-      labelStyle: TextStyle(
-        color: selected ? chipColor : AppColors.textPrimary,
-        fontWeight: FontWeight.w600,
-      ),
-    );
-  }
-
-  Widget _chip(String label, String value, int count, {Color? color}) {
-    final selected = _filter == value;
-    final chipColor = color ?? AppColors.workerPrimary;
-    return GestureDetector(
-      onTap: () => setState(() => _filter = value),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? chipColor : Colors.transparent,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: selected ? chipColor : AppColors.divider,
-          ),
-        ),
-        child: Text(
-          '$label ($count)',
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: selected ? Colors.white : AppColors.textSecondary,
-          ),
-        ),
       ),
     );
   }

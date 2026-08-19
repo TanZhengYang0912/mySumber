@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../models/alert.dart';
 
@@ -32,6 +33,30 @@ Color statusColor(String status) {
     default:
       return Colors.blueGrey;
   }
+}
+
+/// What kind of anomaly this is, in worker-facing words. Household alerts show
+/// their detection signature (Sudden burst, Creeping leak, ...) because the
+/// H-### code in the title already says it is a household.
+String alertReasonLabel(Alert alert) {
+  switch (alert.alertType) {
+    case AlertType.nrwHotspot:
+      return 'NRW hotspot';
+    case AlertType.electricityHotspot:
+      return 'Electricity loss';
+    case AlertType.electricityTampering:
+      return 'Potential tampering';
+    default:
+      return alert.signature;
+  }
+}
+
+/// When the work actually closed. Null unless the alert is resolved AND a
+/// report exists to date it — alerts carry no resolved_at column, so a status
+/// changed by hand has no timestamp to show.
+String? resolvedLabel(String status, DateTime? resolvedAt) {
+  if (status != AlertStatus.resolved || resolvedAt == null) return null;
+  return 'Resolved at ${DateFormat('d MMM y, HH:mm').format(resolvedAt)}';
 }
 
 Widget pill(String text, Color color) {

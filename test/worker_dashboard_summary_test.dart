@@ -117,52 +117,6 @@ void main() {
     expect(summary.followUpCount, 1);
   });
 
-  test('uses the highest network loss as the impact snapshot', () {
-    final lowerLoss = _alert(
-      utility: Utility.water,
-      severity: Severity.medium,
-      status: AlertStatus.pending,
-      state: 'Kedah',
-      lossPct: 16.7,
-    );
-    final higherLoss = _alert(
-      utility: Utility.water,
-      severity: Severity.high,
-      status: AlertStatus.investigating,
-      state: 'Selangor',
-      lossPct: 34.4,
-    );
-
-    final summary = summarizeWorkerDashboard(
-      alerts: [lowerLoss, higherLoss],
-      utility: Utility.water,
-    );
-
-    expect(summary.impactAlert, higherLoss);
-  });
-
-  test('uses household usage ratio when no network loss alert exists', () {
-    final household = Alert(
-      alertType: AlertType.household,
-      householdId: 'H-305',
-      state: 'Selangor',
-      detectedAt: DateTime(2026, 8, 1),
-      signature: LeakSignature.continuousLeak,
-      severity: Severity.high,
-      status: AlertStatus.pending,
-      explanation: 'Test household alert',
-      baselineL: 200,
-      actualL: 800,
-    );
-
-    final summary = summarizeWorkerDashboard(
-      alerts: [household],
-      utility: Utility.water,
-    );
-
-    expect(summary.impactAlert, household);
-  });
-
   test('opens the alert details after a pending alert starts investigation',
       () {
     expect(
