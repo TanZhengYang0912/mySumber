@@ -9,7 +9,7 @@ const corsHeaders = {
       'authorization, x-client-info, apikey, content-type',
 };
 
-const groqModel = 'llama-3.1-8b-instant';
+const groqModel = 'openai/gpt-oss-20b';
 
 function json(data: unknown, status = 200) {
   return Response.json(data, {status, headers: corsHeaders});
