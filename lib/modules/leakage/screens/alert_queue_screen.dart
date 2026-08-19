@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
-import '../../../theme/segmented_chips.dart';
+import '../../../theme/filter_controls.dart';
+import '../../../theme/page_header.dart';
 import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
 import '../models/alert.dart';
@@ -97,57 +98,57 @@ class _AlertQueueScreenState extends State<AlertQueueScreen>
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
-      appBar: AppBar(
-        backgroundColor: AppColors.workerPrimary,
-        foregroundColor: Colors.white,
-        leading: const BackButton(),
-        titleSpacing: 0,
-        title: const Text(
-          'mySumber · WORKER',
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-        ),
-        actions: [
-          TextButton.icon(
-            onPressed: () => context.read<RoleState>().logout(),
-            icon: const Icon(Icons.logout, color: Colors.white, size: 16),
-            label: const Text('Logout',
-                style: TextStyle(color: Colors.white, fontSize: 13)),
-          ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(80),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              TabBar(
-                controller: _tabController,
-                labelColor: Colors.white,
-                unselectedLabelColor: Colors.white60,
-                indicatorColor: Colors.white,
-                indicatorWeight: 3,
-                tabs: [
-                  Tab(text: 'Unresolved  ${unresolvedAll.length}'),
-                  Tab(text: 'Resolved  ${resolvedAll.length}'),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
       body: Column(
         children: [
-          _filters(allStates, unresolvedAll),
+          PageHeader(
+            title: title,
+            color: AppColors.workerPrimary,
+            brand: 'mySumber · WORKER',
+            icon:
+                _isWater ? Icons.water_drop_outlined : Icons.electric_bolt_outlined,
+            onLogout: () => context.read<RoleState>().logout(),
+          ),
+          Container(
+            color: Colors.white,
+            child: TabBar(
+              controller: _tabController,
+              labelColor: AppColors.workerPrimary,
+              unselectedLabelColor: AppColors.textSecondary,
+              indicatorColor: AppColors.workerPrimary,
+              indicatorWeight: 3,
+              labelStyle:
+                  const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+              tabs: [
+                Tab(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('Unresolved'),
+                        const SizedBox(width: 6),
+                        CountBadge(unresolvedAll.length),
+                      ],
+                    ),
+                  ),
+                ),
+                Tab(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('Resolved'),
+                        const SizedBox(width: 6),
+                        CountBadge(resolvedAll.length),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _filters(allStates, unresolvedAll, resolvedAll, query),
           Expanded(
             child: TabBarView(
               controller: _tabController,
@@ -162,8 +163,48 @@ class _AlertQueueScreenState extends State<AlertQueueScreen>
     );
   }
 
-  Widget _filters(List<String> states, List<Alert> unresolvedAll) {
+  static const _queueStatuses = [
+    AlertStatus.pending,
+    AlertStatus.investigating,
+    AlertStatus.notFixed,
+  ];
+
+  Widget _filters(List<String> states, List<Alert> unresolvedAll,
+      List<Alert> resolvedAll, String query) {
     final showStatus = _tabController.index == 0;
+    final tabBase = showStatus ? unresolvedAll : resolvedAll;
+
+    bool matchesQuery(Alert a) =>
+        query.isEmpty ||
+        a.state.toLowerCase().contains(query) ||
+        (a.householdId ?? '').toLowerCase().contains(query);
+
+    // Each dropdown's counts reflect every OTHER active filter but not its
+    // own selection — so picking "High" doesn't collapse Severity's own list
+    // down to just itself.
+    List<Alert> excluding({bool state = true, bool severity = true,
+        bool status = true}) {
+      return tabBase.where((a) {
+        if (!matchesQuery(a)) return false;
+        if (state && _selectedState != 'all' && a.state != _selectedState) {
+          return false;
+        }
+        if (severity && _severity != 'all' && a.severity != _severity) {
+          return false;
+        }
+        if (status && showStatus && _status != 'all' && a.status != _status) {
+          return false;
+        }
+        return true;
+      }).toList();
+    }
+
+    final stateCounts = countBy(excluding(state: false), (a) => a.state);
+    final severityCounts =
+        countBy(excluding(severity: false), (a) => a.severity);
+    final statusCounts = showStatus
+        ? countBy(excluding(status: false), (a) => a.status)
+        : const <String, int>{};
 
     return Container(
       color: AppColors.surface,
@@ -171,142 +212,53 @@ class _AlertQueueScreenState extends State<AlertQueueScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextField(
+          FilterSearchField(
             controller: _search,
+            hint: 'Type anything to search',
+            accent: AppColors.workerPrimary,
             onChanged: (_) => setState(() {}),
-            decoration: InputDecoration(
-              hintText: 'Search by location or code',
-              hintStyle: const TextStyle(color: AppColors.textTertiary),
-              prefixIcon: const Icon(Icons.search,
-                  color: AppColors.textTertiary, size: 20),
-              suffixIcon: _search.text.isEmpty
-                  ? null
-                  : IconButton(
-                      icon: const Icon(Icons.close,
-                          size: 18, color: AppColors.textTertiary),
-                      onPressed: _clearFilters,
-                    ),
-              isDense: true,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.divider)),
-              enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.divider)),
-              focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.workerPrimary)),
-            ),
+            onClear: _clearFilters,
           ),
           const SizedBox(height: 8),
-          // Side by side when there is room, stacked when there isn't.
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final width = constraints.maxWidth >= 360
-                  ? (constraints.maxWidth - 8) / 2
-                  : constraints.maxWidth;
-              return Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  SizedBox(
-                    width: width,
-                    child: _dropdown(
-                        _severity,
-                        {
-                          'all': 'All Severity',
-                          Severity.high: 'High',
-                          Severity.medium: 'Medium',
-                          Severity.low: 'Low',
-                        },
-                        (v) => setState(() => _severity = v)),
+          Row(
+            children: [
+              Expanded(
+                child: FilterDropdown(
+                  value: _selectedState == 'all' ? null : _selectedState,
+                  allLabel: 'All States',
+                  options: states,
+                  counts: stateCounts,
+                  onChanged: (v) => setState(() => _selectedState = v ?? 'all'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilterDropdown(
+                  value: _severity == 'all' ? null : _severity,
+                  allLabel: 'All Severity',
+                  options: const [Severity.high, Severity.medium, Severity.low],
+                  labelFor: Severity.label,
+                  counts: severityCounts,
+                  onChanged: (v) => setState(() => _severity = v ?? 'all'),
+                ),
+              ),
+              if (showStatus) ...[
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilterDropdown(
+                    value: _status == 'all' ? null : _status,
+                    allLabel: 'All Status',
+                    options: _queueStatuses,
+                    labelFor: AlertStatus.label,
+                    counts: statusCounts,
+                    onChanged: (v) => setState(() => _status = v ?? 'all'),
                   ),
-                  SizedBox(
-                    width: width,
-                    child: _dropdown(
-                      _selectedState,
-                      {
-                        'all': 'All States',
-                        for (final s in states) s: s,
-                      },
-                      (v) => setState(() => _selectedState = v),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-          if (showStatus) ...[
-            const SizedBox(height: 10),
-            SegmentedChipRow(
-              children: [
-                SegmentedChip(
-                  label: 'All',
-                  count: unresolvedAll.length,
-                  selected: _status == 'all',
-                  onTap: () => setState(() => _status = 'all'),
-                  color: AppColors.workerPrimary,
-                ),
-                SegmentedChip(
-                  label: 'Pending',
-                  count: unresolvedAll
-                      .where((a) => a.status == AlertStatus.pending)
-                      .length,
-                  selected: _status == AlertStatus.pending,
-                  onTap: () => setState(() => _status = AlertStatus.pending),
-                  color: AppColors.workerPrimary,
-                ),
-                SegmentedChip(
-                  label: 'Investigating',
-                  count: unresolvedAll
-                      .where((a) => a.status == AlertStatus.investigating)
-                      .length,
-                  selected: _status == AlertStatus.investigating,
-                  onTap: () =>
-                      setState(() => _status = AlertStatus.investigating),
-                  color: AppColors.workerPrimary,
-                ),
-                SegmentedChip(
-                  label: 'Not Fixed',
-                  count: unresolvedAll
-                      .where((a) => a.status == AlertStatus.notFixed)
-                      .length,
-                  selected: _status == AlertStatus.notFixed,
-                  onTap: () => setState(() => _status = AlertStatus.notFixed),
-                  color: AppColors.workerPrimary,
                 ),
               ],
-            ),
-          ],
+            ],
+          ),
         ],
       ),
-    );
-  }
-
-  Widget _dropdown(String value, Map<String, String> options,
-      ValueChanged<String> onChanged) {
-    return DropdownButtonFormField<String>(
-      key: ValueKey(value),
-      initialValue: value,
-      isDense: true,
-      isExpanded: true,
-      decoration: InputDecoration(
-        isDense: true,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: AppColors.divider)),
-        enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: AppColors.divider)),
-      ),
-      items: options.entries
-          .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
-          .toList(),
-      onChanged: (v) => onChanged(v ?? 'all'),
     );
   }
 
@@ -342,20 +294,13 @@ class _AlertCard extends StatelessWidget {
     final sev = alert.severity;
     final sevColor = severityColor(sev);
 
-    Color sevBg;
-    if (sev == Severity.high) {
-      sevBg = AppColors.criticalSurface;
-    } else if (sev == Severity.medium) {
-      sevBg = AppColors.warningSurface;
-    } else {
-      sevBg = AppColors.workerSurface;
-    }
-
     final date = DateFormat('d MMM').format(alert.detectedAt);
     final metricText = alert.lossPct != null
         ? '${alert.lossPct!.toStringAsFixed(1)}% of supply unaccounted'
         : '${alert.ratio.toStringAsFixed(1)}x of state avg';
-    final resolved = resolvedLabel(alert.status, resolvedAt);
+    final handled = handledLabel(alert, resolvedAt);
+    final handledColor =
+        alert.status == AlertStatus.resolved ? AppColors.success : AppColors.textSecondary;
 
     return GestureDetector(
       onTap: () => Navigator.of(context).push(MaterialPageRoute(
@@ -393,22 +338,7 @@ class _AlertCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: sevBg,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        Severity.label(sev),
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: sevColor,
-                        ),
-                      ),
-                    ),
+                    severityPill(sev),
                   ],
                 ),
                 const SizedBox(height: 6),
@@ -417,8 +347,7 @@ class _AlertCard extends StatelessWidget {
                   runSpacing: 4,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Pill(AlertStatus.label(alert.status),
-                        color: statusColor(alert.status)),
+                    statusPill(alert.status),
                     Text(
                       '${alertReasonLabel(alert)} · Flagged $date',
                       style: const TextStyle(
@@ -435,19 +364,24 @@ class _AlertCard extends StatelessWidget {
                     color: sevColor,
                   ),
                 ),
-                if (resolved != null) ...[
+                if (handled != null) ...[
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      const Icon(Icons.check_circle_outline,
-                          size: 14, color: AppColors.success),
+                      Icon(
+                        alert.status == AlertStatus.resolved
+                            ? Icons.check_circle_outline
+                            : Icons.person_outline,
+                        size: 14,
+                        color: handledColor,
+                      ),
                       const SizedBox(width: 4),
                       Text(
-                        resolved,
-                        style: const TextStyle(
+                        handled,
+                        style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: AppColors.success,
+                          color: handledColor,
                         ),
                       ),
                     ],

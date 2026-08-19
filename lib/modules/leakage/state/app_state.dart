@@ -151,11 +151,17 @@ class AppState extends ChangeNotifier {
 
   /// Alerts for the admin Oversight Alert Queue tab. Mirrors
   /// [reportsFiltered]: each argument narrows the list, null means "all".
-  List<Alert> alertsFiltered({Utility? utility, String? state, String? status}) {
+  List<Alert> alertsFiltered({
+    Utility? utility,
+    String? state,
+    String? status,
+    String? severity,
+  }) {
     return _bySeverity(_alerts.where((a) {
       if (!_matchesUtility(a, utility)) return false;
       if (state != null && a.state != state) return false;
       if (status != null && a.status != status) return false;
+      if (severity != null && a.severity != severity) return false;
       return true;
     }));
   }
@@ -585,8 +591,9 @@ class AppState extends ChangeNotifier {
     return outcome;
   }
 
-  Future<void> updateAlertStatus(int alertId, String status) async {
-    await repository.updateAlertStatus(alertId, status);
+  Future<void> updateAlertStatus(int alertId, String status,
+      {String? handledBy}) async {
+    await repository.updateAlertStatus(alertId, status, handledBy: handledBy);
     await refresh();
   }
 

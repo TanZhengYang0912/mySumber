@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
 import '../../admin/services/admin_tablet_layout.dart';
-import '../../admin/widgets/admin_page_header.dart';
+import '../../../theme/page_header.dart';
 import '../state/dataset_state.dart';
 import '../models/models.dart';
 
@@ -110,7 +110,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       key: const PageStorageKey('phone-landscape-dashboard'),
       padding: EdgeInsets.zero,
       children: [
-        AdminPageHeader(
+        PageHeader(
           title: 'Dashboard',
           icon: Icons.grid_view_outlined,
           compact: true,
@@ -379,7 +379,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _header(BuildContext context) {
-    return AdminPageHeader(
+    return PageHeader(
       title: 'Dashboard',
       icon: Icons.grid_view_outlined,
       onLogout: () => context.read<RoleState>().logout(),

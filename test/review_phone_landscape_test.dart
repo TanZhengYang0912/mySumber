@@ -5,7 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:mysumber/modules/admin/screens/anomaly_review_detail_screen.dart';
 import 'package:mysumber/modules/admin/screens/review_management_screen.dart';
-import 'package:mysumber/modules/admin/widgets/admin_page_header.dart';
+import 'package:mysumber/theme/page_header.dart';
 import 'package:mysumber/modules/leakage/data/leakage_repository.dart';
 import 'package:mysumber/modules/leakage/models/alert.dart';
 import 'package:mysumber/modules/leakage/services/baseline_service.dart';
@@ -67,7 +67,7 @@ void main() {
 
     expect(find.byKey(const PageStorageKey('phone-landscape-review-grid')),
         findsOneWidget);
-    final header = tester.getRect(find.byType(AdminPageHeader));
+    final header = tester.getRect(find.byType(PageHeader));
     expect(header.left, 0);
     expect(header.width, 914);
     expect(find.byTooltip('Filter anomalies'), findsOneWidget);

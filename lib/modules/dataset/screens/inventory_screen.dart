@@ -7,7 +7,10 @@ import 'package:provider/provider.dart';
 import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
 import '../../admin/services/admin_tablet_layout.dart';
-import '../../admin/widgets/admin_page_header.dart';
+import '../../../theme/page_header.dart';
+import '../../../theme/filter_controls.dart';
+import '../../../theme/segmented_chips.dart';
+import '../../leakage/models/alert.dart';
 import '../../admin/widgets/landscape_filter_menu.dart';
 import '../state/dataset_state.dart';
 import '../models/models.dart';
@@ -97,21 +100,26 @@ class _InventoryScreenState extends State<InventoryScreen> {
       backgroundColor: AppColors.canvas,
       body: state.isLoading
           ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              controller: _inventoryScrollController,
-              padding: EdgeInsets.zero,
+          : Column(
               children: [
                 _header(context),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                  child: _searchField(),
+                  child: FilterSearchField(
+                    controller: _searchController,
+                    hint: 'Search equipment…',
+                    onChanged: (v) => setState(() => _searchQuery = v),
+                  ),
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: _filterChips(
-                    locationCount,
-                    filterResult.utilityCounts['Water'] ?? 0,
-                    filterResult.utilityCounts['Electricity'] ?? 0,
+                  child: UtilityChips(
+                    selected: _utilityFilter,
+                    onChanged: _setUtilityFilter,
+                    allCount: locationCount,
+                    waterCount: filterResult.utilityCounts['Water'] ?? 0,
+                    electricityCount:
+                        filterResult.utilityCounts['Electricity'] ?? 0,
                   ),
                 ),
                 Padding(
@@ -119,12 +127,14 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   child: Row(
                     children: [
                       Expanded(
-                        child: _locationDropdown(
-                          label: 'State / Federal Territory',
-                          value: _selectedState,
-                          items: stateOptions,
-                          displayAll: 'All States',
-                          showFloatingLabel: false,
+                        child: FilterDropdown(
+                          caption: 'State / Federal Territory',
+                          value:
+                              _selectedState == 'All' ? null : _selectedState,
+                          allLabel: 'All States',
+                          options: stateOptions
+                              .where((s) => s != 'All')
+                              .toList(growable: false),
                           onChanged: (value) {
                             setState(() {
                               _selectedState = value ?? 'All';
@@ -135,12 +145,15 @@ class _InventoryScreenState extends State<InventoryScreen> {
                       ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: _locationDropdown(
-                          label: 'Shopping Mall',
-                          value: _selectedFacility,
-                          items: facilityOptions,
-                          displayAll: 'All Shopping Malls',
-                          showFloatingLabel: false,
+                        child: FilterDropdown(
+                          caption: 'Shopping Mall',
+                          value: _selectedFacility == 'All'
+                              ? null
+                              : _selectedFacility,
+                          allLabel: 'All Shopping Malls',
+                          options: facilityOptions
+                              .where((f) => f != 'All')
+                              .toList(growable: false),
                           onChanged: (value) => setState(
                               () => _selectedFacility = value ?? 'All'),
                         ),
@@ -160,23 +173,29 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                if (displayNodes.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 32, horizontal: 16),
-                    child: Center(
-                      child: Text(
-                        'No equipment found matching your criteria.\nAdjust filters or tap + to deploy.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: AppColors.textSecondary),
-                      ),
-                    ),
-                  )
-                else
-                  ...displayNodes.map((n) => Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                        child: _equipmentCard(n, state),
-                      )),
-                const SizedBox(height: 24),
+                Expanded(
+                  child: displayNodes.isEmpty
+                      ? const Padding(
+                          padding: EdgeInsets.symmetric(
+                              vertical: 32, horizontal: 16),
+                          child: Center(
+                            child: Text(
+                              'No equipment found matching your criteria.\nAdjust filters or tap + to deploy.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: AppColors.textSecondary),
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
+                          controller: _inventoryScrollController,
+                          padding: const EdgeInsets.only(bottom: 24),
+                          itemCount: displayNodes.length,
+                          itemBuilder: (context, index) => Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                            child: _equipmentCard(displayNodes[index], state),
+                          ),
+                        ),
+                ),
               ],
             ),
       floatingActionButton: FloatingActionButton(
@@ -243,7 +262,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
       body: Column(
         key: const PageStorageKey('phone-landscape-inventory'),
         children: [
-          AdminPageHeader(
+          PageHeader(
             title: 'Inventory',
             icon: Icons.inventory_2_outlined,
             compact: true,
@@ -303,7 +322,11 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 16,
               ),
               children: [
-                _searchField(),
+                FilterSearchField(
+                  controller: _searchController,
+                  hint: 'Search equipment…',
+                  onChanged: (v) => setState(() => _searchQuery = v),
+                ),
                 const SizedBox(height: 12),
                 Text(
                   _landscapeListLabel(),
@@ -378,24 +401,24 @@ class _InventoryScreenState extends State<InventoryScreen> {
               .toList(),
         ),
         const SizedBox(height: 12),
-        _locationDropdown(
-          label: 'State / Federal Territory',
-          value: _selectedState,
-          items: stateOptions,
-          displayAll: 'All States',
-          showFloatingLabel: false,
+        FilterDropdown(
+          caption: 'State / Federal Territory',
+          value: _selectedState == 'All' ? null : _selectedState,
+          allLabel: 'All States',
+          options:
+              stateOptions.where((s) => s != 'All').toList(growable: false),
           onChanged: (value) => setState(() {
             _selectedState = value ?? 'All';
             _selectedFacility = 'All';
           }),
         ),
         const SizedBox(height: 10),
-        _locationDropdown(
-          label: 'Shopping Mall',
-          value: _selectedFacility,
-          items: facilityOptions,
-          displayAll: 'All Shopping Malls',
-          showFloatingLabel: false,
+        FilterDropdown(
+          caption: 'Shopping Mall',
+          value: _selectedFacility == 'All' ? null : _selectedFacility,
+          allLabel: 'All Shopping Malls',
+          options:
+              facilityOptions.where((f) => f != 'All').toList(growable: false),
           onChanged: (value) =>
               setState(() => _selectedFacility = value ?? 'All'),
         ),
@@ -425,7 +448,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   Widget _header(BuildContext context) {
-    return AdminPageHeader(
+    return PageHeader(
       title: 'Inventory',
       icon: Icons.inventory_2_outlined,
       onLogout: () => context.read<RoleState>().logout(),
@@ -524,33 +547,20 @@ class _InventoryScreenState extends State<InventoryScreen> {
     );
   }
 
-  Widget _searchField() {
-    return TextField(
-      controller: _searchController,
-      onChanged: (v) => setState(() => _searchQuery = v),
-      decoration: const InputDecoration(
-        hintText: 'Search equipment…',
-        hintStyle: TextStyle(color: AppColors.textTertiary),
-        prefixIcon: Icon(Icons.search, color: AppColors.textTertiary),
-        contentPadding: EdgeInsets.symmetric(vertical: 14),
-      ),
-    );
-  }
+  Utility? get _utilityFilter => switch (_selectedUtility) {
+        'Water' => Utility.water,
+        'Electricity' => Utility.electricity,
+        _ => null,
+      };
 
-  Widget _filterChips(int total, int water, int elec) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          _chip('All ($total)', 'All'),
-          const SizedBox(width: 8),
-          _chip('Water ($water)', 'Water', icon: Icons.water_drop_outlined),
-          const SizedBox(width: 8),
-          _chip('Electricity ($elec)', 'Electricity',
-              icon: Icons.electric_bolt_outlined),
-        ],
-      ),
-    );
+  void _setUtilityFilter(Utility? utility) {
+    setState(() {
+      _selectedUtility = switch (utility) {
+        Utility.water => 'Water',
+        Utility.electricity => 'Electricity',
+        null => 'All',
+      };
+    });
   }
 
   List<String> _stateOptions(List<EquipmentNode> nodes) {
@@ -566,121 +576,19 @@ class _InventoryScreenState extends State<InventoryScreen> {
     return ['All', ...states];
   }
 
-  Widget _locationDropdown({
-    required String label,
-    required String value,
-    required List<String> items,
-    required String displayAll,
-    required ValueChanged<String?> onChanged,
-    bool showFloatingLabel = true,
-  }) {
-    final dropdown = DropdownButtonFormField<String>(
-      key: ValueKey('$label-$value'),
-      initialValue: value,
-      isExpanded: true,
-      decoration: InputDecoration(
-        labelText: showFloatingLabel ? label : null,
-        isDense: true,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      ),
-      items: items
-          .map((item) => DropdownMenuItem<String>(
-                value: item,
-                child: Text(
-                  item == 'All' ? displayAll : item,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ))
-          .toList(),
-      onChanged: onChanged,
-    );
-    if (showFloatingLabel) return dropdown;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label,
-            style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textSecondary)),
-        const SizedBox(height: 5),
-        dropdown,
-      ],
-    );
-  }
-
-  Widget _chip(String label, String value, {IconData? icon}) {
-    final selected = _selectedUtility == value;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedUtility = value),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.adminPrimary : Colors.white,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: selected ? AppColors.adminPrimary : AppColors.divider,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null) ...[
-              Icon(icon,
-                  size: 14,
-                  color: selected ? Colors.white : AppColors.textPrimary),
-              const SizedBox(width: 4),
-            ],
-            Text(label,
-                style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: selected ? Colors.white : AppColors.textPrimary)),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _statusFilterChips(Map<String, int> counts) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: inventoryStatusFilters.map((status) {
-          final label =
-              '$status (${status == 'All' ? counts.values.fold<int>(0, (sum, count) => sum + count) : counts[status] ?? 0})';
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: _statusChip(label, status),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _statusChip(String label, String value) {
-    final selected = _selectedStatus == value;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedStatus = value),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.adminPrimary : Colors.white,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: selected ? AppColors.adminPrimary : AppColors.divider,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: selected ? Colors.white : AppColors.textPrimary,
-          ),
-        ),
-      ),
+    final total = counts.values.fold<int>(0, (sum, count) => sum + count);
+    return SegmentedChipRow(
+      spacing: 8,
+      children: inventoryStatusFilters
+          .map((status) => SegmentedChip(
+                label: status,
+                count: status == 'All' ? total : counts[status] ?? 0,
+                selected: _selectedStatus == status,
+                onTap: () => setState(() => _selectedStatus = status),
+                color: AppColors.adminPrimary,
+              ))
+          .toList(growable: false),
     );
   }
 

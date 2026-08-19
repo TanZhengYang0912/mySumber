@@ -10,7 +10,7 @@ import '../../leakage/screens/network_error.dart';
 import '../../leakage/services/nrw_service.dart';
 import '../../leakage/state/app_state.dart';
 import '../services/abnormal_production_layout.dart';
-import '../widgets/admin_page_header.dart';
+import '../../../theme/page_header.dart';
 
 class AbnormalProductionScreen extends StatefulWidget {
   final bool showBackToOversight;
@@ -109,7 +109,7 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
   }
 
   Widget _buildHeader(BuildContext context) {
-    return AdminPageHeader(
+    return PageHeader(
       title: 'Abnormal Production',
       icon: Icons.notifications_outlined,
       leading: widget.showBackToOversight

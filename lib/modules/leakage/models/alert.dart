@@ -74,11 +74,11 @@ class Severity {
   static String label(String severity) {
     switch (severity) {
       case high:
-        return 'High Severity';
+        return 'High';
       case medium:
-        return 'Medium Severity';
+        return 'Medium';
       case low:
-        return 'Low Severity';
+        return 'Low';
       default:
         return severity;
     }
@@ -102,6 +102,10 @@ class Alert {
   final double actualL;
   final String explanation;
   final String status;
+
+  /// Who last moved this alert's status — the display name of the worker or
+  /// admin who pressed the button. Null for alerts nobody has touched yet.
+  final String? handledBy;
   final bool isDeleted;
   final double? producedMld;
   final double? billedMld;
@@ -132,6 +136,7 @@ class Alert {
     this.actualL = 0,
     required this.explanation,
     this.status = AlertStatus.pending,
+    this.handledBy,
     this.isDeleted = false,
     this.producedMld,
     this.billedMld,
@@ -191,6 +196,7 @@ class Alert {
         'actual_l': actualL,
         'explanation': explanation,
         'status': status,
+        'handled_by': handledBy,
         'is_deleted': isDeleted,
         'produced_mld': producedMld,
         'billed_mld': billedMld,
@@ -224,6 +230,7 @@ class Alert {
         actualL: (map['actual_l'] as num?)?.toDouble() ?? 0,
         explanation: map['explanation'] as String,
         status: map['status'] as String,
+        handledBy: map['handled_by'] as String?,
         isDeleted: map['is_deleted'] as bool,
         producedMld: (map['produced_mld'] as num?)?.toDouble(),
         billedMld: (map['billed_mld'] as num?)?.toDouble(),
@@ -243,6 +250,7 @@ class Alert {
   Alert copyWith({
     int? id,
     String? status,
+    String? handledBy,
     bool? isDeleted,
     String? equipmentNodeId,
     String? facilityName,
@@ -272,6 +280,7 @@ class Alert {
         actualL: actualL,
         explanation: explanation,
         status: status ?? this.status,
+        handledBy: handledBy ?? this.handledBy,
         isDeleted: isDeleted ?? this.isDeleted,
         producedMld: producedMld,
         billedMld: billedMld,

@@ -5,9 +5,17 @@ import '../../../theme/tokens.dart';
 import '../models/report.dart';
 import '../widgets/adaptive_flow.dart';
 
+/// Shared between the Worker's own report history and the Admin's Oversight
+/// reports — [barColor] themes the AppBar to whichever role opened it,
+/// instead of always showing the Worker's blue.
 class ReportViewScreen extends StatelessWidget {
   final Report report;
-  const ReportViewScreen({super.key, required this.report});
+  final Color barColor;
+  const ReportViewScreen({
+    super.key,
+    required this.report,
+    this.barColor = AppColors.workerPrimary,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +27,7 @@ class ReportViewScreen extends StatelessWidget {
       backgroundColor: AppColors.canvas,
       appBar: AppBar(
         title: const Text('Investigation Report'),
-        backgroundColor: AppColors.workerPrimary,
+        backgroundColor: barColor,
         foregroundColor: Colors.white,
       ),
       body: AdaptiveFlow(

@@ -43,8 +43,12 @@ class LeakageRepository {
     return row == null ? null : Alert.fromMap(row);
   }
 
-  Future<void> updateAlertStatus(int id, String status) async {
-    await _client.from('alerts').update({'status': status}).eq('id', id);
+  Future<void> updateAlertStatus(int id, String status,
+      {String? handledBy}) async {
+    await _client.from('alerts').update({
+      'status': status,
+      if (handledBy != null) 'handled_by': handledBy,
+    }).eq('id', id);
   }
 
   Future<void> updateAlertLocation({

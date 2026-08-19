@@ -165,10 +165,7 @@ class _AnomalyReviewDetailContentState
                       ),
                     ),
                   ),
-                  Pill(
-                    AlertStatus.label(alert.status),
-                    color: statusColor(alert.status),
-                  ),
+                  statusPill(alert.status),
                 ],
               ),
             ),
@@ -431,11 +428,9 @@ class _AnomalyReviewDetailContentState
         children: [
           Row(
             children: [
-              Pill(AlertStatus.label(alert.status),
-                  color: statusColor(alert.status)),
+              statusPill(alert.status),
               const SizedBox(width: 8),
-              Pill(Severity.label(alert.severity),
-                  color: severityColor(alert.severity)),
+              severityPill(alert.severity),
             ],
           ),
           const SizedBox(height: 14),

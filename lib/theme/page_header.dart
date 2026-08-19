@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
 
-import '../../../theme/tokens.dart';
-import '../services/admin_tablet_layout.dart';
+import '../modules/admin/services/admin_tablet_layout.dart';
+import 'tokens.dart';
 
 const adminLandscapeHorizontalInset = 16.0;
 const adminLandscapeHeaderRowHeight = 48.0;
 
-/// Shared Admin header used by portrait and landscape page surfaces.
-class AdminPageHeader extends StatelessWidget {
-  const AdminPageHeader({
+/// Shared header used by both Admin and Worker page surfaces — a rounded
+/// colored band with brand/logout on top and an icon+title row below.
+class PageHeader extends StatelessWidget {
+  const PageHeader({
     super.key,
     required this.title,
     required this.onLogout,
+    this.color = AppColors.adminPrimary,
+    this.brand = 'mySumber · ADMIN',
     this.icon,
     this.titleAccessory,
     this.action,
@@ -20,6 +23,8 @@ class AdminPageHeader extends StatelessWidget {
   });
 
   final String title;
+  final Color color;
+  final String brand;
   final IconData? icon;
   final Widget? titleAccessory;
   final Widget? action;
@@ -33,9 +38,9 @@ class AdminPageHeader extends StatelessWidget {
         compact || usesAdminCompactHeader(MediaQuery.sizeOf(context));
     return Container(
       width: double.infinity,
-      decoration: const BoxDecoration(
-        color: AppColors.adminPrimary,
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(28),
           bottomRight: Radius.circular(28),
         ),
@@ -55,12 +60,12 @@ class AdminPageHeader extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'mySumber · ADMIN',
+                    brand,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Colors.white70,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,

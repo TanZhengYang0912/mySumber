@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../theme/tokens.dart';
+import '../../auth/state/auth_state.dart';
 import '../models/alert.dart';
 import '../models/report.dart';
 import '../state/app_state.dart';
@@ -68,11 +69,9 @@ class AlertDetailScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(children: [
-              Pill(Severity.label(alert.severity),
-                  color: severityColor(alert.severity)),
+              severityPill(alert.severity),
               const SizedBox(width: 8),
-              Pill(AlertStatus.label(alert.status),
-                  color: statusColor(alert.status)),
+              statusPill(alert.status),
             ]),
             const SizedBox(height: 8),
             Text(alert.title,
@@ -184,7 +183,8 @@ class AlertDetailScreen extends StatelessWidget {
   Future<void> _updateStatus(
       BuildContext context, AppState app, int alertId, String status) async {
     try {
-      await app.updateAlertStatus(alertId, status);
+      await app.updateAlertStatus(alertId, status,
+          handledBy: context.read<RoleState>().displayName);
     } catch (_) {
       if (context.mounted) showNetworkErrorSnackBar(context);
     }

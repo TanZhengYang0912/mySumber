@@ -69,7 +69,16 @@ class SegmentedChipRow extends StatelessWidget {
   final List<Widget> children;
   final double spacing;
 
-  const SegmentedChipRow({super.key, required this.children, this.spacing = 6});
+  /// Centres the chips when they are narrower than the viewport. They still
+  /// scroll when they overflow it.
+  final bool centered;
+
+  const SegmentedChipRow({
+    super.key,
+    required this.children,
+    this.spacing = 6,
+    this.centered = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -78,9 +87,29 @@ class SegmentedChipRow extends StatelessWidget {
       if (i > 0) spaced.add(SizedBox(width: spacing));
       spaced.add(children[i]);
     }
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(children: spaced),
+    final row = Row(
+      mainAxisAlignment:
+          centered ? MainAxisAlignment.center : MainAxisAlignment.start,
+      children: spaced,
+    );
+
+    if (!centered) {
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: row,
+      );
+    }
+
+    // Forcing the row to at least viewport width is what lets
+    // MainAxisAlignment.center take effect inside a shrink-wrapping scroll view.
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minWidth: constraints.maxWidth),
+          child: row,
+        ),
+      ),
     );
   }
 }

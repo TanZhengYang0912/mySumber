@@ -10,7 +10,7 @@ import '../../leakage/screens/style.dart';
 import '../services/admin_tablet_layout.dart';
 import '../services/anomaly_review_filter.dart';
 import '../widgets/landscape_filter_menu.dart';
-import '../widgets/admin_page_header.dart';
+import '../../../theme/page_header.dart';
 import 'anomaly_review_detail_screen.dart';
 
 class ReviewManagementScreen extends StatefulWidget {
@@ -204,7 +204,7 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
     required List<String> facilities,
     required List<String> equipment,
   }) {
-    return AdminPageHeader(
+    return PageHeader(
       title: 'AI Anomaly Review',
       icon: Icons.analytics_outlined,
       compact: true,
@@ -316,10 +316,7 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
     required List<String> facilities,
     required List<String> equipment,
   }) {
-    return ListView(
-      controller: _phoneReviewController,
-      key: const PageStorageKey('admin-review-phone-list'),
-      padding: EdgeInsets.zero,
+    return Column(
       children: [
         _header(context),
         _summary(alerts),
@@ -329,15 +326,23 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
           equipment: equipment,
         ),
         _resultsHeader(results.length),
-        for (final alert in results) _alertCard(alert),
-        if (results.isEmpty) _emptyState(),
-        const SizedBox(height: 24),
+        Expanded(
+          child: results.isEmpty
+              ? _emptyState()
+              : ListView.builder(
+                  controller: _phoneReviewController,
+                  key: const PageStorageKey('admin-review-phone-list'),
+                  padding: const EdgeInsets.only(bottom: 24),
+                  itemCount: results.length,
+                  itemBuilder: (context, index) => _alertCard(results[index]),
+                ),
+        ),
       ],
     );
   }
 
   Widget _header(BuildContext context) {
-    return AdminPageHeader(
+    return PageHeader(
       title: 'AI Anomaly Review',
       icon: Icons.analytics_outlined,
       onLogout: () => context.read<RoleState>().logout(),
@@ -568,7 +573,7 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
     final high =
         results.where((alert) => alert.severity == Severity.high).length;
 
-    return AdminPageHeader(
+    return PageHeader(
       title: 'AI Anomaly Review',
       icon: Icons.analytics_outlined,
       compact: true,
@@ -956,7 +961,7 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
                     child: Text(equipment,
                         style: const TextStyle(fontWeight: FontWeight.w700)),
                   ),
-                  _statusPill(alert.status),
+                  statusPill(alert.status),
                 ],
               ),
               const SizedBox(height: 9),
@@ -964,7 +969,7 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
                 children: [
                   _utilityPill(utilityLabel, alert.utility),
                   const SizedBox(width: 6),
-                  _severityPill(alert.severity),
+                  severityPill(alert.severity),
                   const Spacer(),
                   Text(DateFormat('d MMM y').format(alert.detectedAt),
                       style: const TextStyle(
@@ -1053,8 +1058,8 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
                 runSpacing: 4,
                 children: [
                   _utilityPill(utilityLabel, alert.utility),
-                  _severityPill(alert.severity),
-                  _statusPill(alert.status),
+                  severityPill(alert.severity),
+                  statusPill(alert.status),
                 ],
               ),
               const SizedBox(height: 7),
@@ -1138,9 +1143,9 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
                 children: [
                   _utilityPill(utilityLabel, alert.utility),
                   const SizedBox(width: 5),
-                  _severityPill(alert.severity),
+                  severityPill(alert.severity),
                   const SizedBox(width: 5),
-                  _statusPill(alert.status),
+                  statusPill(alert.status),
                   const Spacer(),
                   Text(
                     DateFormat('d MMM y').format(alert.detectedAt),
@@ -1174,14 +1179,6 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
                 fontWeight: FontWeight.w600)),
       ],
     );
-  }
-
-  Widget _statusPill(String status) {
-    return Pill(AlertStatus.label(status), color: statusColor(status));
-  }
-
-  Widget _severityPill(String severity) {
-    return Pill(Severity.label(severity), color: _severityColor(severity));
   }
 
   Widget _utilityPill(String utility, Utility type) {
@@ -1224,17 +1221,6 @@ class _ReviewManagementScreenState extends State<ReviewManagementScreen> {
     ).firstMatch(explanation);
     if (recommendationStart == null) return explanation.trim();
     return explanation.substring(0, recommendationStart.start).trim();
-  }
-
-  Color _severityColor(String severity) {
-    switch (severity) {
-      case Severity.high:
-        return AppColors.critical;
-      case Severity.medium:
-        return AppColors.warning;
-      default:
-        return AppColors.success;
-    }
   }
 
 }

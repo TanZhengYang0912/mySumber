@@ -20,8 +20,8 @@ class AppColors {
 
   static const Color waterAccent = Color(0xFF3B82F6);
   static const Color waterSurface = Color(0xFFE0EBFB);
-  static const Color electricityAccent = Color(0xFFF59E0B);
-  static const Color electricitySurface = Color(0xFFFEF3C7);
+  static const Color electricityAccent = Color(0xFF3B82F6);
+  static const Color electricitySurface = Color(0xFFE0EBFB);
 
   static const Color success = Color(0xFF16A34A);
   static const Color successSurface = Color(0xFFDCFCE7);
@@ -93,16 +93,29 @@ class Pill extends StatelessWidget {
   final Color color;
   final Color? background;
   final IconData? icon;
+
+  /// Transparent fill with a [color] border instead of a tinted background.
+  /// Severity and alert status use this so they read as tags rather than
+  /// competing blocks of colour on the same card.
+  final bool outlined;
+
   const Pill(this.text,
-      {super.key, required this.color, this.background, this.icon});
+      {super.key,
+      required this.color,
+      this.background,
+      this.icon,
+      this.outlined = false});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: background ?? color.withValues(alpha: 0.12),
+        color: outlined
+            ? Colors.transparent
+            : (background ?? color.withValues(alpha: 0.12)),
         borderRadius: BorderRadius.circular(999),
+        border: outlined ? Border.all(color: color) : null,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

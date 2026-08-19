@@ -18,7 +18,8 @@ import 'modules/auth/widgets/exit_confirmation_scope.dart';
 
 import 'modules/leakage/data/leakage_repository.dart';
 import 'modules/leakage/models/alert.dart' show Utility;
-import 'modules/leakage/screens/home_screen.dart';
+import 'modules/leakage/screens/alert_queue_screen.dart';
+import 'modules/leakage/screens/report_history_screen.dart';
 import 'modules/leakage/services/worker_utility_colors.dart';
 import 'modules/leakage/services/baseline_service.dart';
 import 'modules/leakage/services/anomaly_ai_service.dart';
@@ -229,12 +230,14 @@ class _AppShellState extends State<AppShell> {
         break;
       case 'worker':
         _screens = const [
-          HomeScreen(utility: Utility.water),
-          HomeScreen(utility: Utility.electricity),
+          AlertQueueScreen(utility: Utility.water),
+          AlertQueueScreen(utility: Utility.electricity),
+          ReportHistoryScreen(),
         ];
         _navItems = const [
           _NavItem(icon: Icons.water_drop_outlined, label: 'Water'),
           _NavItem(icon: Icons.electric_bolt_outlined, label: 'Electricity'),
+          _NavItem(icon: Icons.description_outlined, label: 'Reports'),
         ];
         break;
       default:

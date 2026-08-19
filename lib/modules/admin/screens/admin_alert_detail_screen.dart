@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../theme/tokens.dart';
+import '../../auth/state/auth_state.dart';
 import '../services/admin_tablet_layout.dart';
 import '../../leakage/models/alert.dart';
 import '../../leakage/models/report.dart';
@@ -33,7 +34,8 @@ class _AdminAlertDetailScreenState extends State<AdminAlertDetailScreen> {
         ? AlertStatus.faults
         : AlertStatus.pending;
     try {
-      await app.updateAlertStatus(alert.id!, next);
+      await app.updateAlertStatus(alert.id!, next,
+          handledBy: context.read<RoleState>().displayName);
     } catch (_) {
       if (mounted) showNetworkErrorSnackBar(context);
     } finally {
@@ -89,11 +91,9 @@ class _AdminAlertDetailScreenState extends State<AdminAlertDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(children: [
-                  Pill(Severity.label(alert.severity),
-                      color: severityColor(alert.severity)),
+                  severityPill(alert.severity),
                   const SizedBox(width: 8),
-                  Pill(AlertStatus.label(alert.status),
-                      color: statusColor(alert.status)),
+                  statusPill(alert.status),
                 ]),
                 const SizedBox(height: 8),
                 Text(alert.title,
@@ -182,10 +182,7 @@ class _AdminAlertDetailScreenState extends State<AdminAlertDetailScreen> {
                         ),
                       ),
                     ),
-                    Pill(
-                      AlertStatus.label(alert.status),
-                      color: statusColor(alert.status),
-                    ),
+                    statusPill(alert.status),
                   ],
                 ),
               ),
@@ -399,7 +396,8 @@ class _AdminAlertDetailScreenState extends State<AdminAlertDetailScreen> {
                 trailing: const Icon(Icons.chevron_right,
                     color: AppColors.textTertiary),
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => ReportViewScreen(report: report))),
+                    builder: (_) => ReportViewScreen(
+                        report: report, barColor: AppColors.adminPrimary))),
               ),
             ),
           ),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mysumber/modules/admin/widgets/admin_page_header.dart';
+import 'package:mysumber/theme/page_header.dart';
 
 void main() {
   testWidgets('keeps Admin brand, title, logout, and action aligned',
@@ -11,7 +11,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: AdminPageHeader(
+          body: PageHeader(
             title: 'Inventory',
             onLogout: () => logoutCount++,
             action: AdminHeaderAction(
@@ -44,7 +44,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: AdminPageHeader(
+          body: PageHeader(
             title: 'Abnormal Production',
             icon: Icons.analytics_outlined,
             compact: true,
@@ -69,7 +69,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: Center(
-            child: AdminPageHeader(
+            child: PageHeader(
               title: 'Worker Accounts',
               icon: Icons.manage_accounts_outlined,
               onLogout: () {},
@@ -103,7 +103,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: AdminPageHeader(
+          body: PageHeader(
             title: 'Dashboard',
             icon: Icons.grid_view_outlined,
             compact: true,
@@ -130,13 +130,13 @@ void main() {
           body: SingleChildScrollView(
             child: Column(
               children: [
-                AdminPageHeader(
+                PageHeader(
                   title: 'Abnormal Production',
                   icon: Icons.notifications_outlined,
                   compact: true,
                   onLogout: () {},
                 ),
-                AdminPageHeader(
+                PageHeader(
                   title: 'Dashboard',
                   icon: Icons.grid_view_outlined,
                   compact: true,
@@ -154,7 +154,7 @@ void main() {
       ),
     );
 
-    final headers = find.byType(AdminPageHeader);
+    final headers = find.byType(PageHeader);
     final actionlessHeight = tester.getRect(headers.at(0)).height;
     final actionHeight = tester.getRect(headers.at(1)).height;
     expect(actionlessHeight, closeTo(actionHeight, 0.1));
@@ -200,13 +200,13 @@ void main() {
           body: SingleChildScrollView(
             child: Column(
               children: [
-                AdminPageHeader(
+                PageHeader(
                   title: 'Alerts',
                   icon: Icons.notifications_outlined,
                   compact: true,
                   onLogout: () {},
                 ),
-                AdminPageHeader(
+                PageHeader(
                   title: 'Inventory',
                   icon: Icons.inventory_2_outlined,
                   compact: true,
@@ -220,7 +220,7 @@ void main() {
       ),
     );
 
-    final headers = find.byType(AdminPageHeader);
+    final headers = find.byType(PageHeader);
     expect(
       tester.getRect(headers.at(0)).height,
       closeTo(tester.getRect(headers.at(1)).height, 0.1),

@@ -1,16 +1,25 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:mysumber/modules/leakage/models/alert.dart';
+import 'package:mysumber/modules/leakage/models/report.dart';
 import 'package:mysumber/modules/leakage/screens/style.dart';
 import 'package:mysumber/modules/leakage/services/report_presets.dart';
 
-Alert _alert({required String alertType, required String signature}) => Alert(
+Alert _alert({
+  required String alertType,
+  required String signature,
+  String status = AlertStatus.pending,
+  String? handledBy,
+}) =>
+    Alert(
       alertType: alertType,
       state: 'Selangor',
       detectedAt: DateTime(2026, 8, 1),
       signature: signature,
       severity: Severity.high,
       explanation: 'Test alert',
+      status: status,
+      handledBy: handledBy,
     );
 
 void main() {
@@ -42,21 +51,6 @@ void main() {
     );
   });
 
-  test('resolved alerts label when the work was finished', () {
-    expect(
-      resolvedLabel(AlertStatus.resolved, DateTime(2026, 8, 3, 14, 20)),
-      'Resolved at 3 Aug 2026, 14:20',
-    );
-  });
-
-  test('no resolution line for unresolved alerts or missing reports', () {
-    expect(
-      resolvedLabel(AlertStatus.investigating, DateTime(2026, 8, 3, 14, 20)),
-      isNull,
-    );
-    expect(resolvedLabel(AlertStatus.resolved, null), isNull);
-  });
-
   test('appending a preset to an empty field yields just the preset', () {
     expect(appendPreset('', 'Pipe burst at main junction.'),
         'Pipe burst at main junction.');
@@ -85,5 +79,70 @@ void main() {
       findingsPresets(Utility.water),
       isNot(equals(findingsPresets(Utility.electricity))),
     );
+  });
+
+  test('handledLabel is null for a pending alert', () {
+    expect(
+      handledLabel(_alert(
+        alertType: AlertType.household,
+        signature: LeakSignature.suddenBurst,
+        status: AlertStatus.pending,
+        handledBy: 'Aisyah',
+      )),
+      isNull,
+    );
+  });
+
+  test('handledLabel is null when nobody has touched the alert', () {
+    expect(
+      handledLabel(_alert(
+        alertType: AlertType.household,
+        signature: LeakSignature.suddenBurst,
+        status: AlertStatus.investigating,
+      )),
+      isNull,
+    );
+  });
+
+  test('handledLabel names who is investigating, undated', () {
+    expect(
+      handledLabel(_alert(
+        alertType: AlertType.household,
+        signature: LeakSignature.suddenBurst,
+        status: AlertStatus.investigating,
+        handledBy: 'Aisyah',
+      )),
+      'Investigating by Aisyah',
+    );
+  });
+
+  test('handledLabel dates a resolved alert when a closing timestamp is given',
+      () {
+    expect(
+      handledLabel(
+        _alert(
+          alertType: AlertType.household,
+          signature: LeakSignature.suddenBurst,
+          status: AlertStatus.resolved,
+          handledBy: 'Aisyah',
+        ),
+        DateTime(2026, 8, 3, 14, 20),
+      ),
+      'Resolved by Aisyah · 3 Aug 2026, 14:20',
+    );
+  });
+
+  test('reportByline names the worker and the update time', () {
+    final report = Report(
+      alertId: 1,
+      workerName: 'Aisyah',
+      findings: 'Leak found',
+      actionTaken: 'Patched',
+      outcome: ReportOutcome.fixed,
+      createdAt: DateTime(2026, 8, 3, 14, 0),
+      updatedAt: DateTime(2026, 8, 3, 14, 20),
+    );
+
+    expect(reportByline(report), 'By Aisyah · 3 Aug 2026, 14:20');
   });
 }

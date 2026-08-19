@@ -8,6 +8,7 @@ import 'package:mysumber/modules/dataset/screens/dashboard_screen.dart';
 import 'package:mysumber/modules/dataset/screens/inventory_screen.dart';
 import 'package:mysumber/modules/dataset/services/inventory_filter.dart';
 import 'package:mysumber/modules/dataset/state/dataset_state.dart';
+import 'package:mysumber/theme/filter_controls.dart';
 import 'package:mysumber/theme/tokens.dart';
 
 void main() {
@@ -110,17 +111,11 @@ void main() {
     );
     await tester.pump(const Duration(seconds: 1));
 
-    final stateDropdown = tester.widget<DropdownButtonFormField<String>>(
-      find.byKey(const ValueKey('State / Federal Territory-All')),
-    );
-    final mallDropdown = tester.widget<DropdownButtonFormField<String>>(
-      find.byKey(const ValueKey('Shopping Mall-All')),
-    );
-
-    expect(stateDropdown.decoration.labelText, isNull);
-    expect(mallDropdown.decoration.labelText, isNull);
+    expect(find.byType(FilterDropdown), findsNWidgets(2));
     expect(find.text('State / Federal Territory'), findsOneWidget);
     expect(find.text('Shopping Mall'), findsOneWidget);
+    expect(find.text('All States'), findsOneWidget);
+    expect(find.text('All Shopping Malls'), findsOneWidget);
   });
 
   testWidgets('dashboard keeps full details below its landscape summary',
