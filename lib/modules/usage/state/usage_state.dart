@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -7,6 +9,7 @@ import '../data/usage_repository.dart';
 import '../models/app_notification.dart';
 import '../models/utility_entry.dart';
 import '../services/electricity_baseline_service.dart';
+import '../services/local_notification_service.dart';
 
 const _monthNames = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -39,6 +42,7 @@ class UsageState extends ChangeNotifier {
   bool _baselinesLoaded = false;
   String? _error;
   String _selectedState = _defaultState;
+  bool _pushNotificationsEnabled = true;
   final Map<UtilityType, List<UtilityEntry>> _entries = {
     UtilityType.water: [],
     UtilityType.electricity: [],
@@ -89,9 +93,25 @@ class UsageState extends ChangeNotifier {
   List<AppNotification> get notifications =>
       List.unmodifiable(_notifications.reversed);
 
+  bool get pushNotificationsEnabled => _pushNotificationsEnabled;
+
+  void setPushNotificationsEnabled(bool enabled) {
+    _pushNotificationsEnabled = enabled;
+    notifyListeners();
+  }
+
   void clearNotifications() {
     _notifications.clear();
     notifyListeners();
+  }
+
+  /// Adds an in-app notification and, if enabled, mirrors it as a real
+  /// device notification so the user sees it even while away from the app.
+  void _pushNotification(AppNotification notification) {
+    _notifications.add(notification);
+    if (_pushNotificationsEnabled) {
+      unawaited(LocalNotificationService.instance.show(notification));
+    }
   }
 
   /// Whether [selectedState] came from the user's saved service address
@@ -260,7 +280,7 @@ class UsageState extends ChangeNotifier {
       value: value,
     );
     await _reload(utility);
-    _notifications.add(AppNotification(
+    _pushNotification(AppNotification(
       icon: Icons.check_circle_outline,
       color: AppColors.success,
       bg: AppColors.successSurface,

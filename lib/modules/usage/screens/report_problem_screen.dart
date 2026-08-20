@@ -8,6 +8,7 @@ import '../../leakage/screens/network_error.dart';
 import '../../leakage/services/simulation_service.dart';
 import '../../leakage/state/app_state.dart';
 import '../state/usage_state.dart';
+import 'account_settings_screen.dart';
 import '../widgets/customer_header.dart';
 import '../widgets/edit_address_dialog.dart';
 import '../widgets/edit_profile_dialog.dart';
@@ -25,7 +26,6 @@ class ReportProblemScreen extends StatefulWidget {
 }
 
 class _ReportProblemScreenState extends State<ReportProblemScreen> {
-  bool _pushNotifications = true;
   late String _serviceAddress;
   late String _serviceState;
 
@@ -149,11 +149,11 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
             child: _profileCard(
-                displayName, email, initials, role.phoneNumber),
+                displayName, email, initials, role.phoneNumber, role),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
-            child: _detailsCard(_serviceAddress, _serviceState, role),
+            child: _detailsCard(_serviceAddress, _serviceState),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
@@ -269,6 +269,7 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
                             email,
                             initials,
                             role.phoneNumber,
+                            role,
                           ),
                           const SizedBox(height: 4),
                           _landscapeAddressCard(
@@ -284,7 +285,7 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
                       child: ListView(
                         padding: EdgeInsets.zero,
                         children: [
-                          _landscapeAccountDetails(role),
+                          _landscapeAccountDetails(),
                           const SizedBox(height: 8),
                           _menuCard(),
                           const SizedBox(height: 8),
@@ -379,20 +380,11 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
     );
   }
 
-  Widget _landscapeAccountDetails(RoleState role) {
+  Widget _landscapeAccountDetails() {
     return AppCard(
       padding: EdgeInsets.zero,
       child: Column(
         children: [
-          _detailRow(
-            icon: Icons.wc_outlined,
-            label: 'Gender',
-            value: role.gender ?? 'Not set',
-            onTap: () => _editProfile(role),
-            trailing: const Icon(Icons.edit_outlined,
-                size: 16, color: AppColors.textTertiary),
-          ),
-          const Divider(height: 1, indent: 16, endIndent: 16),
           _detailRow(
             icon: Icons.receipt_long_outlined,
             label: 'Account Number',
@@ -410,70 +402,90 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
   }
 
   Widget _profileCard(
-      String name, String email, String initials, String? phone) {
+      String name, String email, String initials, String? phone,
+      RoleState role) {
     return AppCard(
-      onTap: () => _editProfile(context.read<RoleState>()),
-      child: Row(
+      padding: EdgeInsets.zero,
+      child: Column(
         children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: AppColors.adminPrimary,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Center(
-              child: Text(
-                initials.isEmpty ? '·' : initials,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                ),
+          InkWell(
+            onTap: () => _editProfile(role),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: AppColors.adminPrimary,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Center(
+                      child: Text(
+                        initials.isEmpty ? '·' : initials,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          email.isEmpty ? '—' : email,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.edit_outlined,
+                      size: 16, color: AppColors.textTertiary),
+                ],
               ),
             ),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  email.isEmpty ? '—' : email,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  phone == null || phone.isEmpty ? 'Add phone number' : phone,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          _detailRow(
+            icon: Icons.call_outlined,
+            label: 'Phone Number',
+            value: phone == null || phone.isEmpty ? 'Add phone number' : phone,
+            onTap: () => _editProfile(role),
+            trailing: const Icon(Icons.edit_outlined,
+                size: 16, color: AppColors.textTertiary),
           ),
-          const Icon(Icons.edit_outlined,
-              size: 16, color: AppColors.textTertiary),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          _detailRow(
+            icon: Icons.wc_outlined,
+            label: 'Gender',
+            value: role.gender ?? 'Not set',
+            onTap: () => _editProfile(role),
+            trailing: const Icon(Icons.edit_outlined,
+                size: 16, color: AppColors.textTertiary),
+          ),
         ],
       ),
     );
   }
 
-  Widget _detailsCard(
-      String serviceAddress, String serviceState, RoleState role) {
+  Widget _detailsCard(String serviceAddress, String serviceState) {
     return AppCard(
       padding: EdgeInsets.zero,
       child: Column(
@@ -491,15 +503,6 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
             icon: Icons.map_outlined,
             label: 'State',
             value: serviceState,
-          ),
-          const Divider(height: 1, indent: 16, endIndent: 16),
-          _detailRow(
-            icon: Icons.wc_outlined,
-            label: 'Gender',
-            value: role.gender ?? 'Not set',
-            onTap: () => _editProfile(role),
-            trailing: const Icon(Icons.edit_outlined,
-                size: 16, color: AppColors.textTertiary),
           ),
           const Divider(height: 1, indent: 16, endIndent: 16),
           _detailRow(
@@ -560,6 +563,7 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
   }
 
   Widget _menuCard() {
+    final usage = context.watch<UsageState>();
     return AppCard(
       padding: EdgeInsets.zero,
       child: Column(
@@ -581,10 +585,11 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
                 Transform.scale(
                   scale: 0.9,
                   child: Switch(
-                    value: _pushNotifications,
+                    value: usage.pushNotificationsEnabled,
                     activeThumbColor: Colors.white,
                     activeTrackColor: AppColors.adminPrimary,
-                    onChanged: (v) => setState(() => _pushNotifications = v),
+                    onChanged: (v) =>
+                        context.read<UsageState>().setPushNotificationsEnabled(v),
                   ),
                 ),
               ],
@@ -599,15 +604,10 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
           ),
           const Divider(height: 1, indent: 16, endIndent: 16),
           _menuItem(
-            icon: Icons.help_outline,
-            label: 'Help & Support',
-            onTap: () {},
-          ),
-          const Divider(height: 1, indent: 16, endIndent: 16),
-          _menuItem(
             icon: Icons.settings_outlined,
             label: 'App Settings',
-            onTap: () {},
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const AccountSettingsScreen())),
             trailing: const Icon(Icons.chevron_right,
                 color: AppColors.textTertiary),
           ),

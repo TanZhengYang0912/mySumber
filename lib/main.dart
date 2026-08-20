@@ -43,6 +43,7 @@ import 'modules/usage/screens/profile_setup_screen.dart';
 import 'modules/usage/screens/report_problem_screen.dart';
 import 'modules/usage/data/usage_repository.dart';
 import 'modules/usage/services/customer_compact_layout.dart';
+import 'modules/usage/services/local_notification_service.dart';
 import 'modules/usage/state/usage_state.dart';
 import 'modules/usage/widgets/customer_compact_rail.dart';
 
@@ -52,6 +53,7 @@ Future<void> main() async {
     url: 'https://tnmznkdvrrpigevxdfet.supabase.co',
     publishableKey: 'sb_publishable_rPQeDFFfv1HQoYnqN2g9QQ_bLBVlaZE',
   );
+  await LocalNotificationService.instance.init();
   runApp(MySumberApp(
     database: LocalDatabase.defaults(),
     cacheStatus: CacheStatus(),

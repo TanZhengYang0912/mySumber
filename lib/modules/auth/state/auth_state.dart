@@ -88,6 +88,17 @@ class RoleState extends ChangeNotifier {
   Map<String, dynamic>? get _metadata =>
       Supabase.instance.client.auth.currentUser?.userMetadata;
 
+  /// True when Google is the only sign-in method linked to this account —
+  /// such accounts have no Supabase-managed password to reset, so the
+  /// password-change UI should be hidden rather than offered and fail.
+  bool get isGoogleOnlyAccount {
+    final providers =
+        Supabase.instance.client.auth.currentUser?.appMetadata['providers'];
+    return providers is List &&
+        providers.isNotEmpty &&
+        providers.every((p) => p == 'google');
+  }
+
   /// True once a customer has been through the enforced profile setup
   /// wizard (name, gender, phone, address all saved). Used to route both
   /// brand-new and returning-but-incomplete accounts (including Google
