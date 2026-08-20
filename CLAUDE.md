@@ -215,25 +215,6 @@ Provider notifies UI listeners
 All connected phones see the new alert within ~10s (client polls `refresh()` on a timer — there are no Supabase realtime subscriptions in this app)
 ```
 
-### Equipment Usage Auto-Classification (Admin Inventory)
-
-```
-Admin inserts or updates the latest equipment usage reading
-    ↓
-PostgreSQL calculates the baseline from the previous 7 normal readings
-    ↓
-Reading becomes Active (<1.25×), Warning (1.25×–<1.50×), or Critical (≥1.50×)
-    ↓
-equipment_usage_logs.is_anomaly and equipment_nodes.status are updated
-    ↓
-The status change does not create an alert
-```
-
-`Maintenance` is an operator-controlled status and is never overwritten by
-automatic classification. An alert exists only when an Admin explicitly
-reports or forwards an anomaly; that separate alert can then receive an AI
-summary through the `alerts_ai_analysis` trigger.
-
 ### Modules 1, 2, 4 (Local Only)
 
 No cloud dependency. All data processed locally; findings stored in Provider state.
