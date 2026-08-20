@@ -22,9 +22,9 @@ Alert _alert({
     );
 
 void main() {
-  test('an alert awaiting review must be pending_review AND have AI', () {
+  test('an alert awaiting a decision must be pending_review AND have AI', () {
     expect(
-      AppState.awaitingReview(_alert(
+      AppState.awaitingDecision(_alert(
         status: AlertStatus.pendingReview,
         aiGeneratedAt: DateTime(2026, 8, 21),
       )),
@@ -32,16 +32,16 @@ void main() {
     );
   });
 
-  test('an alert whose AI has not landed is not shown for review', () {
+  test('an alert whose AI has not landed is not shown for decision', () {
     expect(
-      AppState.awaitingReview(_alert(status: AlertStatus.pendingReview)),
+      AppState.awaitingDecision(_alert(status: AlertStatus.pendingReview)),
       isFalse,
     );
   });
 
-  test('an already-approved alert is no longer awaiting review', () {
+  test('an approved alert no longer awaits a decision', () {
     expect(
-      AppState.awaitingReview(_alert(
+      AppState.awaitingDecision(_alert(
         status: AlertStatus.pending,
         aiGeneratedAt: DateTime(2026, 8, 21),
       )),
@@ -49,14 +49,35 @@ void main() {
     );
   });
 
-  test('a rejected alert is no longer awaiting review', () {
+  test('a faulted alert no longer awaits a decision', () {
     expect(
-      AppState.awaitingReview(_alert(
+      AppState.awaitingDecision(_alert(
         status: AlertStatus.faults,
         aiGeneratedAt: DateTime(2026, 8, 21),
       )),
       isFalse,
     );
+  });
+
+  test('the review queue keeps faulted alerts on screen', () {
+    expect(
+        AppState.inReviewQueue(_alert(
+          status: AlertStatus.faults,
+          aiGeneratedAt: DateTime(2026, 8, 21),
+        )),
+        isTrue);
+    expect(
+        AppState.inReviewQueue(_alert(
+          status: AlertStatus.pendingReview,
+          aiGeneratedAt: DateTime(2026, 8, 21),
+        )),
+        isTrue);
+    expect(
+        AppState.inReviewQueue(_alert(
+          status: AlertStatus.pending,
+          aiGeneratedAt: DateTime(2026, 8, 21),
+        )),
+        isFalse);
   });
 
   test('an empty query matches every alert', () {

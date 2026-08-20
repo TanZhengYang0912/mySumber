@@ -115,8 +115,9 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(
-            approve ? 'Approved — sent to the worker queue.' : 'Rejected.'),
+        content: Text(approve
+            ? 'Approved — sent to the worker queue.'
+            : 'Faulted — kept in Anomalies for the record.'),
         backgroundColor: approve ? AppColors.adminPrimary : Colors.blueGrey,
       ));
     } catch (_) {
@@ -291,11 +292,17 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
       separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         final alert = filtered[index];
-        return AlertCard(
-          alert: alert,
-          onTap: () {
-            if (alert.id != null) onSelected(alert.id!);
-          },
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AlertCard(
+              alert: alert,
+              onTap: () {
+                if (alert.id != null) onSelected(alert.id!);
+              },
+            ),
+            _statusStrip(alert),
+          ],
         );
       },
     );
@@ -307,11 +314,17 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
           filterBar,
           const SizedBox(height: 12),
           for (final alert in filtered) ...[
-            AlertCard(
-              alert: alert,
-              onTap: () {
-                if (alert.id != null) onSelected(alert.id!);
-              },
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AlertCard(
+                  alert: alert,
+                  onTap: () {
+                    if (alert.id != null) onSelected(alert.id!);
+                  },
+                ),
+                _statusStrip(alert),
+              ],
             ),
             if (alert.id == selected?.id) ...[
               const SizedBox(height: 10),
@@ -373,31 +386,47 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
           // always has content to show — no generate button needed here.
           AiAnalysisCard(alert: alert, canGenerate: false),
           const SizedBox(height: 14),
-          Row(children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: alert.id == null
-                    ? null
-                    : () => _decide(app, alert.id!, approve: false),
-                child: const Text('Reject'),
+          if (AppState.awaitingDecision(alert))
+            Row(children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: alert.id == null
+                      ? null
+                      : () => _decide(app, alert.id!, approve: false),
+                  child: const Text('Fault'),
+                ),
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: FilledButton(
-                onPressed: alert.id == null
-                    ? null
-                    : () => _decide(app, alert.id!, approve: true),
-                style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.adminPrimary),
-                child: const Text('Approve to Worker queue'),
+              const SizedBox(width: 10),
+              Expanded(
+                child: FilledButton(
+                  onPressed: alert.id == null
+                      ? null
+                      : () => _decide(app, alert.id!, approve: true),
+                  style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.adminPrimary),
+                  child: const Text('Approve to Worker queue'),
+                ),
               ),
+            ])
+          else
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Pill(AlertStatus.label(alert.status),
+                  color: statusColor(alert.status), outlined: true),
             ),
-          ]),
         ],
       ),
     );
   }
+
+  Widget _statusStrip(Alert alert) => Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Pill(AlertStatus.label(alert.status),
+              color: statusColor(alert.status), outlined: true),
+        ),
+      );
 
   Widget _emptyCard() => const AppCard(
         child: Text(

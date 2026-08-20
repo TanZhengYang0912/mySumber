@@ -299,6 +299,32 @@ void main() {
     expect(result.severityAssessment, 'High');
   });
 
+  test('mall preview always identifies the Mall source', () async {
+    Map<String, Object?>? sentEvidence;
+    final service = AnomalyAiService.forTesting(
+      (_) async => throw UnimplementedError('generate not used here'),
+      (evidence) async {
+        sentEvidence = evidence;
+        return {
+          'analysis': {
+            'summary': 'Chiller usage needs inspection.',
+            'possible_cause': 'A load issue.',
+            'severity_assessment': 'Medium',
+            'confidence': 0.8,
+            'recommendation': 'Review the equipment list.',
+          },
+        };
+      },
+    );
+
+    await service.previewMall({'facility_name': 'Sunway Pyramid'});
+
+    expect(sentEvidence, {
+      'facility_name': 'Sunway Pyramid',
+      'source_scope': 'mall',
+    });
+  });
+
   test('preview maps edge-function failures to an anomaly AI exception',
       () async {
     final service = AnomalyAiService.forTesting(

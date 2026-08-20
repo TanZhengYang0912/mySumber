@@ -13,6 +13,8 @@ class DatasetState extends ChangeNotifier {
 
   List<EquipmentNode> nodes = [];
   List<UtilityLog> currentLogs = [];
+  Map<String, double> latestUsageByNode = {};
+  Map<String, DateTime> latestUsageAtByNode = {};
   bool isLoading = false;
   EquipmentNode? selectedNode;
   EquipmentImportCatalog importCatalog = defaultEquipmentImportCatalog();
@@ -30,6 +32,15 @@ class DatasetState extends ChangeNotifier {
       nodes = deduplicateEquivalentEquipmentNodes(
         await repository.fetchNodes(),
       );
+      try {
+        final latest = await repository.fetchLatestUsageByNode();
+        latestUsageByNode = latest.usage;
+        latestUsageAtByNode = latest.timestamps;
+      } catch (e) {
+        // Roll-up is presentation only — a failure here must not blank the
+        // equipment list itself.
+        debugPrint('Error loading latest usage: $e');
+      }
       final legacyCatalog = catalogFromNodes(nodes);
       try {
         importCatalog = mergeImportCatalogs(

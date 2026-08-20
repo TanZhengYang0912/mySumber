@@ -132,22 +132,28 @@ class DatasetRepository {
         .order('node_name');
 
     final facilities = {
-      for (final row in await client.from('facilities').select('facility_id, name, city'))
+      for (final row
+          in await client.from('facilities').select('facility_id, name, city'))
         row['facility_id'] as String: (
           name: row['name'] as String,
           city: row['city'] as String,
         ),
     };
     final manufacturers = {
-      for (final row in await client.from('manufacturers').select('manufacturer_id, name'))
+      for (final row
+          in await client.from('manufacturers').select('manufacturer_id, name'))
         row['manufacturer_id'] as String: row['name'] as String,
     };
     final models = {
-      for (final row in await client.from('equipment_models').select('model_id, model_name'))
+      for (final row in await client
+          .from('equipment_models')
+          .select('model_id, model_name'))
         row['model_id'] as String: row['model_name'] as String,
     };
     final firmwares = {
-      for (final row in await client.from('firmware_catalog').select('firmware_id, version'))
+      for (final row in await client
+          .from('firmware_catalog')
+          .select('firmware_id, version'))
         row['firmware_id'] as String: row['version'] as String,
     };
 
@@ -305,6 +311,40 @@ class DatasetRepository {
     return rows
         .map((row) => UtilityLog.fromMap(Map<String, Object?>.from(row)))
         .toList();
+  }
+
+  /// Newest reading per node, for the Mall Monitoring roll-up. PostgREST caps
+  /// an unbounded select at 1000 rows, so this uses one bounded newest-first
+  /// page and keeps the first row for every node.
+  Future<({Map<String, double> usage, Map<String, DateTime> timestamps})>
+      fetchLatestUsageByNode() async {
+    final client = _client;
+    final rows = client == null
+        ? _localLogs
+            .map((log) => {
+                  'node_id': log.nodeId,
+                  'usage_value': log.usageValue,
+                  'timestamp': log.timestamp?.toIso8601String(),
+                })
+            .toList()
+        : await client
+            .from('equipment_usage_logs')
+            .select('node_id, usage_value, timestamp')
+            .order('timestamp', ascending: false)
+            .range(0, 4999);
+
+    final usage = <String, double>{};
+    final timestamps = <String, DateTime>{};
+    for (final row in rows) {
+      final nodeId = row['node_id'] as String?;
+      final timestamp = row['timestamp'] as String?;
+      if (nodeId == null || timestamp == null || usage.containsKey(nodeId)) {
+        continue;
+      }
+      usage[nodeId] = (row['usage_value'] as num).toDouble();
+      timestamps[nodeId] = DateTime.parse(timestamp);
+    }
+    return (usage: usage, timestamps: timestamps);
   }
 
   Future<void> insertHistoricalLog(

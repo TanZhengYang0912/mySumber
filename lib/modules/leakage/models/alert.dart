@@ -31,7 +31,7 @@ class AlertStatus {
       case dismissed:
         return 'Dismissed';
       case faults:
-        return 'Rejected';
+        return 'Fault';
       default:
         return status;
     }

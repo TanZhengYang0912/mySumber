@@ -23,9 +23,9 @@ class Explainer {
         'or meter tampering. Recommend a field audit of the distribution grid.';
   }
 
-  /// Kept in step with the wording the `equipment_critical_alert` database
-  /// trigger writes, so an alert reads the same whether a Critical flag came
-  /// in through the app or straight from a `status` update in SQL.
+  /// Legacy display text for equipment needing attention. New Mall alerts are
+  /// created by the baseline usage trigger, which includes its measured
+  /// baseline and multiple in the stored explanation.
   String describeEquipmentAnomaly(EquipmentNode node) {
     final facility = node.facilityName ?? 'an unlinked facility';
     final flagged = node.status == 'Critical'

@@ -25,7 +25,8 @@ Alert _alert({
     );
 
 void main() {
-  test('household alerts show their detection signature, not the word Household',
+  test(
+      'household alerts show their detection signature, not the word Household',
       () {
     final label = alertReasonLabel(_alert(
       alertType: AlertType.household,
@@ -246,9 +247,9 @@ void main() {
     expect(AlertStatus.unresolved, isNot(contains(AlertStatus.pendingReview)));
   });
 
-  test('faults is the reject status and reads as Rejected', () {
+  test('faults is the fault status and reads as Fault', () {
     expect(AlertStatus.faults, 'faults');
-    expect(AlertStatus.label(AlertStatus.faults), 'Rejected');
+    expect(AlertStatus.label(AlertStatus.faults), 'Fault');
     expect(AlertStatus.label(AlertStatus.pendingReview), 'Pending Review');
   });
 }

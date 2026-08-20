@@ -62,7 +62,7 @@ void main() {
     expect(restored.facilityCity, 'Petaling Jaya');
   });
 
-  testWidgets('inventory can open with a selected state filter',
+  testWidgets('Mall Monitoring can open with a selected state filter',
       (tester) async {
     tester.view.physicalSize = const Size(800, 5000);
     tester.view.devicePixelRatio = 1;
@@ -80,16 +80,10 @@ void main() {
     );
     await tester.pump(const Duration(seconds: 1));
 
-    expect(find.text('State / Federal Territory'), findsOneWidget);
-    expect(find.widgetWithText(FilterDropdown, 'Shopping Mall'), findsOneWidget);
+    expect(find.text('Mall Monitoring'), findsOneWidget);
+    expect(find.widgetWithText(FilterDropdown, 'State / Federal Territory'),
+        findsOneWidget);
     expect(find.text('Aman Central'), findsNothing);
-
-    await tester.tap(find.text('Selangor').last);
-    await tester.pump(const Duration(milliseconds: 300));
-    await tester.tap(find.text('Johor').last);
-    await tester.pump();
-
-    expect(find.widgetWithText(FilterDropdown, 'Shopping Mall'), findsOneWidget);
   });
 
   testWidgets('usage comparison alone renders electricity in yellow',
@@ -140,7 +134,7 @@ void main() {
   });
 
   testWidgets(
-      'inventory keeps portrait location labels outside dropdown borders',
+      'Mall Monitoring keeps its state filter labelled outside the border',
       (tester) async {
     tester.view.physicalSize = const Size(800, 1600);
     tester.view.devicePixelRatio = 1;
@@ -158,14 +152,10 @@ void main() {
     );
     await tester.pump(const Duration(seconds: 1));
 
-    expect(find.byType(FilterDropdown), findsNWidgets(3));
+    expect(find.byType(FilterDropdown), findsOneWidget);
     expect(find.text('State / Federal Territory'), findsOneWidget);
-    expect(find.text('Shopping Mall'), findsOneWidget);
-    expect(
-        find.widgetWithText(FilterDropdown, 'State / Federal Territory'),
+    expect(find.widgetWithText(FilterDropdown, 'State / Federal Territory'),
         findsOneWidget);
-    expect(
-        find.widgetWithText(FilterDropdown, 'Shopping Mall'), findsOneWidget);
   });
 
   testWidgets('dashboard keeps full details below its landscape summary',
@@ -268,8 +258,7 @@ void main() {
     expect(result.statusCounts['Maintenance'], 6);
   });
 
-  testWidgets('inventory status filter shows counts and updates on selection',
-      (tester) async {
+  testWidgets('Mall Monitoring search narrows the mall cards', (tester) async {
     tester.view.physicalSize = const Size(800, 5000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -286,21 +275,14 @@ void main() {
     );
     await tester.pump(const Duration(seconds: 1));
 
-    final statusDropdown = find.widgetWithText(FilterDropdown, 'Status');
-    expect(statusDropdown, findsOneWidget);
+    expect(find.text('Sunway Pyramid'), findsOneWidget);
+    expect(find.text('Suria KLCC'), findsOneWidget);
 
-    await tester.tap(statusDropdown);
-    await tester.pumpAndSettle();
-    expect(find.text('Active (65)'), findsWidgets);
-    expect(find.text('Critical (7)'), findsWidgets);
-
-    await tester.tap(find.text('Critical (7)').last);
+    await tester.enterText(find.byType(TextField), 'Sunway');
     await tester.pump();
 
-    // DropdownButton keeps an off-screen copy of every item for sizing, so
-    // even the closed state shows the selected label at least once, not
-    // exactly once.
-    expect(find.text('Critical (7)'), findsWidgets);
+    expect(find.text('Sunway Pyramid'), findsOneWidget);
+    expect(find.text('Suria KLCC'), findsNothing);
   });
 
   testWidgets('inventory clear filters restores the default selections',
@@ -325,14 +307,10 @@ void main() {
     await tester.tap(find.text('Clear filters'));
     await tester.pump();
 
-    // "All (78)" now comes from the Utility "All" chip and the Status
-    // dropdown's closed value (the only two that carry counts) — State and
-    // Shopping Mall show a bare "All" since they aren't given a counts map.
-    expect(find.text('All (78)'), findsNWidgets(2));
-    expect(find.text('All'), findsNWidgets(2));
+    expect(find.text('All malls'), findsOneWidget);
   });
 
-  testWidgets('inventory uses a compact filter workspace in phone landscape',
+  testWidgets('Mall Monitoring keeps the mall list usable in phone landscape',
       (tester) async {
     tester.view.physicalSize = const Size(914, 411);
     tester.view.devicePixelRatio = 1;
@@ -362,22 +340,12 @@ void main() {
       ),
     );
 
-    expect(
-      find.byKey(const PageStorageKey('phone-landscape-inventory')),
-      findsOneWidget,
-    );
-    expect(find.byTooltip('Filter equipment'), findsOneWidget);
-    expect(find.byTooltip('Add equipment'), findsOneWidget);
-    expect(find.text('State / Federal Territory'), findsNothing);
-    expect(find.byType(FloatingActionButton), findsNothing);
-
-    await tester.tap(find.byTooltip('Filter equipment'));
-    await tester.pumpAndSettle();
+    expect(find.text('Mall Monitoring'), findsOneWidget);
     expect(find.text('State / Federal Territory'), findsOneWidget);
+    expect(find.byType(FloatingActionButton), findsNothing);
   });
 
-  testWidgets(
-      'inventory aligns equipment details into status and operation zones',
+  testWidgets('Mall Monitoring opens a detail surface for its mall card',
       (tester) async {
     tester.view.physicalSize = const Size(1024, 768);
     tester.view.devicePixelRatio = 1;
@@ -403,32 +371,11 @@ void main() {
     ));
     await tester.pump();
 
-    // "Status" also labels the filter dropdown added this round, so scope
-    // this card's own label to inside its Dismissible wrapper.
-    final cardStatusLabel = find.descendant(
-      of: find.byType(Dismissible),
-      matching: find.text('Status'),
-    );
-    expect(cardStatusLabel, findsOneWidget);
-    expect(find.text('Operation'), findsOneWidget);
-    expect(find.byTooltip('Edit equipment'), findsOneWidget);
-
-    final statusColumn = tester.widget<Column>(
-      find
-          .ancestor(
-            of: cardStatusLabel,
-            matching: find.byType(Column),
-          )
-          .first,
-    );
-    expect(statusColumn.crossAxisAlignment, CrossAxisAlignment.center);
-
-    final statusLabelY = tester.getCenter(cardStatusLabel).dy;
-    final operationLabelY = tester.getCenter(find.text('Operation')).dy;
-    final statusValueY = tester.getCenter(find.text('Active')).dy;
-    final operationY = tester.getCenter(find.byTooltip('Edit equipment')).dy;
-    expect(statusLabelY, closeTo(operationLabelY, 1));
-    expect(statusValueY, closeTo(operationY, 1));
+    expect(find.text('Suria KLCC'), findsOneWidget);
+    await tester.tap(find.text('Suria KLCC'));
+    await tester.pumpAndSettle();
+    expect(find.text('Equipment (1)'), findsOneWidget);
+    expect(find.text('Manage equipment'), findsOneWidget);
   });
 }
 

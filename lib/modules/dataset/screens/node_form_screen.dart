@@ -10,8 +10,9 @@ import '../state/dataset_state.dart';
 
 class NodeFormScreen extends StatefulWidget {
   final EquipmentNode? node;
+  final String? initialFacilityName;
 
-  const NodeFormScreen({super.key, this.node});
+  const NodeFormScreen({super.key, this.node, this.initialFacilityName});
 
   @override
   State<NodeFormScreen> createState() => _NodeFormScreenState();
@@ -94,6 +95,12 @@ class _NodeFormScreenState extends State<NodeFormScreen> {
     if (_facilityCode == null && current?.facilityName != null) {
       _facilityCode = catalog.facilities
           .where((facility) => facility.name == current!.facilityName)
+          .map((facility) => facility.code)
+          .firstOrNull;
+    }
+    if (_facilityCode == null && widget.initialFacilityName != null) {
+      _facilityCode = catalog.facilities
+          .where((facility) => facility.name == widget.initialFacilityName)
           .map((facility) => facility.code)
           .firstOrNull;
     }

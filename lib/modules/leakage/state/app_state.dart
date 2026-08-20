@@ -237,12 +237,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   // An alert only appears once its AI write-up has been saved, so the admin
   // never decides without the analysis in front of them. That makes a loading
   // state unnecessary: an alert mid-generation simply is not in the list yet.
-  static bool awaitingReview(Alert alert) =>
+  static bool awaitingDecision(Alert alert) =>
       alert.status == AlertStatus.pendingReview && alert.aiGeneratedAt != null;
+
+  static bool inReviewQueue(Alert alert) =>
+      awaitingDecision(alert) || alert.status == AlertStatus.faults;
 
   List<Alert> reviewQueue({String? sourceScope}) => _bySeverity(_alerts.where(
       (a) =>
-          awaitingReview(a) &&
+          inReviewQueue(a) &&
           (sourceScope == null || a.sourceScope == sourceScope)));
 
   Future<void> approveAlert(int alertId) async {
@@ -618,7 +621,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         return Severity.low;
     }
   }
-
 
   Future<SimulationOutcome> simulate(
       LeakScenario scenario, String state) async {

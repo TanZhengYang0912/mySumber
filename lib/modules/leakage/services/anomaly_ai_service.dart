@@ -155,6 +155,11 @@ class AnomalyAiService {
     }
   }
 
+  /// On-demand advice for Mall Monitoring. It deliberately uses the existing
+  /// preview endpoint, so this does not create or mutate an alert.
+  Future<AiAnomalyAnalysis> previewMall(Map<String, Object?> evidence) =>
+      preview({...evidence, 'source_scope': 'mall'});
+
   Future<AiAnomalyAnalysis> generateCase(AnomalyCase anomalyCase) async {
     final caseId = anomalyCase.id;
     if (caseId == null) {

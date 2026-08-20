@@ -67,9 +67,9 @@ void main() {
         statusColor(AlertStatus.notFixed));
   });
 
-  test('status colour is the requested dark grey', () {
-    expect(statusColor(AlertStatus.pending), const Color(0xFF374151));
-    expect(statusColor(AlertStatus.notFixed), const Color(0xFF374151));
+  test('status colour is the requested lighter grey', () {
+    expect(statusColor(AlertStatus.pending), const Color(0xFF6B7280));
+    expect(statusColor(AlertStatus.notFixed), const Color(0xFF6B7280));
   });
 
   testWidgets('fixed and not-fixed outcomes reuse the status pill treatment',
@@ -80,7 +80,7 @@ void main() {
       expect(decoration.color, Colors.transparent);
       expect(
         (decoration.border! as Border).top.color,
-        const Color(0xFF374151),
+        const Color(0xFF6B7280),
       );
     }
   });
