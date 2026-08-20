@@ -1,15 +1,25 @@
 class AlertStatus {
+  /// Raised but not yet decided on by an Admin. Alerts sit here while the
+  /// AI write-up is generated, and leave it only when an Admin approves them
+  /// into the worker queue ([pending]) or rejects them ([faults]).
+  static const pendingReview = 'pending_review';
   static const pending = 'pending';
   static const investigating = 'investigating';
   static const resolved = 'resolved';
   static const notFixed = 'not_fixed';
   static const dismissed = 'dismissed';
+  static const faults = 'faults';
 
+  // pendingReview is deliberately absent from both lists. Every worker-facing
+  // query filters through them, so leaving it out keeps un-approved alerts out
+  // of the worker queue without having to patch each query individually.
   static const all = [pending, investigating, resolved, notFixed, dismissed];
   static const unresolved = [pending, investigating, notFixed];
 
   static String label(String status) {
     switch (status) {
+      case pendingReview:
+        return 'Pending Review';
       case pending:
         return 'Pending';
       case investigating:
@@ -20,6 +30,8 @@ class AlertStatus {
         return 'Not Fixed';
       case dismissed:
         return 'Dismissed';
+      case faults:
+        return 'Rejected';
       default:
         return status;
     }
@@ -103,6 +115,7 @@ class Alert {
   final int? readingId;
   final String alertType;
   final String sourceScope;
+  final String? sourceKey;
   final String? utilityType;
   final String? reviewCaseId;
   final String? householdId;
@@ -141,6 +154,7 @@ class Alert {
     this.readingId,
     required this.alertType,
     String? sourceScope,
+    this.sourceKey,
     this.utilityType,
     this.reviewCaseId,
     this.householdId,
@@ -249,6 +263,7 @@ class Alert {
         'reading_id': readingId,
         'alert_type': alertType,
         'source_scope': sourceScope,
+        if (sourceKey != null) 'source_key': sourceKey,
         if (utilityType != null) 'utility_type': utilityType,
         if (reviewCaseId != null) 'review_case_id': reviewCaseId,
         'household_id': householdId,
@@ -287,6 +302,7 @@ class Alert {
         readingId: map['reading_id'] as int?,
         alertType: map['alert_type'] as String,
         sourceScope: map['source_scope'] as String?,
+        sourceKey: map['source_key'] as String?,
         utilityType: map['utility_type'] as String?,
         reviewCaseId: map['review_case_id'] as String?,
         householdId: map['household_id'] as String?,
@@ -327,6 +343,7 @@ class Alert {
     String? handledById,
     bool? isDeleted,
     String? sourceScope,
+    String? sourceKey,
     String? utilityType,
     String? reviewCaseId,
     String? equipmentNodeId,
@@ -345,6 +362,7 @@ class Alert {
         readingId: readingId,
         alertType: alertType,
         sourceScope: sourceScope ?? this.sourceScope,
+        sourceKey: sourceKey ?? this.sourceKey,
         utilityType: utilityType ?? this.utilityType,
         reviewCaseId: reviewCaseId ?? this.reviewCaseId,
         householdId: householdId,

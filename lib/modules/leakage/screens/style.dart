@@ -25,7 +25,7 @@ Color severityColor(String severity) {
 /// Alert status is deliberately monochrome. Severity already carries colour
 /// on the same card, so colouring status too made every list read as noise —
 /// the pill still labels the status, it just no longer competes for attention.
-Color statusColor(String status) => const Color(0xFF374151);
+Color statusColor(String status) => const Color(0xFF6B7280);
 
 /// What kind of anomaly this is, in worker-facing words. Household alerts show
 /// their detection signature (Sudden burst, Creeping leak, ...) because the

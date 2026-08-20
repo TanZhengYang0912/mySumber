@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../dataset/models/models.dart';
 import '../../electricity/models/electricity_models.dart';
@@ -231,31 +232,28 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }).toList();
   }
 
-  // --- Admin review queue duplicate guards ---
-  bool _isActiveCase(AnomalyCase anomalyCase) =>
-      anomalyCase.status != AnomalyCaseStatus.rejected;
+  // --- Admin review queue ---
+  //
+  // An alert only appears once its AI write-up has been saved, so the admin
+  // never decides without the analysis in front of them. That makes a loading
+  // state unnecessary: an alert mid-generation simply is not in the list yet.
+  static bool awaitingReview(Alert alert) =>
+      alert.status == AlertStatus.pendingReview && alert.aiGeneratedAt != null;
 
-  Set<String> get reportedWaterStates => _anomalyCases
-      .where((a) => a.isState && a.utility == Utility.water && _isActiveCase(a))
-      .map((a) => a.state)
-      .toSet();
-  Set<String> get reportedElectricityStates => _anomalyCases
-      .where((a) =>
-          a.isState && a.utility == Utility.electricity && _isActiveCase(a))
-      .map((a) => a.state)
-      .toSet();
-  Set<String> get reportedTamperingKeys => _anomalyCases
-      .where((a) =>
-          a.isState &&
-          a.utility == Utility.electricity &&
-          a.sourceKey.startsWith('tampering:') &&
-          _isActiveCase(a))
-      .map((a) => a.sourceKey.replaceFirst('tampering:', ''))
-      .toSet();
-  Set<String> get reportedEquipmentNodeIds => _anomalyCases
-      .where((a) => a.isMall && a.equipmentNodeId != null && _isActiveCase(a))
-      .map((a) => a.equipmentNodeId!)
-      .toSet();
+  List<Alert> reviewQueue({String? sourceScope}) => _bySeverity(_alerts.where(
+      (a) =>
+          awaitingReview(a) &&
+          (sourceScope == null || a.sourceScope == sourceScope)));
+
+  Future<void> approveAlert(int alertId) async {
+    await repository.updateAlertStatus(alertId, AlertStatus.pending);
+    await refresh();
+  }
+
+  Future<void> rejectAlert(int alertId) async {
+    await repository.updateAlertStatus(alertId, AlertStatus.faults);
+    await refresh();
+  }
 
   List<ElectricityRecord> get tamperingCandidates =>
       _electricityRecords.where((r) => r.isAnomaly).toList();
@@ -568,90 +566,38 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
-  Future<bool> reportCustomerElectricityIssue({
-    required String scenarioLabel,
-    required bool isTampering,
+  Future<void> submitHouseholdProblem({
+    required Utility utility,
     required String state,
+    required String address,
+    required String category,
+    required String description,
+    required DateTime occurredAt,
   }) async {
-    final alert = Alert(
-      alertType: isTampering
-          ? AlertType.electricityTampering
-          : AlertType.electricityHotspot,
-      state: state,
-      detectedAt: DateTime.now(),
-      signature: isTampering
-          ? LeakSignature.electricityTampering
-          : LeakSignature.electricityHotspot,
-      severity: isTampering ? Severity.high : Severity.medium,
-      explanation: isTampering
-          ? 'Consumer reported suspected meter tampering in $state. Recommend meter audit and site inspection.'
-          : 'Consumer reported: $scenarioLabel in $state. Recommend inspection of the distribution point.',
-      producedMld: 0,
-      billedMld: 0,
-      lossMld: 0,
-      lossPct: 0,
-      dataYear: DateTime.now().year,
-    );
-    await repository.insertAlert(alert);
-    await refresh();
-    return true;
-  }
-
-  // --- Water: admin reports a per-state NRW hotspot ---
-  Future<bool> reportAbnormalState(NrwResult result) async {
-    if (reportedWaterStates.contains(result.state)) return false;
-    final anomalyCase = AnomalyCase(
-      sourceScope: AlertSourceScope.state,
-      sourceKey: 'state:water:${result.state}:${result.year}',
-      utility: Utility.water,
-      state: result.state,
-      severity: result.severity,
-      explanation: explainer.describeNrw(result, nrw.nationalLossPct),
-      evidence: {
-        'produced_mld': result.producedMld,
-        'billed_mld': result.billedMld,
-        'loss_mld': result.lossMld,
-        'loss_pct': result.lossPct,
-        'data_year': result.year,
-      },
-    );
-    await repository.upsertAnomalyCase(anomalyCase);
-    await refresh();
-    return true;
-  }
-
-  // --- Mall: admin escalates a flagged piece of equipment ---
-  //
-  // The `equipment_critical_alert` database trigger raises the same alert on
-  // its own when a node's status flips to Critical, so this path is for the
-  // ones already sitting Critical/Maintenance before the trigger existed, and
-  // for Maintenance nodes (which the trigger deliberately ignores).
-  Future<bool> reportEquipmentAnomaly(EquipmentNode node) async {
-    final nodeId = node.nodeId;
-    if (nodeId == null) return false;
-    if (reportedEquipmentNodeIds.contains(nodeId)) return false;
-    final isWater = node.utilityType == 'Water';
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      throw StateError('Please sign in before submitting a report.');
+    }
+    final householdId =
+        (user.userMetadata?['household_id'] as String?)?.trim().isNotEmpty ==
+                true
+            ? (user.userMetadata?['household_id'] as String).trim()
+            : 'H-305';
     final now = DateTime.now();
-    final anomalyCase = AnomalyCase(
-      sourceScope: AlertSourceScope.mall,
-      sourceKey:
-          'mall:$nodeId:${now.year}-${now.month.toString().padLeft(2, '0')}',
-      utility: isWater ? Utility.water : Utility.electricity,
-      state: node.zoneId ?? 'Malaysia',
-      severity: equipmentSeverity(node.status),
-      explanation: explainer.describeEquipmentAnomaly(node),
-      equipmentNodeId: nodeId,
-      facilityName: node.facilityName,
-      equipmentName: node.nodeName,
-      evidence: {
-        'equipment_status': node.status,
-        'facility_city': node.facilityCity,
-        'observed_at': now.toIso8601String(),
-      },
-    );
-    await repository.upsertAnomalyCase(anomalyCase);
+    await repository.insertAlert(Alert(
+      alertType: AlertType.household,
+      state: state,
+      detectedAt: now,
+      signature: LeakSignature.continuousLeak,
+      severity: Severity.medium,
+      explanation: '$category reported at $address: $description',
+      status: AlertStatus.pendingReview,
+      householdId: householdId,
+      sourceScope: AlertSourceScope.household,
+      utilityType: utility == Utility.water ? 'water' : 'electricity',
+      sourceKey: 'household:${user.id}:${now.microsecondsSinceEpoch}',
+    ));
     await refresh();
-    return true;
   }
 
   /// Equipment needing attention, worst first — the Mall tier's source.
@@ -673,62 +619,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  // --- Electricity: admin reports a per-state loss hotspot ---
-  Future<bool> reportElectricityState(NrwResult result) async {
-    if (reportedElectricityStates.contains(result.state)) return false;
-    final anomalyCase = AnomalyCase(
-      sourceScope: AlertSourceScope.state,
-      sourceKey: 'state:electricity:${result.state}:${result.year}',
-      utility: Utility.electricity,
-      state: result.state,
-      severity: result.severity,
-      explanation: explainer.describeElectricityLoss(
-          result, electricityLoss.nationalLossPct),
-      evidence: {
-        'produced_mld': result.producedMld,
-        'billed_mld': result.billedMld,
-        'loss_mld': result.lossMld,
-        'loss_pct': result.lossPct,
-        'data_year': result.year,
-      },
-    );
-    await repository.upsertAnomalyCase(anomalyCase);
-    await refresh();
-    return true;
-  }
-
-  // --- Electricity: admin reports a national tampering spike (a month) ---
-  Future<bool> reportElectricityTampering(ElectricityRecord record) async {
-    if (reportedTamperingKeys.contains(monthKey(record.date))) return false;
-    final lossPct =
-        record.supply == 0 ? 0.0 : record.losses / record.supply * 100;
-    final anomalyCase = AnomalyCase(
-      sourceScope: AlertSourceScope.state,
-      sourceKey: 'tampering:${monthKey(record.date)}',
-      utility: Utility.electricity,
-      state: 'Malaysia',
-      severity: _tamperingSeverity(lossPct),
-      explanation:
-          explainer.describeTampering(record.date.year, lossPct, record.losses),
-      evidence: {
-        'produced_mld': record.supply,
-        'billed_mld': record.consumption,
-        'loss_mld': record.losses,
-        'loss_pct': lossPct,
-        'data_year': record.date.year,
-        'alert_type': AlertType.electricityTampering,
-      },
-    );
-    await repository.upsertAnomalyCase(anomalyCase);
-    await refresh();
-    return true;
-  }
-
-  String _tamperingSeverity(double lossPct) {
-    if (lossPct > 10) return Severity.high;
-    if (lossPct > 6) return Severity.medium;
-    return Severity.low;
-  }
 
   Future<SimulationOutcome> simulate(
       LeakScenario scenario, String state) async {
@@ -741,16 +631,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       {String? handledBy, String? handledById}) async {
     await repository.updateAlertStatus(alertId, status,
         handledBy: handledBy, handledById: handledById);
-    await refresh();
-  }
-
-  Future<void> approveAnomalyCase(String caseId) async {
-    await repository.approveAnomalyCase(caseId);
-    await refresh();
-  }
-
-  Future<void> rejectAnomalyCase(String caseId, String reason) async {
-    await repository.rejectAnomalyCase(caseId, reason);
     await refresh();
   }
 

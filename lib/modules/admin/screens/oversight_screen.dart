@@ -5,7 +5,6 @@ import '../../../theme/filter_controls.dart';
 import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
 import '../../leakage/models/alert.dart';
-import '../../leakage/models/anomaly_case.dart';
 import '../../leakage/models/report.dart';
 import '../../leakage/screens/report_view_screen.dart';
 import '../../leakage/screens/style.dart';
@@ -132,9 +131,8 @@ class _OversightScreenState extends State<OversightScreen>
     final mode = adminLayoutModeFor(MediaQuery.sizeOf(context));
     final isPhoneLandscape = mode == AdminLayoutMode.phoneLandscape;
     final isAlertsTab = _outerTab.index == 0;
-    final pendingCount = app.anomalyCases
-        .where((item) => item.status == AnomalyCaseStatus.pendingReview)
-        .length;
+    final pendingCount =
+        app.alerts.where((a) => a.status == AlertStatus.pending).length;
 
     if (isPhoneLandscape) {
       final landscapeAlerts =
@@ -210,7 +208,7 @@ class _OversightScreenState extends State<OversightScreen>
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Text('Admin Review'),
+                        const Text('Alert Queue'),
                         const SizedBox(width: 6),
                         CountBadge(pendingCount),
                       ],
@@ -237,7 +235,7 @@ class _OversightScreenState extends State<OversightScreen>
             child: TabBarView(
               controller: _outerTab,
               children: [
-                _alertQueueTab(app),
+                _workerAlertQueueTab(app),
                 _reportsTab(app),
               ],
             ),
@@ -416,142 +414,6 @@ class _OversightScreenState extends State<OversightScreen>
     );
   }
 
-  // --- Admin review tab ---
-
-  Widget _alertQueueTab(AppState app) {
-    final cases = [...app.anomalyCases]..sort((left, right) {
-        final leftPending = left.status == AnomalyCaseStatus.pendingReview;
-        final rightPending = right.status == AnomalyCaseStatus.pendingReview;
-        if (leftPending != rightPending) return leftPending ? -1 : 1;
-        return (right.createdAt ?? DateTime(0))
-            .compareTo(left.createdAt ?? DateTime(0));
-      });
-    if (cases.isEmpty) {
-      return const Center(child: Text('No anomaly cases are awaiting review.'));
-    }
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: cases.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
-      itemBuilder: (context, index) {
-        final anomalyCase = cases[index];
-        final pending = anomalyCase.status == AnomalyCaseStatus.pendingReview;
-        return AppCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(children: [
-                Expanded(
-                  child: Text(anomalyCase.title,
-                      style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.textPrimary)),
-                ),
-                Pill(anomalyCase.sourceLabel,
-                    color: AppColors.adminPrimary, outlined: true),
-                const SizedBox(width: 6),
-                utilityPill(anomalyCase.utility),
-              ]),
-              const SizedBox(height: 8),
-              Wrap(spacing: 6, runSpacing: 6, children: [
-                severityPill(anomalyCase.severity),
-                Pill(AnomalyCaseStatus.label(anomalyCase.status),
-                    color: statusColor(anomalyCase.status), outlined: true),
-              ]),
-              const SizedBox(height: 10),
-              Text(anomalyCase.explanation,
-                  style: const TextStyle(
-                      color: AppColors.textSecondary, height: 1.35)),
-              if (anomalyCase.hasAiAnalysis) ...[
-                const SizedBox(height: 10),
-                Text(anomalyCase.aiSummary!,
-                    style: const TextStyle(height: 1.35)),
-              ],
-              if (anomalyCase.rejectionReason != null) ...[
-                const SizedBox(height: 8),
-                Text('Rejected: ${anomalyCase.rejectionReason}',
-                    style: const TextStyle(color: AppColors.critical)),
-              ],
-              if (pending) ...[
-                const SizedBox(height: 14),
-                Row(children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: anomalyCase.id == null
-                          ? null
-                          : () => _rejectCase(context, app, anomalyCase),
-                      child: const Text('Reject'),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: anomalyCase.id == null
-                          ? null
-                          : () async {
-                              try {
-                                await app.approveAnomalyCase(anomalyCase.id!);
-                              } catch (_) {
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                          content: Text(
-                                              'Could not approve this case.')));
-                                }
-                              }
-                            },
-                      style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.adminPrimary),
-                      child: const Text('Approve to Worker queue'),
-                    ),
-                  ),
-                ]),
-              ],
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _rejectCase(
-      BuildContext context, AppState app, AnomalyCase anomalyCase) async {
-    final controller = TextEditingController();
-    final reason = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Reject anomaly case'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLines: 3,
-          decoration: const InputDecoration(labelText: 'Rejection reason'),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, controller.text),
-              child: const Text('Reject')),
-        ],
-      ),
-    );
-    final value = reason?.trim();
-    if (value == null || value.isEmpty || anomalyCase.id == null) return;
-    try {
-      await app.rejectAnomalyCase(anomalyCase.id!, value);
-    } catch (_) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Could not reject this case.')));
-      }
-    }
-  }
-
-  // The previous Worker-alert view remains for landscape compatibility while
-  // the phone/tablet surface uses the source-aware Admin review queue above.
   Widget _workerAlertQueueTab(AppState app) {
     const queueStatuses = [
       AlertStatus.pending,
@@ -561,7 +423,10 @@ class _OversightScreenState extends State<OversightScreen>
     ];
 
     final states = app.alerts.map((a) => a.state).toSet().toList()..sort();
-    final scoped = app.alertsFiltered(utility: _alertUtility);
+    final scoped = app
+        .alertsFiltered(utility: _alertUtility)
+        .where((a) => a.status != AlertStatus.pendingReview)
+        .toList();
 
     final query = _alertSearch.text.trim().toLowerCase();
     bool matchesQuery(Alert a) =>

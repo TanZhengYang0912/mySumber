@@ -1,34 +1,28 @@
-class AnomalyReportingStatus {
-  static const reported = 'reported';
-  static const unreported = 'unreported';
-  static const all = [reported, unreported];
+import '../../leakage/models/alert.dart';
 
-  static String label(String value) =>
-      value == reported ? 'Reported' : 'Unreported';
-}
-
-class AbnormalProductionFilter {
+/// Search + narrowing for the admin review queue. Kept free of Flutter types
+/// so the filtering rules can be tested without pumping a widget.
+class ReviewQueueFilter {
   static bool matches({
     required String query,
-    required String searchableText,
-    required String state,
-    required String severity,
-    required bool reported,
+    required Alert alert,
     String? selectedState,
     String? selectedSeverity,
-    String? selectedReportingStatus,
   }) {
-    final normalizedQuery = query.trim().toLowerCase();
-    if (normalizedQuery.isNotEmpty &&
-        !searchableText.toLowerCase().contains(normalizedQuery)) {
+    final trimmed = query.trim().toLowerCase();
+    if (trimmed.isNotEmpty) {
+      final haystack = [
+        alert.state,
+        alert.title,
+        alert.facilityName,
+        alert.equipmentName,
+      ].whereType<String>().join(' ').toLowerCase();
+      if (!haystack.contains(trimmed)) return false;
+    }
+    if (selectedState != null && alert.state != selectedState) return false;
+    if (selectedSeverity != null && alert.severity != selectedSeverity) {
       return false;
     }
-    if (selectedState != null && state != selectedState) return false;
-    if (selectedSeverity != null && severity != selectedSeverity) return false;
-    final reportingStatus = reported
-        ? AnomalyReportingStatus.reported
-        : AnomalyReportingStatus.unreported;
-    return selectedReportingStatus == null ||
-        reportingStatus == selectedReportingStatus;
+    return true;
   }
 }

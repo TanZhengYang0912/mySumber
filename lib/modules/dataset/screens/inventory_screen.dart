@@ -157,8 +157,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
                               .where((s) => s != 'All')
                               .toList(growable: false),
                           counts: filterResult.statusCounts,
-                          onChanged: (value) => setState(
-                              () => _selectedStatus = value ?? 'All'),
+                          onChanged: (value) =>
+                              setState(() => _selectedStatus = value ?? 'All'),
                         ),
                       ),
                     ],
@@ -273,7 +273,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
         key: const PageStorageKey('phone-landscape-inventory'),
         children: [
           PageHeader(
-            title: 'Inventory',
+            title: 'Mall Monitoring',
             icon: Icons.inventory_2_outlined,
             compact: true,
             onLogout: () => context.read<RoleState>().logout(),
@@ -459,7 +459,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
   Widget _header(BuildContext context) {
     return PageHeader(
-      title: 'Inventory',
+      title: 'Mall Monitoring',
       icon: Icons.inventory_2_outlined,
       onLogout: () => context.read<RoleState>().logout(),
       action: AdminHeaderAction(

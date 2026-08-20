@@ -375,7 +375,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           const Spacer(),
           const Text(
-            'Open Inventory for full equipment health.',
+            'Open Mall Monitoring for full equipment health.',
             style: TextStyle(
               color: AppColors.textTertiary,
               fontSize: 11,

@@ -239,4 +239,16 @@ void main() {
     expect(AppState.equipmentSeverity('Maintenance'), Severity.low);
     expect(AppState.equipmentSeverity('Active'), Severity.low);
   });
+
+  test('pendingReview is excluded from the worker-facing status lists', () {
+    expect(AlertStatus.pendingReview, 'pending_review');
+    expect(AlertStatus.all, isNot(contains(AlertStatus.pendingReview)));
+    expect(AlertStatus.unresolved, isNot(contains(AlertStatus.pendingReview)));
+  });
+
+  test('faults is the reject status and reads as Rejected', () {
+    expect(AlertStatus.faults, 'faults');
+    expect(AlertStatus.label(AlertStatus.faults), 'Rejected');
+    expect(AlertStatus.label(AlertStatus.pendingReview), 'Pending Review');
+  });
 }

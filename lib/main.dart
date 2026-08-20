@@ -219,7 +219,8 @@ class _AppShellState extends State<AppShell> {
         ];
         _navItems = const [
           _NavItem(icon: Icons.grid_view_outlined, label: 'Dashboard'),
-          _NavItem(icon: Icons.inventory_2_outlined, label: 'Inventory'),
+          _NavItem(
+              icon: Icons.location_city_outlined, label: 'Mall Monitoring'),
           _NavItem(icon: Icons.notifications_outlined, label: 'Anomalies'),
           _NavItem(icon: Icons.shield_outlined, label: 'Oversight'),
           _NavItem(icon: Icons.manage_accounts_outlined, label: 'Workers'),
