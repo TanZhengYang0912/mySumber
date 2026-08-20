@@ -273,9 +273,6 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
                   ? dateFormat.format(node.lastMaintenanceDate!)
                   : 'N/A',
               Icons.build),
-          const Divider(),
-          _buildSpecRow(
-              'Health Score', '${node.healthScore}%', Icons.health_and_safety),
         ],
       ),
     );

@@ -9,10 +9,45 @@ const corsHeaders = {
       'authorization, x-client-info, apikey, content-type',
 };
 
-const groqModel = 'llama-3.1-8b-instant';
+const groqModel = 'openai/gpt-oss-120b';
 
 function json(data: unknown, status = 200) {
   return Response.json(data, {status, headers: corsHeaders});
+}
+
+async function runAnalysis(evidence: Record<string, unknown>, groqApiKey: string) {
+  const groqResponse = await fetch(
+    'https://api.groq.com/openai/v1/chat/completions',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${groqApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: groqModel,
+        messages: [
+          {
+            role: 'system',
+            content: 'You analyze Malaysian water and electricity equipment anomalies. '
+                + 'Return only valid JSON with exactly these keys: summary, '
+                + 'possible_cause, severity_assessment, confidence, recommendation. '
+                + 'severity_assessment must be exactly Low, Medium, or High. '
+                + 'confidence must be a JSON number from 0 to 1. '
+                + 'Do not change system status or system severity. Do not recommend '
+                + 'a Worker visit, photo upload, or repair result.',
+          },
+          {role: 'user', content: anomalyPrompt(evidence)},
+        ],
+        response_format: {type: 'json_object'},
+        temperature: 0.3,
+        max_tokens: 512,
+      }),
+      signal: AbortSignal.timeout(30_000),
+    },
+  );
+  if (!groqResponse.ok) throw new Error('AI analysis is unavailable');
+  return parseGroqAnalysis(await groqResponse.json());
 }
 
 Deno.serve(async (request) => {
@@ -24,17 +59,19 @@ Deno.serve(async (request) => {
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   const groqApiKey = Deno.env.get('GROQ_API_KEY');
+  const triggerSecret = Deno.env.get('INTERNAL_TRIGGER_SECRET');
   if (authorization == null) return json({error: 'Authentication required'}, 401);
   if (url == null || anonKey == null || serviceRoleKey == null || groqApiKey == null) {
     return json({error: 'Server configuration error'}, 500);
   }
 
-  const callerClient = createClient(url, anonKey, {
-    global: {headers: {Authorization: authorization}},
-  });
   const adminClient = createClient(url, serviceRoleKey);
+  const isSystemCall = triggerSecret != null && authorization === `Bearer ${triggerSecret}`;
 
-  try {
+  if (!isSystemCall) {
+    const callerClient = createClient(url, anonKey, {
+      global: {headers: {Authorization: authorization}},
+    });
     const {data: callerData, error: callerError} = await callerClient.auth.getUser();
     if (callerError != null || callerData.user == null) {
       return json({error: 'Invalid session'}, 401);
@@ -53,8 +90,26 @@ Deno.serve(async (request) => {
     ) {
       return json({error: 'Admin access required'}, 403);
     }
+  }
 
-    const alertId = parseAlertId(await request.json());
+  const rawBody = await request.json();
+
+  if (rawBody != null && typeof rawBody === 'object' && 'preview' in rawBody) {
+    try {
+      const evidence = (rawBody as Record<string, unknown>).preview;
+      if (evidence == null || typeof evidence !== 'object') {
+        return json({error: 'preview must be an object'}, 400);
+      }
+      const analysis = await runAnalysis(evidence as Record<string, unknown>, groqApiKey);
+      return json({analysis: {...analysis, generated_at: new Date().toISOString()}});
+    } catch (error) {
+      console.error('generate-anomaly-analysis preview failed', error);
+      return json({error: 'Could not generate AI analysis'}, 500);
+    }
+  }
+
+  try {
+    const alertId = parseAlertId(rawBody);
     const {data: alert, error: alertError} = await adminClient
         .from('alerts')
         .select()
@@ -62,39 +117,7 @@ Deno.serve(async (request) => {
         .maybeSingle();
     if (alertError != null || alert == null) return json({error: 'Alert not found'}, 404);
 
-    const groqResponse = await fetch(
-      'https://api.groq.com/openai/v1/chat/completions',
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${groqApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: groqModel,
-          messages: [
-            {
-              role: 'system',
-              content: 'You analyze Malaysian water and electricity equipment anomalies. '
-                  + 'Return only valid JSON with exactly these keys: summary, '
-                  + 'possible_cause, severity_assessment, confidence, recommendation. '
-                  + 'severity_assessment must be exactly Low, Medium, or High. '
-                  + 'confidence must be a JSON number from 0 to 1. '
-                  + 'Do not change system status or system severity. Do not recommend '
-                  + 'a Worker visit, photo upload, or repair result.',
-            },
-            {role: 'user', content: anomalyPrompt(alert)},
-          ],
-          response_format: {type: 'json_object'},
-          temperature: 0.3,
-          max_tokens: 512,
-        }),
-        signal: AbortSignal.timeout(30_000),
-      },
-    );
-    if (!groqResponse.ok) return json({error: 'AI analysis is unavailable'}, 502);
-
-    const analysis = parseGroqAnalysis(await groqResponse.json());
+    const analysis = await runAnalysis(alert, groqApiKey);
     const generatedAt = new Date().toISOString();
     const {error: saveError} = await adminClient
         .from('alerts')

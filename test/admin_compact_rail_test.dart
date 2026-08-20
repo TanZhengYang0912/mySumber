@@ -24,16 +24,16 @@ void main() {
 
     final dashboard = tester.getRect(find.byTooltip('Dashboard'));
     final inventory = tester.getRect(find.byTooltip('Inventory'));
-    final alerts = tester.getRect(find.byTooltip('Alerts'));
+    final anomalies = tester.getRect(find.byTooltip('Anomalies'));
     final oversight = tester.getRect(find.byTooltip('Oversight'));
 
     expect(dashboard.top, lessThan(inventory.top));
-    expect(inventory.top, lessThan(alerts.top));
-    expect(alerts.top, lessThan(oversight.top));
+    expect(inventory.top, lessThan(anomalies.top));
+    expect(anomalies.top, lessThan(oversight.top));
 
     await tester.tap(find.byTooltip('Inventory'));
     expect(selectedIndex, 1);
-    await tester.tap(find.byTooltip('Alerts'));
+    await tester.tap(find.byTooltip('Anomalies'));
     expect(selectedIndex, 2);
   });
 
@@ -52,12 +52,11 @@ void main() {
     ));
 
     expect(find.byTooltip('Dashboard'), findsOneWidget);
-    expect(find.byTooltip('Alerts'), findsOneWidget);
+    expect(find.byTooltip('Anomalies'), findsOneWidget);
     expect(find.byTooltip('Inventory'), findsOneWidget);
     expect(find.byTooltip('Oversight'), findsOneWidget);
     expect(find.byTooltip('More'), findsOneWidget);
     expect(find.byTooltip('Logout'), findsNothing);
-    expect(find.byTooltip('AI Review'), findsNothing);
     expect(find.byTooltip('Workers'), findsNothing);
 
     await tester.tap(find.byTooltip('Inventory'));
@@ -66,17 +65,10 @@ void main() {
 
     await tester.tap(find.byTooltip('More'));
     await tester.pumpAndSettle();
-    expect(find.text('AI Review'), findsOneWidget);
     expect(find.text('Workers'), findsOneWidget);
     expect(find.text('Logout'), findsOneWidget);
 
     await tester.tap(find.text('Workers'));
-    await tester.pumpAndSettle();
-    expect(selectedIndex, 5);
-
-    await tester.tap(find.byTooltip('More'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('AI Review'));
     await tester.pumpAndSettle();
     expect(selectedIndex, 4);
 
@@ -114,14 +106,14 @@ void main() {
 
     const cameraCutout = Rect.fromLTWH(0, 173, 56, 56);
     final dashboard = tester.getRect(find.byTooltip('Dashboard'));
-    final alerts = tester.getRect(find.byTooltip('Alerts'));
+    final anomalies = tester.getRect(find.byTooltip('Anomalies'));
     final inventory = tester.getRect(find.byTooltip('Inventory'));
     final oversight = tester.getRect(find.byTooltip('Oversight'));
     final more = tester.getRect(find.byTooltip('More'));
 
     // The camera occupies the middle of the rail. Destinations should be
     // evenly distributed in the available segments above and below it,
-    // with Inventory above the camera and Alerts below it.
+    // with Inventory above the camera and Anomalies below it.
     expect(
       inventory.bottom,
       lessThanOrEqualTo(cameraCutout.top),
@@ -132,7 +124,7 @@ void main() {
     );
     expect(
       inventory.top - dashboard.bottom,
-      closeTo(alerts.top - inventory.bottom, 1),
+      closeTo(anomalies.top - inventory.bottom, 1),
     );
     expect(
       more.top - oversight.bottom,

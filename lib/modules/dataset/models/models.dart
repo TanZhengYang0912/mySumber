@@ -19,7 +19,6 @@ class EquipmentNode {
   final DateTime? installationDate;
   final DateTime? lastMaintenanceDate;
   final DateTime? nextMaintenanceDate;
-  final int healthScore;
   final String? firmwareId;
   final String? firmwareVersion;
   final String ipAssignment;
@@ -46,7 +45,6 @@ class EquipmentNode {
     this.installationDate,
     this.lastMaintenanceDate,
     this.nextMaintenanceDate,
-    this.healthScore = 100,
     this.firmwareId,
     this.firmwareVersion,
     this.ipAssignment = 'Not Assigned',
@@ -77,7 +75,6 @@ class EquipmentNode {
           'last_maintenance_date': lastMaintenanceDate!.toIso8601String(),
         if (nextMaintenanceDate != null)
           'next_maintenance_date': nextMaintenanceDate!.toIso8601String(),
-        'health_score': healthScore,
         if (firmwareId != null) 'firmware_id': firmwareId,
         if (firmwareVersion != null) 'firmware_version': firmwareVersion,
         'ip_assignment': ipAssignment,
@@ -113,7 +110,6 @@ class EquipmentNode {
         nextMaintenanceDate: map['next_maintenance_date'] != null
             ? DateTime.parse(map['next_maintenance_date'] as String)
             : null,
-        healthScore: map['health_score'] as int? ?? 100,
         firmwareId: map['firmware_id'] as String?,
         firmwareVersion: map['firmware_version'] as String?,
         ipAssignment: map['ip_assignment'] as String? ?? 'Not Assigned',
@@ -141,7 +137,6 @@ class EquipmentNode {
     DateTime? installationDate,
     DateTime? lastMaintenanceDate,
     DateTime? nextMaintenanceDate,
-    int? healthScore,
     String? firmwareId,
     String? firmwareVersion,
     String? ipAssignment,
@@ -168,7 +163,6 @@ class EquipmentNode {
       installationDate: installationDate ?? this.installationDate,
       lastMaintenanceDate: lastMaintenanceDate ?? this.lastMaintenanceDate,
       nextMaintenanceDate: nextMaintenanceDate ?? this.nextMaintenanceDate,
-      healthScore: healthScore ?? this.healthScore,
       firmwareId: firmwareId ?? this.firmwareId,
       firmwareVersion: firmwareVersion ?? this.firmwareVersion,
       ipAssignment: ipAssignment ?? this.ipAssignment,

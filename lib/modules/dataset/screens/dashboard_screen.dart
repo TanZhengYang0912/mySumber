@@ -5,8 +5,10 @@ import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
 import '../../admin/services/admin_tablet_layout.dart';
 import '../../../theme/page_header.dart';
-import '../state/dataset_state.dart';
+import '../../leakage/screens/style.dart';
+import '../../leakage/state/app_state.dart';
 import '../models/models.dart';
+import '../state/dataset_state.dart';
 
 class DashboardScreen extends StatefulWidget {
   final ValueChanged<String>? onStateTap;
@@ -51,10 +53,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final critical = nodes.where((n) => n.status == 'Critical').length;
     final warning = total - active - critical;
 
-    final sortedByHealth = [...nodes]
-      ..sort((a, b) => a.healthScore.compareTo(b.healthScore));
-    final healthPreview = sortedByHealth.take(3).toList();
-    final priority = healthPreview.isEmpty ? null : healthPreview.first;
+    final needsAttention = nodes.where(AppState.needsAttention).toList()
+      ..sort((a, b) => a.status == b.status
+          ? 0
+          : a.status == 'Critical'
+              ? -1
+              : b.status == 'Critical'
+                  ? 1
+                  : 0);
+    final priorityResults = needsAttention.take(3).toList();
+    final priority = priorityResults.isEmpty ? null : priorityResults.first;
     final mode = adminLayoutModeFor(MediaQuery.sizeOf(context));
     _syncDashboardScrollMode(mode);
 
@@ -70,7 +78,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   warning: warning,
                   critical: critical,
                   priority: priority,
-                  healthPreview: healthPreview,
+                  priorityResults: priorityResults,
                 )
               : ListView(
                   controller: _standardDashboardController,
@@ -89,7 +97,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                      child: _equipmentHealthCard(healthPreview),
+                      child: _equipmentAnomalyCard(priorityResults),
                     ),
                   ],
                 ),
@@ -103,7 +111,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required int warning,
     required int critical,
     required EquipmentNode? priority,
-    required List<EquipmentNode> healthPreview,
+    required List<EquipmentNode> priorityResults,
   }) {
     return ListView(
       controller: _landscapeDashboardController,
@@ -162,7 +170,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           padding: const EdgeInsets.symmetric(
             horizontal: adminLandscapeHorizontalInset,
           ),
-          child: _equipmentHealthCard(healthPreview),
+          child: _equipmentAnomalyCard(priorityResults),
         ),
       ],
     );
@@ -292,22 +300,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return const AppCard(
         child: Center(
           child: Text(
-            'No equipment available.',
+            'No equipment flagged for attention.',
             style: TextStyle(color: AppColors.textSecondary),
           ),
         ),
       );
     }
 
-    final location = [priority.facilityName, priority.zoneId]
+    final node = priority;
+    final location = [node.facilityName, node.zoneId]
         .whereType<String>()
         .where((value) => value.isNotEmpty)
         .join(' · ');
-    final scoreColor = priority.healthScore < 70
-        ? AppColors.critical
-        : priority.healthScore < 85
-            ? AppColors.warning
-            : AppColors.success;
+    final scoreColor = severityColor(AppState.equipmentSeverity(node.status));
 
     return AppCard(
       key: const ValueKey('priority-equipment'),
@@ -332,7 +337,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  priority.nodeName,
+                  node.nodeName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -343,10 +348,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
               Text(
-                '${priority.healthScore}%',
+                node.status,
                 style: TextStyle(
                   color: scoreColor,
-                  fontSize: 20,
+                  fontSize: 14,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -354,9 +359,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            location.isEmpty
-                ? priority.status
-                : '$location · ${priority.status}',
+            location.isEmpty ? 'Location not linked' : location,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
@@ -873,16 +876,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _equipmentHealthCard(List<EquipmentNode> equipment) {
-    if (equipment.isEmpty) {
+  Widget _equipmentAnomalyCard(List<EquipmentNode> results) {
+    if (results.isEmpty) {
       return AppCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: const [
-            SectionLabel('EQUIPMENT HEALTH'),
+            SectionLabel('ANOMALY WATCH'),
             SizedBox(height: 12),
             Text(
-              'No equipment deployed yet.',
+              'No equipment flagged for attention.',
               style: TextStyle(color: AppColors.textSecondary),
             ),
           ],
@@ -893,13 +896,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SectionLabel('EQUIPMENT HEALTH'),
+          const SectionLabel('ANOMALY WATCH'),
           const SizedBox(height: 8),
-          for (int i = 0; i < equipment.length; i++) ...[
+          for (int i = 0; i < results.length; i++) ...[
             if (i > 0) const Divider(height: 1),
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
-              child: _healthRow(equipment[i]),
+              child: _anomalyWatchRow(results[i]),
             ),
           ],
         ],
@@ -907,8 +910,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _healthRow(EquipmentNode node) {
-    final color = _healthColor(node.healthScore);
+  Widget _anomalyWatchRow(EquipmentNode node) {
+    final color = severityColor(AppState.equipmentSeverity(node.status));
     return Row(
       children: [
         Container(
@@ -930,7 +933,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         const SizedBox(width: 8),
         Text(
-          '${node.healthScore}%',
+          node.status,
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w800,
@@ -939,12 +942,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       ],
     );
-  }
-
-  Color _healthColor(int score) {
-    if (score >= 80) return AppColors.success;
-    if (score >= 50) return AppColors.warning;
-    return AppColors.critical;
   }
 
   static String _shortNum(double v) {

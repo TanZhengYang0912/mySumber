@@ -1,5 +1,8 @@
-import 'package:flutter/foundation.dart';
+import 'dart:async';
 
+import 'package:flutter/widgets.dart';
+
+import '../../dataset/models/models.dart';
 import '../../electricity/models/electricity_models.dart';
 import '../../electricity/services/electricity_data_service.dart';
 import '../data/leakage_repository.dart';
@@ -23,7 +26,7 @@ class AnomalyAiGenerationResult {
   });
 }
 
-class AppState extends ChangeNotifier {
+class AppState extends ChangeNotifier with WidgetsBindingObserver {
   final BaselineService baseline;
   final NrwService nrw;
   final ElectricityLossService electricityLoss;
@@ -39,6 +42,7 @@ class AppState extends ChangeNotifier {
   List<ElectricityRecord> _electricityRecords = [];
   bool _loading = true;
   final Set<int> _generatingAnomalyIds = {};
+  Timer? _pollTimer;
 
   AppState({
     required this.baseline,
@@ -190,13 +194,29 @@ class AppState extends ChangeNotifier {
   }
 
   // --- "Already reported" sets for the admin Abnormal Production screen ---
-  Set<String> get reportedWaterStates =>
-      _alerts.where((a) => a.isNrw).map((a) => a.state).toSet();
-  Set<String> get reportedElectricityStates =>
-      _alerts.where((a) => a.isElectricityHotspot).map((a) => a.state).toSet();
+  // Resolved/dismissed alerts don't block re-reporting — only an alert still
+  // open (pending/investigating/not_fixed/faults) means the state already
+  // has an active report in flight. Re-reporting after a fix inserts a new
+  // alert row (see reportAbnormalState/reportElectricityState below), so
+  // history from the earlier, now-resolved report is preserved separately.
+  bool _isActiveReport(Alert a) =>
+      a.status != AlertStatus.resolved && a.status != AlertStatus.dismissed;
+
+  Set<String> get reportedWaterStates => _alerts
+      .where((a) => a.isNrw && _isActiveReport(a))
+      .map((a) => a.state)
+      .toSet();
+  Set<String> get reportedElectricityStates => _alerts
+      .where((a) => a.isElectricityHotspot && _isActiveReport(a))
+      .map((a) => a.state)
+      .toSet();
   Set<String> get reportedTamperingKeys => _alerts
       .where((a) => a.isElectricityTampering)
       .map((a) => monthKey(a.detectedAt))
+      .toSet();
+  Set<String> get reportedEquipmentNodeIds => _alerts
+      .where((a) => a.equipmentNodeId != null && _isActiveReport(a))
+      .map((a) => a.equipmentNodeId!)
       .toSet();
 
   List<ElectricityRecord> get tamperingCandidates =>
@@ -234,6 +254,29 @@ class AppState extends ChangeNotifier {
     await _seedDemoDataIfNeeded();
     _loading = false;
     notifyListeners();
+    _startPolling();
+  }
+
+  void _startPolling() {
+    WidgetsBinding.instance.addObserver(this);
+    _pollTimer ??= Timer.periodic(const Duration(seconds: 3), (_) => refresh());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _pollTimer ??= Timer.periodic(const Duration(seconds: 3), (_) => refresh());
+    } else {
+      _pollTimer?.cancel();
+      _pollTimer = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   Future<void> _seedDemoDataIfNeeded() async {
@@ -533,6 +576,55 @@ class AppState extends ChangeNotifier {
     await repository.insertAlert(alert);
     await refresh();
     return true;
+  }
+
+  // --- Mall: admin escalates a flagged piece of equipment ---
+  //
+  // The `equipment_critical_alert` database trigger raises the same alert on
+  // its own when a node's status flips to Critical, so this path is for the
+  // ones already sitting Critical/Maintenance before the trigger existed, and
+  // for Maintenance nodes (which the trigger deliberately ignores).
+  Future<bool> reportEquipmentAnomaly(EquipmentNode node) async {
+    final nodeId = node.nodeId;
+    if (nodeId == null) return false;
+    if (reportedEquipmentNodeIds.contains(nodeId)) return false;
+    final isWater = node.utilityType == 'Water';
+    final alert = Alert(
+      alertType: isWater ? AlertType.nrwHotspot : AlertType.electricityHotspot,
+      state: node.zoneId ?? 'Malaysia',
+      detectedAt: DateTime.now(),
+      signature:
+          isWater ? LeakSignature.nrwHotspot : LeakSignature.electricityHotspot,
+      severity: equipmentSeverity(node.status),
+      explanation: explainer.describeEquipmentAnomaly(node),
+      equipmentNodeId: nodeId,
+      facilityName: node.facilityName,
+      facilityCity: node.facilityCity,
+      equipmentName: node.nodeName,
+      dataYear: DateTime.now().year,
+    );
+    await repository.insertAlert(alert);
+    await refresh();
+    return true;
+  }
+
+  /// Equipment needing attention, worst first — the Mall tier's source.
+  /// 'Critical' is a technician's own flag on the equipment record, so this
+  /// list always agrees with what Inventory shows for the same node.
+  static const _attentionStatuses = ['Critical', 'Warning', 'Maintenance'];
+
+  static bool needsAttention(EquipmentNode node) =>
+      _attentionStatuses.contains(node.status);
+
+  static String equipmentSeverity(String status) {
+    switch (status) {
+      case 'Critical':
+        return Severity.high;
+      case 'Warning':
+        return Severity.medium;
+      default:
+        return Severity.low;
+    }
   }
 
   // --- Electricity: admin reports a per-state loss hotspot ---

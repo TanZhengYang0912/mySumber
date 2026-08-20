@@ -81,7 +81,7 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
 
     expect(find.text('State / Federal Territory'), findsOneWidget);
-    expect(find.text('All Shopping Malls'), findsOneWidget);
+    expect(find.widgetWithText(FilterDropdown, 'Shopping Mall'), findsOneWidget);
     expect(find.text('Aman Central'), findsNothing);
 
     await tester.tap(find.text('Selangor').last);
@@ -89,7 +89,7 @@ void main() {
     await tester.tap(find.text('Johor').last);
     await tester.pump();
 
-    expect(find.text('All Shopping Malls'), findsOneWidget);
+    expect(find.widgetWithText(FilterDropdown, 'Shopping Mall'), findsOneWidget);
   });
 
   testWidgets(
@@ -111,11 +111,14 @@ void main() {
     );
     await tester.pump(const Duration(seconds: 1));
 
-    expect(find.byType(FilterDropdown), findsNWidgets(2));
+    expect(find.byType(FilterDropdown), findsNWidgets(3));
     expect(find.text('State / Federal Territory'), findsOneWidget);
     expect(find.text('Shopping Mall'), findsOneWidget);
-    expect(find.text('All States'), findsOneWidget);
-    expect(find.text('All Shopping Malls'), findsOneWidget);
+    expect(
+        find.widgetWithText(FilterDropdown, 'State / Federal Territory'),
+        findsOneWidget);
+    expect(
+        find.widgetWithText(FilterDropdown, 'Shopping Mall'), findsOneWidget);
   });
 
   testWidgets('dashboard keeps full details below its landscape summary',
@@ -126,18 +129,17 @@ void main() {
     final datasetState = _StaticDatasetState()
       ..nodes = const [
         EquipmentNode(
+          nodeId: 'valve-1',
           nodeName: 'Cooling Tower Valve',
           utilityType: 'Water',
           zoneId: 'Selangor',
           status: 'Critical',
-          healthScore: 58,
         ),
         EquipmentNode(
           nodeName: 'Main Water Pump A1',
           utilityType: 'Water',
           zoneId: 'Selangor',
           status: 'Active',
-          healthScore: 92,
         ),
       ];
 
@@ -219,7 +221,8 @@ void main() {
     expect(result.statusCounts['Maintenance'], 6);
   });
 
-  testWidgets('inventory exposes single-select status chips', (tester) async {
+  testWidgets('inventory status filter shows counts and updates on selection',
+      (tester) async {
     tester.view.physicalSize = const Size(800, 5000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -236,12 +239,21 @@ void main() {
     );
     await tester.pump(const Duration(seconds: 1));
 
-    expect(find.text('Active (65)'), findsOneWidget);
-    expect(find.text('Critical (7)'), findsOneWidget);
+    final statusDropdown = find.widgetWithText(FilterDropdown, 'Status');
+    expect(statusDropdown, findsOneWidget);
 
-    await tester.tap(find.text('Critical (7)'));
+    await tester.tap(statusDropdown);
+    await tester.pumpAndSettle();
+    expect(find.text('Active (65)'), findsWidgets);
+    expect(find.text('Critical (7)'), findsWidgets);
+
+    await tester.tap(find.text('Critical (7)').last);
     await tester.pump();
-    expect(find.text('Critical (7)'), findsOneWidget);
+
+    // DropdownButton keeps an off-screen copy of every item for sizing, so
+    // even the closed state shows the selected label at least once, not
+    // exactly once.
+    expect(find.text('Critical (7)'), findsWidgets);
   });
 
   testWidgets('inventory clear filters restores the default selections',
@@ -266,9 +278,11 @@ void main() {
     await tester.tap(find.text('Clear filters'));
     await tester.pump();
 
-    expect(find.text('All States'), findsOneWidget);
-    expect(find.text('All Shopping Malls'), findsOneWidget);
+    // "All (78)" now comes from the Utility "All" chip and the Status
+    // dropdown's closed value (the only two that carry counts) — State and
+    // Shopping Mall show a bare "All" since they aren't given a counts map.
     expect(find.text('All (78)'), findsNWidgets(2));
+    expect(find.text('All'), findsNWidgets(2));
   });
 
   testWidgets('inventory uses a compact filter workspace in phone landscape',
@@ -315,7 +329,8 @@ void main() {
     expect(find.text('State / Federal Territory'), findsOneWidget);
   });
 
-  testWidgets('inventory aligns equipment details into four wide-card zones',
+  testWidgets(
+      'inventory aligns equipment details into status and operation zones',
       (tester) async {
     tester.view.physicalSize = const Size(1024, 768);
     tester.view.devicePixelRatio = 1;
@@ -330,7 +345,6 @@ void main() {
           facilityCity: 'Kuala Lumpur',
           manufacturer: 'Grundfos',
           status: 'Active',
-          healthScore: 96,
         ),
       ];
 
@@ -342,40 +356,31 @@ void main() {
     ));
     await tester.pump();
 
-    expect(find.text('Status'), findsOneWidget);
-    expect(find.text('Health'), findsOneWidget);
+    // "Status" also labels the filter dropdown added this round, so scope
+    // this card's own label to inside its Dismissible wrapper.
+    final cardStatusLabel = find.descendant(
+      of: find.byType(Dismissible),
+      matching: find.text('Status'),
+    );
+    expect(cardStatusLabel, findsOneWidget);
     expect(find.text('Operation'), findsOneWidget);
-    expect(find.text('96%'), findsOneWidget);
     expect(find.byTooltip('Edit equipment'), findsOneWidget);
 
     final statusColumn = tester.widget<Column>(
       find
           .ancestor(
-            of: find.text('Status'),
-            matching: find.byType(Column),
-          )
-          .first,
-    );
-    final healthColumn = tester.widget<Column>(
-      find
-          .ancestor(
-            of: find.text('Health'),
+            of: cardStatusLabel,
             matching: find.byType(Column),
           )
           .first,
     );
     expect(statusColumn.crossAxisAlignment, CrossAxisAlignment.center);
-    expect(healthColumn.crossAxisAlignment, CrossAxisAlignment.center);
 
-    final statusLabelY = tester.getCenter(find.text('Status')).dy;
-    final healthLabelY = tester.getCenter(find.text('Health')).dy;
+    final statusLabelY = tester.getCenter(cardStatusLabel).dy;
     final operationLabelY = tester.getCenter(find.text('Operation')).dy;
     final statusValueY = tester.getCenter(find.text('Active')).dy;
-    final healthValueY = tester.getCenter(find.text('96%')).dy;
     final operationY = tester.getCenter(find.byTooltip('Edit equipment')).dy;
-    expect(statusLabelY, closeTo(healthLabelY, 1));
     expect(statusLabelY, closeTo(operationLabelY, 1));
-    expect(statusValueY, closeTo(healthValueY, 1));
     expect(statusValueY, closeTo(operationY, 1));
   });
 }

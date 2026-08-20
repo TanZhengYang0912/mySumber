@@ -58,3 +58,5 @@ AGENTS.md
 lib/config.dart
 .worktrees/
 mysumber_flowchart.drawio
+
+.figma_ref

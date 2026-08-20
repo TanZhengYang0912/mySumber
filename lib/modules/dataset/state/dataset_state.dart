@@ -104,7 +104,6 @@ class DatasetState extends ChangeNotifier {
             row.lastMaintenanceDate ?? existing?.lastMaintenanceDate,
         nextMaintenanceDate:
             row.nextMaintenanceDate ?? existing?.nextMaintenanceDate,
-        healthScore: existing?.healthScore ?? 100,
         firmwareId: row.firmwareId ?? existing?.firmwareId,
         firmwareVersion: row.firmwareVersion,
         ipAssignment: ipAssignment,

@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
 import '../../../theme/tokens.dart';
+import '../models/ai_anomaly_analysis.dart';
 import '../models/alert.dart';
 import '../models/report.dart';
+import '../services/anomaly_ai_service.dart';
+import '../state/app_state.dart';
 
 Color severityColor(String severity) {
   switch (severity) {
     case Severity.high:
-      return Colors.red.shade600;
+      return AppColors.critical;
     case Severity.medium:
-      return Colors.orange.shade700;
+      return AppColors.warning;
     case Severity.low:
-      return Colors.teal.shade600;
+      return AppColors.success;
     default:
       return Colors.blueGrey;
   }
@@ -384,4 +388,164 @@ Widget pill(String text, Color color) {
       style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12),
     ),
   );
+}
+
+/// The AI write-up for one alert, plus a Generate/Regenerate button when
+/// [canGenerate] is true (Admin only). Relocated from the deleted AI Review
+/// page's `anomaly_review_detail_screen.dart` so Admin's Oversight detail
+/// screen can show the same AI content Worker's alert detail already shows,
+/// instead of nothing.
+class AiAnalysisCard extends StatefulWidget {
+  final Alert alert;
+  final bool canGenerate;
+  const AiAnalysisCard({super.key, required this.alert, this.canGenerate = true});
+
+  @override
+  State<AiAnalysisCard> createState() => _AiAnalysisCardState();
+}
+
+class _AiAnalysisCardState extends State<AiAnalysisCard> {
+  AiAnomalyAnalysis? _sessionAnalysis;
+  String? _errorMessage;
+  bool _generating = false;
+  bool? _sessionAnalysisPersisted;
+
+  @override
+  void didUpdateWidget(covariant AiAnalysisCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.alert.id != widget.alert.id) {
+      _sessionAnalysis = null;
+      _errorMessage = null;
+      _generating = false;
+      _sessionAnalysisPersisted = null;
+    }
+  }
+
+  AiAnomalyAnalysis? _savedAnalysis(Alert alert) {
+    if (!alert.hasAiAnalysis) return null;
+    return AiAnomalyAnalysis(
+      summary: alert.aiSummary!,
+      possibleCause: alert.aiPossibleCause!,
+      severityAssessment: alert.aiSeverityAssessment!,
+      confidence: alert.aiConfidence!,
+      recommendation: alert.aiRecommendation!,
+      generatedAt: alert.aiGeneratedAt!,
+    );
+  }
+
+  Future<void> _generate(BuildContext context) async {
+    setState(() {
+      _errorMessage = null;
+      _generating = true;
+      _sessionAnalysisPersisted = null;
+    });
+    try {
+      final result =
+          await context.read<AppState>().generateAnomalyAnalysis(widget.alert);
+      if (!mounted) return;
+      setState(() {
+        _sessionAnalysis = result.analysis;
+        _sessionAnalysisPersisted = result.persisted;
+        _generating = false;
+      });
+    } on AnomalyAiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = error.message;
+        _generating = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'AI analysis is unavailable. Please try again.';
+        _generating = false;
+      });
+    }
+  }
+
+  Widget _analysisValue(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
+        const SizedBox(height: 4),
+        Text(value, style: const TextStyle(height: 1.45)),
+      ],
+    );
+  }
+
+  Widget _generateAction(BuildContext context) {
+    final app = context.watch<AppState>();
+    final savedAnalysis = _savedAnalysis(widget.alert);
+    final analysis = savedAnalysis ?? _sessionAnalysis;
+    final isRunning = _generating ||
+        (widget.alert.id != null && app.isGeneratingAnomalyAnalysis(widget.alert.id!));
+    final hasError = _errorMessage != null;
+
+    return FilledButton.icon(
+      onPressed: isRunning ? null : () => _generate(context),
+      icon: Icon(isRunning ? Icons.hourglass_top : Icons.auto_awesome),
+      label: Text(
+        isRunning
+            ? 'Generating...'
+            : hasError
+                ? 'Retry AI Analysis'
+                : analysis == null
+                    ? 'Generate AI Analysis'
+                    : 'Regenerate AI Analysis',
+      ),
+      style: FilledButton.styleFrom(
+        backgroundColor: AppColors.adminPrimary,
+        minimumSize: const Size.fromHeight(48),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final savedAnalysis = _savedAnalysis(widget.alert);
+    final persistenceFailed = _sessionAnalysisPersisted == false && _sessionAnalysis != null;
+    final analysis = persistenceFailed ? _sessionAnalysis : savedAnalysis ?? _sessionAnalysis;
+    final hasError = _errorMessage != null;
+
+    return AppCard(
+      background: AppColors.adminSurface,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SectionLabel('AI ANALYSIS', color: AppColors.adminPrimary),
+          const SizedBox(height: 10),
+          if (analysis == null) ...[
+            const Text('AI analysis has not been generated for this anomaly.',
+                style: TextStyle(height: 1.45)),
+            const SizedBox(height: 12),
+          ] else ...[
+            _analysisValue('Summary', analysis.summary),
+            const SizedBox(height: 12),
+            _analysisValue('Possible Cause', analysis.possibleCause),
+            const SizedBox(height: 12),
+            _analysisValue('AI Severity Assessment',
+                '${analysis.severityAssessment} · ${(analysis.confidence * 100).round()}% confidence'),
+            const SizedBox(height: 12),
+            _analysisValue('System Recommendation', analysis.recommendation),
+            const SizedBox(height: 12),
+            Text('Generated ${DateFormat('d MMM y, h:mm a').format(analysis.generatedAt)}',
+                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+            if (persistenceFailed) ...[
+              const SizedBox(height: 10),
+              const Text(
+                  'This result was generated but could not be saved. Retry to persist it.',
+                  style: TextStyle(color: Colors.deepOrange, height: 1.35)),
+            ],
+            const SizedBox(height: 14),
+          ],
+          if (hasError) ...[
+            Text(_errorMessage!, style: const TextStyle(color: Colors.deepOrange, height: 1.35)),
+            const SizedBox(height: 12),
+          ],
+          if (widget.canGenerate) _generateAction(context),
+        ],
+      ),
+    );
+  }
 }

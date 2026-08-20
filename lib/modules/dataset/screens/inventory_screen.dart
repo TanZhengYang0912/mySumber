@@ -9,7 +9,6 @@ import '../../auth/state/auth_state.dart';
 import '../../admin/services/admin_tablet_layout.dart';
 import '../../../theme/page_header.dart';
 import '../../../theme/filter_controls.dart';
-import '../../../theme/segmented_chips.dart';
 import '../../leakage/models/alert.dart';
 import '../../admin/widgets/landscape_filter_menu.dart';
 import '../state/dataset_state.dart';
@@ -107,19 +106,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                   child: FilterSearchField(
                     controller: _searchController,
-                    hint: 'Search equipment…',
+                    hint: 'Type anything to search',
                     onChanged: (v) => setState(() => _searchQuery = v),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: UtilityChips(
-                    selected: _utilityFilter,
-                    onChanged: _setUtilityFilter,
-                    allCount: locationCount,
-                    waterCount: filterResult.utilityCounts['Water'] ?? 0,
-                    electricityCount:
-                        filterResult.utilityCounts['Electricity'] ?? 0,
                   ),
                 ),
                 Padding(
@@ -131,7 +119,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           caption: 'State / Federal Territory',
                           value:
                               _selectedState == 'All' ? null : _selectedState,
-                          allLabel: 'All States',
+                          allLabel: 'All',
                           options: stateOptions
                               .where((s) => s != 'All')
                               .toList(growable: false),
@@ -143,14 +131,14 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           },
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: FilterDropdown(
                           caption: 'Shopping Mall',
                           value: _selectedFacility == 'All'
                               ? null
                               : _selectedFacility,
-                          allLabel: 'All Shopping Malls',
+                          allLabel: 'All',
                           options: facilityOptions
                               .where((f) => f != 'All')
                               .toList(growable: false),
@@ -158,12 +146,34 @@ class _InventoryScreenState extends State<InventoryScreen> {
                               () => _selectedFacility = value ?? 'All'),
                         ),
                       ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: FilterDropdown(
+                          caption: 'Status',
+                          value:
+                              _selectedStatus == 'All' ? null : _selectedStatus,
+                          allLabel: 'All',
+                          options: inventoryStatusFilters
+                              .where((s) => s != 'All')
+                              .toList(growable: false),
+                          counts: filterResult.statusCounts,
+                          onChanged: (value) => setState(
+                              () => _selectedStatus = value ?? 'All'),
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                  child: _statusFilterChips(filterResult.statusCounts),
+                  child: UtilityChips(
+                    selected: _utilityFilter,
+                    onChanged: _setUtilityFilter,
+                    allCount: locationCount,
+                    waterCount: filterResult.utilityCounts['Water'] ?? 0,
+                    electricityCount:
+                        filterResult.utilityCounts['Electricity'] ?? 0,
+                  ),
                 ),
                 Align(
                   alignment: Alignment.centerRight,
@@ -324,7 +334,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
               children: [
                 FilterSearchField(
                   controller: _searchController,
-                  hint: 'Search equipment…',
+                  hint: 'Type anything to search',
                   onChanged: (v) => setState(() => _searchQuery = v),
                 ),
                 const SizedBox(height: 12),
@@ -404,7 +414,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
         FilterDropdown(
           caption: 'State / Federal Territory',
           value: _selectedState == 'All' ? null : _selectedState,
-          allLabel: 'All States',
+          allLabel: 'All',
           options:
               stateOptions.where((s) => s != 'All').toList(growable: false),
           onChanged: (value) => setState(() {
@@ -416,7 +426,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
         FilterDropdown(
           caption: 'Shopping Mall',
           value: _selectedFacility == 'All' ? null : _selectedFacility,
-          allLabel: 'All Shopping Malls',
+          allLabel: 'All',
           options:
               facilityOptions.where((f) => f != 'All').toList(growable: false),
           onChanged: (value) =>
@@ -574,22 +584,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
       states.insert(0, _selectedState);
     }
     return ['All', ...states];
-  }
-
-  Widget _statusFilterChips(Map<String, int> counts) {
-    final total = counts.values.fold<int>(0, (sum, count) => sum + count);
-    return SegmentedChipRow(
-      spacing: 8,
-      children: inventoryStatusFilters
-          .map((status) => SegmentedChip(
-                label: status,
-                count: status == 'All' ? total : counts[status] ?? 0,
-                selected: _selectedStatus == status,
-                onTap: () => setState(() => _selectedStatus = status),
-                color: AppColors.adminPrimary,
-              ))
-          .toList(growable: false),
-    );
   }
 
   void _clearFilters() {
@@ -754,11 +748,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
         ),
         _cardDivider(),
         SizedBox(
-          width: 128,
-          child: _healthMetric(node.healthScore, statusColor),
-        ),
-        _cardDivider(),
-        SizedBox(
           width: 64,
           child: _operationMetric(onEdit),
         ),
@@ -788,29 +777,14 @@ class _InventoryScreenState extends State<InventoryScreen> {
             children: [
               _equipmentDetails(node),
               const SizedBox(height: 8),
-              Row(
-                children: [
-                  Text(
-                    node.status,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: statusColor,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    '${node.healthScore}%',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: statusColor,
-                    ),
-                  ),
-                ],
+              Text(
+                node.status,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: statusColor,
+                ),
               ),
-              const SizedBox(height: 4),
-              _healthBar(node.healthScore, statusColor),
             ],
           ),
         ),
@@ -929,25 +903,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
     );
   }
 
-  Widget _healthMetric(int score, Color color) {
-    return _metricColumn(
-      label: 'Health',
-      value: Text(
-        '$score%',
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w800,
-          color: color,
-        ),
-      ),
-      footer: SizedBox(
-        width: double.infinity,
-        child: _healthBar(score, color),
-      ),
-    );
-  }
-
   Widget _operationMetric(VoidCallback onEdit) {
     return _metricColumn(
       label: 'Operation',
@@ -990,18 +945,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
         const SizedBox(height: 4),
         SizedBox(height: 6, child: footer ?? const SizedBox.shrink()),
       ],
-    );
-  }
-
-  Widget _healthBar(int score, Color color) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(4),
-      child: LinearProgressIndicator(
-        value: (score / 100).clamp(0.0, 1.0),
-        minHeight: 6,
-        backgroundColor: color.withValues(alpha: 0.15),
-        valueColor: AlwaysStoppedAnimation<Color>(color),
-      ),
     );
   }
 

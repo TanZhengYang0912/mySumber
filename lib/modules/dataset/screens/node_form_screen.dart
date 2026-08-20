@@ -180,7 +180,6 @@ class _NodeFormScreenState extends State<NodeFormScreen> {
       installationDate: _installationDate,
       lastMaintenanceDate: _lastMaintenanceDate,
       nextMaintenanceDate: _nextMaintenanceDate,
-      healthScore: widget.node?.healthScore ?? 100,
     );
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _isSaving = true);

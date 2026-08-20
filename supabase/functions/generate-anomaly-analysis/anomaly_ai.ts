@@ -66,6 +66,14 @@ export function parseGroqAnalysis(value: unknown): AnomalyAnalysis {
   };
 }
 
+const WATER_ALERT_TYPES = new Set(['nrw_hotspot', 'household']);
+
+function utilityLabel(alertType: unknown): string {
+  return typeof alertType === 'string' && WATER_ALERT_TYPES.has(alertType)
+      ? 'Water'
+      : 'Electricity';
+}
+
 export function anomalyPrompt(alert: Record<string, unknown>): string {
   const location = [
     alert.state,
@@ -77,7 +85,7 @@ export function anomalyPrompt(alert: Record<string, unknown>): string {
       .join(' → ');
 
   return [
-    `Utility: ${alert.utility_type === 'water' ? 'Water' : 'Electricity'}`,
+    `Utility: ${utilityLabel(alert.alert_type)}`,
     `Location: ${location || 'Not linked'}`,
     `Alert type: ${alert.alert_type ?? 'Unknown'}`,
     `Alert signature: ${alert.signature ?? 'Unknown'}`,

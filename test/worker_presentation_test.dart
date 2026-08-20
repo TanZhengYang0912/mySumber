@@ -1,9 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:mysumber/modules/dataset/models/models.dart';
 import 'package:mysumber/modules/leakage/models/alert.dart';
 import 'package:mysumber/modules/leakage/models/report.dart';
 import 'package:mysumber/modules/leakage/screens/style.dart';
 import 'package:mysumber/modules/leakage/services/report_presets.dart';
+import 'package:mysumber/modules/leakage/state/app_state.dart';
 
 Alert _alert({
   required String alertType,
@@ -195,5 +197,46 @@ void main() {
       handledBy: 'X',
     ).copyWith(handledById: 'owner-id');
     expect(alertLockedForUser(alert, 'viewer-id'), isFalse);
+  });
+
+  test('a resolved alert no longer counts as "already reported"', () {
+    bool isActiveReport(Alert alert) =>
+        alert.status != AlertStatus.resolved &&
+        alert.status != AlertStatus.dismissed;
+
+    final resolved = _alert(
+      alertType: AlertType.nrwHotspot,
+      signature: LeakSignature.nrwHotspot,
+      status: AlertStatus.resolved,
+    );
+    final pending = _alert(
+      alertType: AlertType.nrwHotspot,
+      signature: LeakSignature.nrwHotspot,
+      status: AlertStatus.pending,
+    );
+
+    expect(isActiveReport(resolved), isFalse);
+    expect(isActiveReport(pending), isTrue);
+  });
+
+  EquipmentNode node(String status) => EquipmentNode(
+        nodeName: 'Test Pump',
+        utilityType: 'Water',
+        status: status,
+        ipAssignment: 'DHCP',
+      );
+
+  test('needsAttention flags Critical, Warning, and Maintenance', () {
+    expect(AppState.needsAttention(node('Critical')), isTrue);
+    expect(AppState.needsAttention(node('Warning')), isTrue);
+    expect(AppState.needsAttention(node('Maintenance')), isTrue);
+    expect(AppState.needsAttention(node('Active')), isFalse);
+  });
+
+  test('equipmentSeverity maps status to alert severity', () {
+    expect(AppState.equipmentSeverity('Critical'), Severity.high);
+    expect(AppState.equipmentSeverity('Warning'), Severity.medium);
+    expect(AppState.equipmentSeverity('Maintenance'), Severity.low);
+    expect(AppState.equipmentSeverity('Active'), Severity.low);
   });
 }

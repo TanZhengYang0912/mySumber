@@ -11,6 +11,17 @@
 
 ---
 
+## Working With Claude Code
+
+**Never edit code on the first ask.** For any change request (bug fix, UI tweak, refactor):
+1. **Discuss** — talk through the problem/approach in chat. Do not write a plan yet.
+2. **Plan** — only after the user approves the discussion, write the implementation plan.
+3. **Edit** — only after the user approves the plan, make the code changes.
+
+Do not skip straight to editing files just because the intent seems clear — confirm at each step first.
+
+---
+
 ## Architecture Overview
 
 ### Frontend
@@ -31,7 +42,7 @@
   - `water_production.csv`
   - `electricity_consumption.csv`
   - `electricity_supply.csv`
-- **Cloud:** Supabase real-time sync (Module 3)
+- **Cloud:** Supabase, polled every 10s (Module 3)
 
 ---
 
@@ -40,7 +51,6 @@
 ```
 lib/
 ├── main.dart                          SHARED (entry point, MySumberApp, role-based AppShell, providers)
-├── config.example.dart                Template for Groq API key (copy → config.dart, gitignored)
 ├── theme/
 │   └── tokens.dart                    Shared AppColors + role/utility color helpers (Figma design tokens)
 └── modules/
@@ -54,10 +64,9 @@ lib/
     │
     ├── admin/                         Admin-only screens (new role surface)
     │   └── screens/
-    │       ├── abnormal_production_screen.dart
-    │       ├── admin_alert_detail_screen.dart
-    │       ├── oversight_screen.dart
-    │       └── review_management_screen.dart
+    │       ├── abnormal_production_screen.dart   Renders as "Anomalies" — State | Mall tabs, water/electricity chips
+    │       ├── admin_alert_detail_screen.dart    Includes AiAnalysisCard (shared with Worker's detail screen)
+    │       └── oversight_screen.dart
     │
     ├── dataset/                       Module 1: Equipment Management (admin)
     │   ├── data/                      CSV parsing & dataset repository
@@ -99,12 +108,14 @@ assets/
 | Module | Owner | Purpose | Storage | Status |
 |--------|-------|---------|---------|--------|
 | 0. Auth | Assigned | Landing + role-based login (Admin/Worker/Customer) | Supabase auth | ✅ Complete |
-| Admin | Chun Jie Tan | Oversight, abnormal production, AI anomaly review | Local CSV + Supabase | ✅ Active |
+| Admin | Chun Jie Tan | Oversight, Anomalies (State + Mall detection) | Local CSV + Supabase | ✅ Active |
 | 1. Equipment | Chun Jie Tan | Dataset management & state variance | Local CSV | ✅ Active |
 | 2. Comparison | Unassigned | Household vs. state usage, reports, notifications | Local CSV | ✅ Active (built out) |
 | 3. Leakage | Worker X | Water anomaly detection + electricity loss | Supabase + CSV | ✅ Active |
 
 > Module 4 (Electricity) no longer exists as a standalone module — its logic was merged into Admin (`abnormal_production_screen.dart`, `oversight_screen.dart`) and Leakage (`electricity_loss_service.dart`).
+>
+> There is no standalone "AI Review" page — it was removed. AI now appears in two places: an ephemeral preview (nothing persisted) while Admin is deciding whether to forward a State/Mall anomaly in the Anomalies screen, and a persisted `AiAnalysisCard` on the actual alert once it exists — shown on both Worker's and Admin's alert detail screens, auto-populated a few seconds after creation by a database trigger (see "AI Summaries (Groq)" below).
 
 ---
 
@@ -120,11 +131,11 @@ supabase_flutter: ^2.9.0  # Cloud backend
 intl: ^0.20.2             # Date/number formatting
 uuid: ^4.5.3              # Unique IDs
 lucide_icons: ^0.257.0    # Icon set (Figma parity)
-http: ^1.2.0              # Groq API calls (AI summaries)
+http: ^1.2.0              # Address lookup (customer usage module)
 ```
 
 ### AI Summaries (Groq)
-`modules/leakage/state/app_state.dart` calls the Groq API for AI-generated alert summaries. The key is read from `lib/config.dart` (gitignored) — copy `lib/config.example.dart` → `lib/config.dart` and paste a free key from console.groq.com. Never commit `config.dart`.
+`supabase/functions/generate-anomaly-analysis` calls the Groq API server-side. The key is stored as a Supabase function secret (`GROQ_API_KEY`), never in the app. A Postgres trigger fires the function automatically when a new alert is inserted; the app also has a manual "Generate AI Analysis" button as a fallback. The app picks up the result by polling every 10 seconds — this is polling, not Supabase realtime (the project has no realtime subscriptions configured).
 
 ### Development
 ```yaml
@@ -201,7 +212,7 @@ Explainer generates human-readable explanation
     ↓
 Provider notifies UI listeners
     ↓
-All connected phones see new alert in real-time (Supabase subscriptions)
+All connected phones see the new alert within ~10s (client polls `refresh()` on a timer — there are no Supabase realtime subscriptions in this app)
 ```
 
 ### Modules 1, 2, 4 (Local Only)
@@ -242,7 +253,7 @@ This means the Supabase project must actually contain accounts for `admin@mysumb
 3. Accessible only from the Customer login screen ("Sign Up" link) — admin/worker screens have no registration option
 
 **Role access after login (`AppShell` in `main.dart`):**
-- **Admin:** Dashboard, Inventory, Abnormal Production (alerts), Oversight, Review Management
+- **Admin:** Dashboard, Inventory, Anomalies (State + Mall detection), Oversight, Workers
 - **Worker:** Home Screen (Water), Home Screen (Electricity) — both backed by `modules/leakage`
 - **Customer (`user`):** Customer Home, Compare Usage, Report Problem
 

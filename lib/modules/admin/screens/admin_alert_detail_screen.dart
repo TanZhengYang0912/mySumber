@@ -132,6 +132,8 @@ class _AdminAlertDetailScreenState extends State<AdminAlertDetailScreen> {
               ],
             ),
           ),
+          const SizedBox(height: 10),
+          AiAnalysisCard(alert: alert),
           if (reports.isNotEmpty) ...[
             const SizedBox(height: 16),
             const SectionLabel('INVESTIGATION REPORTS'),

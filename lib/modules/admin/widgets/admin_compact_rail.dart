@@ -94,7 +94,7 @@ class AdminCompactRail extends StatelessWidget {
       ),
       _RailDestination(
         icon: Icons.notifications_outlined,
-        tooltip: 'Alerts',
+        tooltip: 'Anomalies',
         selected: currentIndex == 2,
         onTap: () => onDestinationSelected(2),
       ),
@@ -284,7 +284,7 @@ class AdminCompactRail extends StatelessWidget {
   }
 }
 
-enum _AdminMoreAction { aiReview, workers, logout }
+enum _AdminMoreAction { workers, logout }
 
 class _MoreRailDestination extends StatelessWidget {
   const _MoreRailDestination({
@@ -299,7 +299,7 @@ class _MoreRailDestination extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final selected = currentIndex == 4 || currentIndex == 5;
+    final selected = currentIndex == 4;
     final color = selected ? AppColors.adminPrimary : AppColors.textTertiary;
     return PopupMenuButton<_AdminMoreAction>(
       tooltip: 'More',
@@ -308,19 +308,13 @@ class _MoreRailDestination extends StatelessWidget {
       padding: EdgeInsets.zero,
       onSelected: (action) {
         switch (action) {
-          case _AdminMoreAction.aiReview:
-            onDestinationSelected(4);
           case _AdminMoreAction.workers:
-            onDestinationSelected(5);
+            onDestinationSelected(4);
           case _AdminMoreAction.logout:
             onLogout();
         }
       },
       itemBuilder: (context) => [
-        PopupMenuItem(
-          value: _AdminMoreAction.aiReview,
-          child: _menuItem(Icons.auto_awesome_outlined, 'AI Review'),
-        ),
         PopupMenuItem(
           value: _AdminMoreAction.workers,
           child: _menuItem(Icons.manage_accounts_outlined, 'Workers'),

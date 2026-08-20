@@ -1,3 +1,4 @@
+import '../../dataset/models/models.dart';
 import '../models/alert.dart';
 import '../models/reading.dart';
 import 'detection_engine.dart';
@@ -20,6 +21,19 @@ class Explainer {
         '${r.year}, above the national average of $national%. A gap this large '
         'between supply and metered consumption points to distribution losses '
         'or meter tampering. Recommend a field audit of the distribution grid.';
+  }
+
+  /// Kept in step with the wording the `equipment_critical_alert` database
+  /// trigger writes, so an alert reads the same whether a Critical flag came
+  /// in through the app or straight from a `status` update in SQL.
+  String describeEquipmentAnomaly(EquipmentNode node) {
+    final facility = node.facilityName ?? 'an unlinked facility';
+    final flagged = node.status == 'Critical'
+        ? 'flagged Critical during maintenance inspection'
+        : 'placed under maintenance';
+    return '${node.nodeName} at $facility was $flagged. Equipment in this '
+        'state risks unmetered loss until serviced. Recommend an on-site '
+        'inspection of the unit.';
   }
 
   String describeTampering(int year, double lossPct, double lossKwh) {

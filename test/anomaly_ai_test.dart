@@ -237,6 +237,71 @@ void main() {
       ),
     );
   });
+
+  test('preview sends the raw evidence and returns a validated analysis',
+      () async {
+    Map<String, Object?>? sentEvidence;
+    final service = AnomalyAiService.forTesting(
+      (_) async => throw UnimplementedError('generate not used here'),
+      (evidence) async {
+        sentEvidence = evidence;
+        return {
+          'analysis': {
+            'summary': 'Perlis loss is above the national average.',
+            'possible_cause': 'Distribution-network leakage.',
+            'severity_assessment': 'High',
+            'confidence': 0.86,
+            'recommendation': 'Field inspection of the district network.',
+          },
+        };
+      },
+    );
+
+    final result = await service.preview({'state': 'Perlis', 'loss_pct': 59.7});
+
+    expect(sentEvidence, {'state': 'Perlis', 'loss_pct': 59.7});
+    expect(result.summary, 'Perlis loss is above the national average.');
+    expect(result.severityAssessment, 'High');
+  });
+
+  test('preview maps edge-function failures to an anomaly AI exception',
+      () async {
+    final service = AnomalyAiService.forTesting(
+      (_) async => throw UnimplementedError('generate not used here'),
+      (_) async => throw StateError('Function unavailable'),
+    );
+
+    expect(
+      () => service.preview({'state': 'Perlis'}),
+      throwsA(
+        isA<AnomalyAiException>().having(
+          (error) => error.failure,
+          'failure',
+          AnomalyAiFailure.apiError,
+        ),
+      ),
+    );
+  });
+
+  test('preview rejects an incomplete edge-function response', () async {
+    final service = AnomalyAiService.forTesting(
+      (_) async => throw UnimplementedError('generate not used here'),
+      (_) async => {
+        'analysis': {'summary': 'Incomplete'}
+      },
+    );
+
+    expect(
+      () => service.preview({'state': 'Perlis'}),
+      throwsA(
+        isA<AnomalyAiException>().having(
+          (error) => error.failure,
+          'failure',
+          AnomalyAiFailure.invalidResponse,
+        ),
+      ),
+    );
+  });
 }
 
 Alert _testAlert() => Alert(

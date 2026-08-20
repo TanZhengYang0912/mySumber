@@ -23,29 +23,56 @@ typedef AnomalyAnalysisInvoker = Future<Map<String, dynamic>> Function(
   int alertId,
 );
 
+typedef AnomalyPreviewInvoker = Future<Map<String, dynamic>> Function(
+  Map<String, Object?> evidence,
+);
+
 class AnomalyAiService {
-  const AnomalyAiService._(this._invoke);
+  const AnomalyAiService._(this._invoke, this._invokePreview);
 
   factory AnomalyAiService({SupabaseClient? client}) {
     final functions = (client ?? Supabase.instance.client).functions;
-    return AnomalyAiService._((alertId) async {
-      final response = await functions.invoke(
-        'generate-anomaly-analysis',
-        body: {'alert_id': alertId},
-      );
-      if (response.status < 200 || response.status >= 300) {
-        throw StateError('AI analysis request failed.');
-      }
-      final data = response.data;
-      if (data is! Map) throw StateError('AI analysis response is invalid.');
-      return Map<String, dynamic>.from(data);
-    });
+    return AnomalyAiService._(
+      (alertId) async {
+        final response = await functions.invoke(
+          'generate-anomaly-analysis',
+          body: {'alert_id': alertId},
+        );
+        if (response.status < 200 || response.status >= 300) {
+          throw StateError('AI analysis request failed.');
+        }
+        final data = response.data;
+        if (data is! Map) throw StateError('AI analysis response is invalid.');
+        return Map<String, dynamic>.from(data);
+      },
+      (evidence) async {
+        final response = await functions.invoke(
+          'generate-anomaly-analysis',
+          body: {'preview': evidence},
+        );
+        if (response.status < 200 || response.status >= 300) {
+          throw StateError('AI preview request failed.');
+        }
+        final data = response.data;
+        if (data is! Map) throw StateError('AI preview response is invalid.');
+        return Map<String, dynamic>.from(data);
+      },
+    );
   }
 
-  const AnomalyAiService.forTesting(AnomalyAnalysisInvoker invoke)
-      : _invoke = invoke;
+  const AnomalyAiService.forTesting(
+    AnomalyAnalysisInvoker invoke, [
+    AnomalyPreviewInvoker? invokePreview,
+  ])  : _invoke = invoke,
+        _invokePreview = invokePreview ?? _unsupportedPreview;
+
+  static Future<Map<String, dynamic>> _unsupportedPreview(
+          Map<String, Object?> evidence) =>
+      throw UnimplementedError(
+          'Preview not configured for this test double.');
 
   final AnomalyAnalysisInvoker _invoke;
+  final AnomalyPreviewInvoker _invokePreview;
 
   Future<AiAnomalyAnalysis> generate(Alert alert) async {
     final alertId = alert.id;
@@ -75,6 +102,30 @@ class AnomalyAiService {
       throw const AnomalyAiException(
         AnomalyAiFailure.apiError,
         'AI analysis is unavailable. Please try again.',
+      );
+    }
+  }
+
+  Future<AiAnomalyAnalysis> preview(Map<String, Object?> evidence) async {
+    try {
+      final response = await _invokePreview(evidence);
+      final rawAnalysis = response['analysis'];
+      if (rawAnalysis is! Map) {
+        throw const FormatException('Missing analysis payload.');
+      }
+      return AiAnomalyAnalysis.fromJson(
+        Map<String, dynamic>.from(rawAnalysis),
+      );
+    } on AiAnomalyFormatException catch (error) {
+      throw AnomalyAiException(AnomalyAiFailure.invalidResponse, error.message);
+    } on FormatException catch (error) {
+      throw AnomalyAiException(AnomalyAiFailure.invalidResponse, error.message);
+    } on AnomalyAiException {
+      rethrow;
+    } catch (_) {
+      throw const AnomalyAiException(
+        AnomalyAiFailure.apiError,
+        'AI preview is unavailable. Please try again.',
       );
     }
   }

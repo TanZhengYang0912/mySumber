@@ -242,7 +242,7 @@ class AlertFilterBar extends StatelessWidget {
               child: FilterDropdown(
                 caption: 'State',
                 value: selectedState,
-                allLabel: 'All States',
+                allLabel: 'All',
                 options: states,
                 counts: stateCounts,
                 onChanged: onStateChanged,
@@ -253,7 +253,7 @@ class AlertFilterBar extends StatelessWidget {
               child: FilterDropdown(
                 caption: 'Severity',
                 value: selectedSeverity,
-                allLabel: 'All Severity',
+                allLabel: 'All',
                 options: const [Severity.high, Severity.medium, Severity.low],
                 labelFor: Severity.label,
                 counts: severityCounts,
@@ -266,7 +266,7 @@ class AlertFilterBar extends StatelessWidget {
                 child: FilterDropdown(
                   caption: 'Status',
                   value: selectedStatus,
-                  allLabel: 'All Status',
+                  allLabel: 'All',
                   options: statusOptions!,
                   labelFor: AlertStatus.label,
                   counts: statusCounts,
@@ -332,7 +332,7 @@ class ReportFilterBar extends StatelessWidget {
               child: FilterDropdown(
                 caption: 'State',
                 value: selectedState,
-                allLabel: 'All States',
+                allLabel: 'All',
                 options: states,
                 counts: stateCounts,
                 onChanged: onStateChanged,
@@ -343,7 +343,7 @@ class ReportFilterBar extends StatelessWidget {
               child: FilterDropdown(
                 caption: 'Outcome',
                 value: selectedOutcome,
-                allLabel: 'All Outcomes',
+                allLabel: 'All',
                 options: const [ReportOutcome.fixed, ReportOutcome.notFixed],
                 labelFor: ReportOutcome.label,
                 counts: outcomeCounts,

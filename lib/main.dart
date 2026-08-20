@@ -6,7 +6,6 @@ import 'theme/tokens.dart';
 
 import 'modules/admin/screens/abnormal_production_screen.dart';
 import 'modules/admin/screens/oversight_screen.dart';
-import 'modules/admin/screens/review_management_screen.dart';
 import 'modules/admin/screens/worker_accounts_screen.dart';
 import 'modules/admin/services/admin_tablet_layout.dart';
 import 'modules/admin/widgets/admin_compact_rail.dart';
@@ -216,15 +215,13 @@ class _AppShellState extends State<AppShell> {
           InventoryScreen(),
           const AbnormalProductionScreen(),
           const OversightScreen(),
-          const ReviewManagementScreen(),
           const WorkerAccountsScreen(),
         ];
         _navItems = const [
           _NavItem(icon: Icons.grid_view_outlined, label: 'Dashboard'),
           _NavItem(icon: Icons.inventory_2_outlined, label: 'Inventory'),
-          _NavItem(icon: Icons.notifications_outlined, label: 'Alerts'),
+          _NavItem(icon: Icons.notifications_outlined, label: 'Anomalies'),
           _NavItem(icon: Icons.shield_outlined, label: 'Oversight'),
-          _NavItem(icon: Icons.analytics_outlined, label: 'AI Review'),
           _NavItem(icon: Icons.manage_accounts_outlined, label: 'Workers'),
         ];
         break;
