@@ -2,11 +2,9 @@ import 'package:flutter/material.dart';
 
 import 'tokens.dart';
 
-/// One option in an equal-width segmented control (status filters, utility
+/// One option in a scrollable segmented control (status filters, utility
 /// toggles). Selected renders as a filled pill in [color]; unselected is an
-/// outlined pill. Label, optional count, and optional icon scale down
-/// together via [FittedBox] so a long label never truncates mid-word — it
-/// shrinks as one unit instead.
+/// outlined pill.
 class SegmentedChip extends StatelessWidget {
   final String label;
   final bool selected;
@@ -41,47 +39,77 @@ class SegmentedChip extends StatelessWidget {
           border: Border.all(color: selected ? color : AppColors.divider),
         ),
         alignment: Alignment.center,
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (icon != null) ...[
-                Icon(icon, size: 14, color: foreground),
-                const SizedBox(width: 4),
-              ],
-              Text(
-                text,
-                maxLines: 1,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: foreground,
-                ),
-              ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 14, color: foreground),
+              const SizedBox(width: 4),
             ],
-          ),
+            Text(
+              text,
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: foreground,
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// Lays out [children] — typically [SegmentedChip]s — at equal width,
-/// filling the row edge-to-edge instead of leaving trailing space.
+/// Lays out [children] — typically [SegmentedChip]s — at their natural
+/// width in a horizontally scrolling row, so long labels never truncate or
+/// squeeze.
 class SegmentedChipRow extends StatelessWidget {
   final List<Widget> children;
   final double spacing;
 
-  const SegmentedChipRow({super.key, required this.children, this.spacing = 6});
+  /// Centres the chips when they are narrower than the viewport. They still
+  /// scroll when they overflow it.
+  final bool centered;
+
+  const SegmentedChipRow({
+    super.key,
+    required this.children,
+    this.spacing = 6,
+    this.centered = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     final spaced = <Widget>[];
     for (var i = 0; i < children.length; i++) {
       if (i > 0) spaced.add(SizedBox(width: spacing));
-      spaced.add(Expanded(child: children[i]));
+      spaced.add(children[i]);
     }
-    return Row(children: spaced);
+    final row = Row(
+      mainAxisAlignment:
+          centered ? MainAxisAlignment.center : MainAxisAlignment.start,
+      children: spaced,
+    );
+
+    if (!centered) {
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: row,
+      );
+    }
+
+    // Forcing the row to at least viewport width is what lets
+    // MainAxisAlignment.center take effect inside a shrink-wrapping scroll view.
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minWidth: constraints.maxWidth),
+          child: row,
+        ),
+      ),
+    );
   }
 }

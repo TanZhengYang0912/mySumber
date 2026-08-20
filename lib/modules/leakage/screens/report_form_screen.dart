@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../theme/tokens.dart';
+import '../../auth/state/auth_state.dart';
 import '../models/alert.dart';
 import '../models/report.dart';
 import '../services/report_presets.dart';
@@ -60,7 +61,7 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
                         fontWeight: FontWeight.w700,
                         color: AppColors.textPrimary)),
                 const SizedBox(height: 2),
-                Text('${app.workerName} · started $started',
+                Text('${context.read<RoleState>().displayName} · started $started',
                     style: const TextStyle(
                         fontSize: 12, color: AppColors.textSecondary)),
               ],
@@ -203,9 +204,12 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
       return;
     }
     final now = DateTime.now();
+    final role = context.read<RoleState>();
+    final worker = role.displayName;
     final report = Report(
       alertId: widget.alert.id!,
-      workerName: app.workerName,
+      workerName: worker,
+      workerId: role.userId,
       findings: _findings.text.trim(),
       actionTaken: _action.text.trim(),
       outcome: _outcome!,
@@ -215,10 +219,13 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
     try {
       await app.saveReport(report);
       await app.updateAlertStatus(
-          widget.alert.id!,
-          _outcome == ReportOutcome.fixed
-              ? AlertStatus.resolved
-              : AlertStatus.notFixed);
+        widget.alert.id!,
+        _outcome == ReportOutcome.fixed
+            ? AlertStatus.resolved
+            : AlertStatus.notFixed,
+        handledBy: worker,
+        handledById: role.userId,
+      );
       if (mounted) Navigator.of(context).pop();
     } catch (_) {
       if (mounted) showNetworkErrorSnackBar(context);

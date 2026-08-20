@@ -9,7 +9,6 @@ import 'theme/tokens.dart';
 
 import 'modules/admin/screens/abnormal_production_screen.dart';
 import 'modules/admin/screens/oversight_screen.dart';
-import 'modules/admin/screens/review_management_screen.dart';
 import 'modules/admin/screens/worker_accounts_screen.dart';
 import 'modules/admin/services/admin_tablet_layout.dart';
 import 'modules/admin/widgets/admin_compact_rail.dart';
@@ -22,7 +21,8 @@ import 'modules/auth/widgets/exit_confirmation_scope.dart';
 
 import 'modules/leakage/data/leakage_repository.dart';
 import 'modules/leakage/models/alert.dart' show Utility;
-import 'modules/leakage/screens/home_screen.dart';
+import 'modules/leakage/screens/alert_queue_screen.dart';
+import 'modules/leakage/screens/report_history_screen.dart';
 import 'modules/leakage/services/worker_utility_colors.dart';
 import 'modules/leakage/services/baseline_service.dart';
 import 'modules/leakage/services/anomaly_ai_service.dart';
@@ -268,26 +268,27 @@ class _AppShellState extends State<AppShell> {
           InventoryScreen(),
           const AbnormalProductionScreen(),
           const OversightScreen(),
-          const ReviewManagementScreen(),
           const WorkerAccountsScreen(),
         ];
         _navItems = const [
           _NavItem(icon: Icons.grid_view_outlined, label: 'Dashboard'),
-          _NavItem(icon: Icons.inventory_2_outlined, label: 'Inventory'),
-          _NavItem(icon: Icons.notifications_outlined, label: 'Alerts'),
+          _NavItem(
+              icon: Icons.location_city_outlined, label: 'Mall Monitoring'),
+          _NavItem(icon: Icons.notifications_outlined, label: 'Anomalies'),
           _NavItem(icon: Icons.shield_outlined, label: 'Oversight'),
-          _NavItem(icon: Icons.analytics_outlined, label: 'AI Review'),
           _NavItem(icon: Icons.manage_accounts_outlined, label: 'Workers'),
         ];
         break;
       case 'worker':
         _screens = const [
-          HomeScreen(utility: Utility.water),
-          HomeScreen(utility: Utility.electricity),
+          AlertQueueScreen(utility: Utility.water),
+          AlertQueueScreen(utility: Utility.electricity),
+          ReportHistoryScreen(),
         ];
         _navItems = const [
           _NavItem(icon: Icons.water_drop_outlined, label: 'Water'),
           _NavItem(icon: Icons.electric_bolt_outlined, label: 'Electricity'),
+          _NavItem(icon: Icons.description_outlined, label: 'Reports'),
         ];
         break;
       default:

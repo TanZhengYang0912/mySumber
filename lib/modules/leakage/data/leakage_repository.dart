@@ -4,6 +4,7 @@ import '../../../core/local_database/cache_status.dart';
 import '../../../core/local_database/local_database.dart';
 import '../../../core/local_database/remote_fallback.dart';
 import '../models/alert.dart';
+import '../models/anomaly_case.dart';
 import '../models/reading.dart';
 import '../models/report.dart';
 
@@ -13,7 +14,15 @@ abstract class LeakageRemoteStore {
   Future<Map<String, Object?>> insertAlert(Map<String, Object?> row);
   Future<List<Map<String, Object?>>> alerts({required bool includeDismissed});
   Future<Map<String, Object?>?> alertById(int id);
-  Future<Map<String, Object?>> updateAlertStatus(int id, String status);
+  /// [handledBy] / [handledById] record which worker took the alert. They are
+  /// optional because Admin approve/fault transitions change status without an
+  /// owner, while a worker starting an investigation claims it.
+  Future<Map<String, Object?>> updateAlertStatus(
+    int id,
+    String status, {
+    String? handledBy,
+    String? handledById,
+  });
   Future<Map<String, Object?>> updateAlertLocation({
     required int id,
     String? equipmentNodeId,
@@ -69,10 +78,19 @@ class SupabaseLeakageRemoteStore implements LeakageRemoteStore {
   }
 
   @override
-  Future<Map<String, Object?>> updateAlertStatus(int id, String status) async =>
+  Future<Map<String, Object?>> updateAlertStatus(
+    int id,
+    String status, {
+    String? handledBy,
+    String? handledById,
+  }) async =>
       Map<String, Object?>.from(await client
           .from('alerts')
-          .update({'status': status})
+          .update({
+            'status': status,
+            if (handledBy != null) 'handled_by': handledBy,
+            if (handledById != null) 'handled_by_id': handledById,
+          })
           .eq('id', id)
           .select()
           .single());
@@ -263,8 +281,76 @@ class LeakageRepository {
     );
   }
 
-  Future<void> updateAlertStatus(int id, String status) async {
-    final row = await _remote.updateAlertStatus(id, status);
+  // --- anomaly_cases: direct Supabase access, deliberately uncached ---
+  //
+  // These bypass the LeakageRemoteStore/Drift layer that main introduced.
+  // Review cases are admin-only and short-lived, so there is nothing worth
+  // holding offline; routing them through the cache would add a table and a
+  // sync path for data no screen reads while disconnected.
+  SupabaseClient get _client => Supabase.instance.client;
+
+  Future<List<AnomalyCase>> anomalyCases({String? sourceScope}) async {
+    // AppState starts while the landing screen is still unauthenticated. The
+    // Admin-review table is deliberately not readable by anon, so defer this
+    // query until a real session exists; the normal polling refresh then loads
+    // the correct role-scoped cases after sign-in.
+    if (_client.auth.currentUser == null) return const [];
+    var query = _client.from('anomaly_cases').select();
+    if (sourceScope != null) {
+      query = query.eq('source_scope', sourceScope);
+    }
+    final rows = await query.order('created_at', ascending: false);
+    return rows.map((row) => AnomalyCase.fromMap(row)).toList();
+  }
+
+  Future<AnomalyCase> insertAnomalyCase(AnomalyCase anomalyCase) async {
+    final row = await _client
+        .from('anomaly_cases')
+        .insert(anomalyCase.toInsertMap())
+        .select()
+        .single();
+    return AnomalyCase.fromMap(row);
+  }
+
+  Future<AnomalyCase> upsertAnomalyCase(AnomalyCase anomalyCase) async {
+    final row = await _client
+        .from('anomaly_cases')
+        .upsert(anomalyCase.toInsertMap(), onConflict: 'source_key')
+        .select()
+        .single();
+    return AnomalyCase.fromMap(row);
+  }
+
+  Future<int> approveAnomalyCase(String caseId) async {
+    final result = await _client.rpc(
+      'approve_anomaly_case',
+      params: {'p_case_id': caseId},
+    );
+    return (result as num).toInt();
+  }
+
+  Future<void> rejectAnomalyCase(String caseId, String reason) async {
+    await _client.rpc(
+      'reject_anomaly_case',
+      params: {'p_case_id': caseId, 'p_reason': reason},
+    );
+  }
+
+  /// Main's cache-aware write, carrying this branch's worker-ownership fields.
+  /// [handledBy] / [handledById] are null for Admin approve/fault transitions
+  /// and set when a worker claims an alert to investigate.
+  Future<void> updateAlertStatus(
+    int id,
+    String status, {
+    String? handledBy,
+    String? handledById,
+  }) async {
+    final row = await _remote.updateAlertStatus(
+      id,
+      status,
+      handledBy: handledBy,
+      handledById: handledById,
+    );
     final database = _database;
     if (database != null) {
       await cacheBestEffort('alerts', () => database.upsertAlert(row));
@@ -341,6 +427,14 @@ class LeakageRepository {
       lastSync: () => database.lastSync('reports'),
       status: _cacheStatus,
     );
+  }
+
+  Future<Map<String, String>> workerNames() async {
+    final rows = await _client.from('profiles').select('id, full_name');
+    return {
+      for (final row in rows)
+        row['id'] as String: row['full_name'] as String? ?? '',
+    };
   }
 
   Future<void> setReportDeleted(int id, bool isDeleted) async {

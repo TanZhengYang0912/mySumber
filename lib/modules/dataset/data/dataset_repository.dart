@@ -32,7 +32,50 @@ class SupabaseDatasetRemoteStore implements DatasetRemoteStore {
         .select()
         .order('facility_name')
         .order('node_name');
-    return rows.map((row) => Map<String, Object?>.from(row)).toList();
+
+    // Resolve catalog display names before caching so offline Mall Monitoring
+    // retains the facility and equipment names instead of raw catalog ids.
+    final facilities = {
+      for (final row
+          in await client.from('facilities').select('facility_id, name, city'))
+        row['facility_id'] as String: (
+          name: row['name'] as String,
+          city: row['city'] as String,
+        ),
+    };
+    final manufacturers = {
+      for (final row
+          in await client.from('manufacturers').select('manufacturer_id, name'))
+        row['manufacturer_id'] as String: row['name'] as String,
+    };
+    final models = {
+      for (final row in await client
+          .from('equipment_models')
+          .select('model_id, model_name'))
+        row['model_id'] as String: row['model_name'] as String,
+    };
+    final firmwares = {
+      for (final row in await client
+          .from('firmware_catalog')
+          .select('firmware_id, version'))
+        row['firmware_id'] as String: row['version'] as String,
+    };
+
+    return rows.map((raw) {
+      final row = Map<String, Object?>.from(raw);
+      final facility = facilities[row['facility_id']];
+      if (facility != null) {
+        row['facility_name'] = facility.name;
+        row['facility_city'] = facility.city;
+      }
+      final manufacturer = manufacturers[row['manufacturer_id']];
+      if (manufacturer != null) row['manufacturer'] = manufacturer;
+      final model = models[row['model_id']];
+      if (model != null) row['model_name'] = model;
+      final firmware = firmwares[row['firmware_id']];
+      if (firmware != null) row['firmware_version'] = firmware;
+      return row;
+    }).toList();
   }
 
   @override
@@ -149,7 +192,6 @@ class DatasetRepository {
           modelName: 'Unspecified',
           installationDate: now.subtract(Duration(days: 365 + i)),
           lastMaintenanceDate: now.subtract(Duration(days: 15 + i % 12)),
-          healthScore: 96 - i % 8,
           firmwareVersion: 'v2.4.1',
           ipAssignment: 'Static',
           ipAddress: '10.0.$subnet.10',
@@ -170,7 +212,6 @@ class DatasetRepository {
           modelName: 'Unspecified',
           installationDate: now.subtract(Duration(days: 240 + i)),
           lastMaintenanceDate: now.subtract(Duration(days: 30 + i % 15)),
-          healthScore: valveIsCritical ? 58 : 90 - i % 7,
           firmwareVersion: 'v3.0.5',
           ipAssignment: 'Static',
           ipAddress: '10.0.$subnet.11',
@@ -191,7 +232,6 @@ class DatasetRepository {
           modelName: 'Unspecified',
           installationDate: now.subtract(Duration(days: 300 + i)),
           lastMaintenanceDate: now.subtract(Duration(days: 2 + i % 20)),
-          healthScore: transformerNeedsMaintenance ? 72 : 94 - i % 9,
           firmwareVersion: 'v1.1.0',
           ipAssignment: 'Static',
           ipAddress: '10.0.$subnet.12',
@@ -394,6 +434,40 @@ class DatasetRepository {
       lastSync: () => database.lastSync(scope),
       status: _cacheStatus,
     );
+  }
+
+  /// Newest reading per node, for the Mall Monitoring roll-up. PostgREST caps
+  /// an unbounded select at 1000 rows, so this uses one bounded newest-first
+  /// page and keeps the first row for every node.
+  Future<({Map<String, double> usage, Map<String, DateTime> timestamps})>
+      fetchLatestUsageByNode() async {
+    final client = _client;
+    final rows = client == null
+        ? _localLogs
+            .map((log) => {
+                  'node_id': log.nodeId,
+                  'usage_value': log.usageValue,
+                  'timestamp': log.timestamp?.toIso8601String(),
+                })
+            .toList()
+        : await client
+            .from('equipment_usage_logs')
+            .select('node_id, usage_value, timestamp')
+            .order('timestamp', ascending: false)
+            .range(0, 4999);
+
+    final usage = <String, double>{};
+    final timestamps = <String, DateTime>{};
+    for (final row in rows) {
+      final nodeId = row['node_id'] as String?;
+      final timestamp = row['timestamp'] as String?;
+      if (nodeId == null || timestamp == null || usage.containsKey(nodeId)) {
+        continue;
+      }
+      usage[nodeId] = (row['usage_value'] as num).toDouble();
+      timestamps[nodeId] = DateTime.parse(timestamp);
+    }
+    return (usage: usage, timestamps: timestamps);
   }
 
   List<UtilityLog> _logsFromRows(List<Map<String, Object?>> rows) =>

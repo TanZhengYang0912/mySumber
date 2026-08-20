@@ -1,4 +1,8 @@
 class AlertStatus {
+  /// Raised but not yet decided on by an Admin. Alerts sit here while the
+  /// AI write-up is generated, and leave it only when an Admin approves them
+  /// into the worker queue ([pending]) or rejects them ([faults]).
+  static const pendingReview = 'pending_review';
   static const pending = 'pending';
   static const investigating = 'investigating';
   static const resolved = 'resolved';
@@ -6,18 +10,16 @@ class AlertStatus {
   static const dismissed = 'dismissed';
   static const faults = 'faults';
 
-  static const all = [
-    pending,
-    investigating,
-    resolved,
-    notFixed,
-    dismissed,
-    faults,
-  ];
+  // pendingReview is deliberately absent from both lists. Every worker-facing
+  // query filters through them, so leaving it out keeps un-approved alerts out
+  // of the worker queue without having to patch each query individually.
+  static const all = [pending, investigating, resolved, notFixed, dismissed];
   static const unresolved = [pending, investigating, notFixed];
 
   static String label(String status) {
     switch (status) {
+      case pendingReview:
+        return 'Pending Review';
       case pending:
         return 'Pending';
       case investigating:
@@ -29,7 +31,7 @@ class AlertStatus {
       case dismissed:
         return 'Dismissed';
       case faults:
-        return 'Faults';
+        return 'Fault';
       default:
         return status;
     }
@@ -44,6 +46,29 @@ class AlertType {
 
   static const _electricity = [electricityHotspot, electricityTampering];
   static bool isElectricity(String type) => _electricity.contains(type);
+}
+
+/// What location/model produced an alert. Utility describes Water or
+/// Electricity; source scope decides the title and evidence layout.
+class AlertSourceScope {
+  static const state = 'state';
+  static const mall = 'mall';
+  static const household = 'household';
+
+  static const all = [state, mall, household];
+
+  static String label(String scope) {
+    switch (scope) {
+      case state:
+        return 'State';
+      case mall:
+        return 'Mall';
+      case household:
+        return 'Household';
+      default:
+        return 'Unknown';
+    }
+  }
 }
 
 /// Which utility an alert belongs to — used to split the worker's Water
@@ -74,11 +99,11 @@ class Severity {
   static String label(String severity) {
     switch (severity) {
       case high:
-        return 'High Severity';
+        return 'High';
       case medium:
-        return 'Medium Severity';
+        return 'Medium';
       case low:
-        return 'Low Severity';
+        return 'Low';
       default:
         return severity;
     }
@@ -89,6 +114,10 @@ class Alert {
   final int? id;
   final int? readingId;
   final String alertType;
+  final String sourceScope;
+  final String? sourceKey;
+  final String? utilityType;
+  final String? reviewCaseId;
   final String? householdId;
   final String? equipmentNodeId;
   final String? facilityName;
@@ -102,6 +131,11 @@ class Alert {
   final double actualL;
   final String explanation;
   final String status;
+
+  /// Who last moved this alert's status — the display name of the worker or
+  /// admin who pressed the button. Null for alerts nobody has touched yet.
+  final String? handledBy;
+  final String? handledById;
   final bool isDeleted;
   final double? producedMld;
   final double? billedMld;
@@ -119,6 +153,10 @@ class Alert {
     this.id,
     this.readingId,
     required this.alertType,
+    String? sourceScope,
+    this.sourceKey,
+    this.utilityType,
+    this.reviewCaseId,
     this.householdId,
     this.equipmentNodeId,
     this.facilityName,
@@ -132,6 +170,8 @@ class Alert {
     this.actualL = 0,
     required this.explanation,
     this.status = AlertStatus.pending,
+    this.handledBy,
+    this.handledById,
     this.isDeleted = false,
     this.producedMld,
     this.billedMld,
@@ -144,20 +184,55 @@ class Alert {
     this.aiRecommendation,
     this.aiConfidence,
     this.aiGeneratedAt,
-  });
+  }) : sourceScope = sourceScope == AlertSourceScope.state
+            ? AlertSourceScope.state
+            : sourceScope == AlertSourceScope.mall
+                ? AlertSourceScope.mall
+                : sourceScope == AlertSourceScope.household
+                    ? AlertSourceScope.household
+                    : equipmentNodeId != null
+                        ? AlertSourceScope.mall
+                        : householdId != null
+                            ? AlertSourceScope.household
+                            : AlertSourceScope.state;
 
   bool get isNrw => alertType == AlertType.nrwHotspot;
   bool get isElectricity => AlertType.isElectricity(alertType);
   bool get isElectricityHotspot => alertType == AlertType.electricityHotspot;
   bool get isElectricityTampering =>
       alertType == AlertType.electricityTampering;
-  Utility get utility => isElectricity ? Utility.electricity : Utility.water;
+  Utility get utility => utilityType == 'electricity'
+      ? Utility.electricity
+      : utilityType == 'water'
+          ? Utility.water
+          : isElectricity
+              ? Utility.electricity
+              : Utility.water;
+  bool get isMall => sourceScope == AlertSourceScope.mall;
+  bool get isHousehold => sourceScope == AlertSourceScope.household;
+  String get sourceLabel => AlertSourceScope.label(sourceScope);
 
   /// True for the per-region loss alerts (water NRW or electricity hotspot)
   /// that share the produced/billed/loss "balance" evidence layout.
   bool get isLossBalance =>
       alertType == AlertType.nrwHotspot ||
       alertType == AlertType.electricityHotspot;
+
+  bool get canRenderBalanceEvidence =>
+      sourceScope == AlertSourceScope.state &&
+      isLossBalance &&
+      producedMld != null &&
+      billedMld != null &&
+      lossMld != null &&
+      lossPct != null;
+
+  bool get canRenderTamperingEvidence =>
+      sourceScope == AlertSourceScope.state &&
+      isElectricityTampering &&
+      producedMld != null &&
+      billedMld != null &&
+      lossMld != null &&
+      lossPct != null;
 
   double get ratio => baselineL == 0 ? 0 : actualL / baselineL;
   bool get isUnresolved => AlertStatus.unresolved.contains(status);
@@ -170,14 +245,27 @@ class Alert {
       aiConfidence != null &&
       aiGeneratedAt != null;
 
-  String get title => alertType == AlertType.household
-      ? '$state · ${householdId ?? ''}'
-      : state;
+  String get shortTitle {
+    switch (sourceScope) {
+      case AlertSourceScope.mall:
+        return facilityName ?? state;
+      case AlertSourceScope.household:
+        return '$state · ${householdId ?? 'Unknown'}';
+      default:
+        return state;
+    }
+  }
+
+  String get title => shortTitle;
 
   Map<String, Object?> toMap() => {
         'id': id,
         'reading_id': readingId,
         'alert_type': alertType,
+        'source_scope': sourceScope,
+        if (sourceKey != null) 'source_key': sourceKey,
+        if (utilityType != null) 'utility_type': utilityType,
+        if (reviewCaseId != null) 'review_case_id': reviewCaseId,
         'household_id': householdId,
         if (equipmentNodeId != null) 'equipment_node_id': equipmentNodeId,
         if (facilityName != null) 'facility_name': facilityName,
@@ -191,6 +279,8 @@ class Alert {
         'actual_l': actualL,
         'explanation': explanation,
         'status': status,
+        'handled_by': handledBy,
+        'handled_by_id': handledById,
         'is_deleted': isDeleted,
         'produced_mld': producedMld,
         'billed_mld': billedMld,
@@ -211,6 +301,10 @@ class Alert {
         id: map['id'] as int?,
         readingId: map['reading_id'] as int?,
         alertType: map['alert_type'] as String,
+        sourceScope: map['source_scope'] as String?,
+        sourceKey: map['source_key'] as String?,
+        utilityType: map['utility_type'] as String?,
+        reviewCaseId: map['review_case_id'] as String?,
         householdId: map['household_id'] as String?,
         equipmentNodeId: map['equipment_node_id'] as String?,
         facilityName: map['facility_name'] as String?,
@@ -224,6 +318,8 @@ class Alert {
         actualL: (map['actual_l'] as num?)?.toDouble() ?? 0,
         explanation: map['explanation'] as String,
         status: map['status'] as String,
+        handledBy: map['handled_by'] as String?,
+        handledById: map['handled_by_id'] as String?,
         isDeleted: map['is_deleted'] as bool,
         producedMld: (map['produced_mld'] as num?)?.toDouble(),
         billedMld: (map['billed_mld'] as num?)?.toDouble(),
@@ -243,7 +339,13 @@ class Alert {
   Alert copyWith({
     int? id,
     String? status,
+    String? handledBy,
+    String? handledById,
     bool? isDeleted,
+    String? sourceScope,
+    String? sourceKey,
+    String? utilityType,
+    String? reviewCaseId,
     String? equipmentNodeId,
     String? facilityName,
     String? facilityCity,
@@ -259,6 +361,10 @@ class Alert {
         id: id ?? this.id,
         readingId: readingId,
         alertType: alertType,
+        sourceScope: sourceScope ?? this.sourceScope,
+        sourceKey: sourceKey ?? this.sourceKey,
+        utilityType: utilityType ?? this.utilityType,
+        reviewCaseId: reviewCaseId ?? this.reviewCaseId,
         householdId: householdId,
         equipmentNodeId: equipmentNodeId ?? this.equipmentNodeId,
         facilityName: facilityName ?? this.facilityName,
@@ -272,6 +378,8 @@ class Alert {
         actualL: actualL,
         explanation: explanation,
         status: status ?? this.status,
+        handledBy: handledBy ?? this.handledBy,
+        handledById: handledById ?? this.handledById,
         isDeleted: isDeleted ?? this.isDeleted,
         producedMld: producedMld,
         billedMld: billedMld,

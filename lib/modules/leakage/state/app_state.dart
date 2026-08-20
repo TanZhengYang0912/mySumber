@@ -1,10 +1,15 @@
-import 'package:flutter/foundation.dart';
+import 'dart:async';
 
+import 'package:flutter/widgets.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../dataset/models/models.dart';
 import '../../electricity/models/electricity_models.dart';
 import '../../electricity/services/electricity_data_service.dart';
 import '../data/leakage_repository.dart';
 import '../models/ai_anomaly_analysis.dart';
 import '../models/alert.dart';
+import '../models/anomaly_case.dart';
 import '../models/report.dart';
 import '../services/baseline_service.dart';
 import '../services/anomaly_ai_service.dart';
@@ -23,7 +28,7 @@ class AnomalyAiGenerationResult {
   });
 }
 
-class AppState extends ChangeNotifier {
+class AppState extends ChangeNotifier with WidgetsBindingObserver {
   final BaselineService baseline;
   final NrwService nrw;
   final ElectricityLossService electricityLoss;
@@ -34,10 +39,14 @@ class AppState extends ChangeNotifier {
   AnomalyAiService? _anomalyAi;
 
   List<Alert> _alerts = [];
+  List<AnomalyCase> _anomalyCases = [];
   List<Report> _reports = [];
+  Map<String, String> _workerNames = {};
   List<ElectricityRecord> _electricityRecords = [];
   bool _loading = true;
   final Set<int> _generatingAnomalyIds = {};
+  final Set<String> _generatingAnomalyCaseIds = {};
+  Timer? _pollTimer;
 
   AppState({
     required this.baseline,
@@ -57,11 +66,16 @@ class AppState extends ChangeNotifier {
 
   String get workerName => 'Worker X';
   List<Alert> get alerts => _alerts;
+  List<AnomalyCase> get anomalyCases => _anomalyCases;
   List<Report> get reports => _reports;
+  Map<String, String> get workerNames => _workerNames;
   bool get loading => _loading;
 
   bool isGeneratingAnomalyAnalysis(int alertId) =>
       _generatingAnomalyIds.contains(alertId);
+
+  bool isGeneratingAnomalyCaseAnalysis(String caseId) =>
+      _generatingAnomalyCaseIds.contains(caseId);
 
   Future<AnomalyAiGenerationResult> generateAnomalyAnalysis(Alert alert) async {
     final alertId = alert.id;
@@ -101,6 +115,41 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  Future<AnomalyAiGenerationResult> generateAnomalyCaseAnalysis(
+      AnomalyCase anomalyCase) async {
+    final caseId = anomalyCase.id;
+    if (caseId == null) {
+      throw StateError('Cannot analyze a case without an id.');
+    }
+    if (!_generatingAnomalyCaseIds.add(caseId)) {
+      throw const AnomalyAiException(
+        AnomalyAiFailure.alreadyRunning,
+        'Anomaly analysis is already running.',
+      );
+    }
+    notifyListeners();
+
+    try {
+      final analysis = await anomalyAi.generateCase(anomalyCase);
+      final index = _anomalyCases.indexWhere((item) => item.id == caseId);
+      if (index != -1) {
+        _anomalyCases[index] = _anomalyCases[index].copyWith(
+          aiSummary: analysis.summary,
+          aiPossibleCause: analysis.possibleCause,
+          aiSeverityAssessment: analysis.severityAssessment,
+          aiRecommendation: analysis.recommendation,
+          aiConfidence: analysis.confidence,
+          aiGeneratedAt: analysis.generatedAt,
+        );
+        notifyListeners();
+      }
+      return AnomalyAiGenerationResult(analysis: analysis, persisted: true);
+    } finally {
+      _generatingAnomalyCaseIds.remove(caseId);
+      notifyListeners();
+    }
+  }
+
   // --- Per-utility queues, used by the worker Water / Electricity tabs ---
   List<Alert> unresolvedFor(Utility u) =>
       _bySeverity(_alerts.where((a) => a.utility == u && a.isUnresolved));
@@ -115,9 +164,7 @@ class AppState extends ChangeNotifier {
     final filed =
         _reports.where((r) => r.alertId == alertId).toList(growable: false);
     if (filed.isEmpty) return null;
-    return filed
-        .map((r) => r.createdAt)
-        .reduce((a, b) => a.isAfter(b) ? a : b);
+    return filed.map((r) => r.createdAt).reduce((a, b) => a.isAfter(b) ? a : b);
   }
 
   List<Report> reportsFor(Utility u) {
@@ -136,9 +183,10 @@ class AppState extends ChangeNotifier {
   List<Alert> pendingAlerts([Utility? utility]) => _bySeverity(_alerts.where(
       (a) => a.status == AlertStatus.pending && _matchesUtility(a, utility)));
 
-  List<Alert> investigatingAlerts([Utility? utility]) => _bySeverity(
-      _alerts.where((a) =>
-          a.status == AlertStatus.investigating && _matchesUtility(a, utility)));
+  List<Alert> investigatingAlerts([Utility? utility]) =>
+      _bySeverity(_alerts.where((a) =>
+          a.status == AlertStatus.investigating &&
+          _matchesUtility(a, utility)));
 
   List<Alert> notFixedAlerts([Utility? utility]) => _bySeverity(_alerts.where(
       (a) => a.status == AlertStatus.notFixed && _matchesUtility(a, utility)));
@@ -146,8 +194,22 @@ class AppState extends ChangeNotifier {
   List<Alert> solvedAlerts([Utility? utility]) => _bySeverity(_alerts.where(
       (a) => a.status == AlertStatus.resolved && _matchesUtility(a, utility)));
 
-  List<Alert> faultAlerts([Utility? utility]) => _bySeverity(_alerts.where(
-      (a) => a.status == AlertStatus.faults && _matchesUtility(a, utility)));
+  /// Alerts for the admin Oversight Alert Queue tab. Mirrors
+  /// [reportsFiltered]: each argument narrows the list, null means "all".
+  List<Alert> alertsFiltered({
+    Utility? utility,
+    String? state,
+    String? status,
+    String? severity,
+  }) {
+    return _bySeverity(_alerts.where((a) {
+      if (!_matchesUtility(a, utility)) return false;
+      if (state != null && a.state != state) return false;
+      if (status != null && a.status != status) return false;
+      if (severity != null && a.severity != severity) return false;
+      return true;
+    }));
+  }
 
   /// Reports for the admin Oversight Reports tab, filtered by the alert's
   /// utility/state and the report's own outcome.
@@ -170,15 +232,31 @@ class AppState extends ChangeNotifier {
     }).toList();
   }
 
-  // --- "Already reported" sets for the admin Abnormal Production screen ---
-  Set<String> get reportedWaterStates =>
-      _alerts.where((a) => a.isNrw).map((a) => a.state).toSet();
-  Set<String> get reportedElectricityStates =>
-      _alerts.where((a) => a.isElectricityHotspot).map((a) => a.state).toSet();
-  Set<String> get reportedTamperingKeys => _alerts
-      .where((a) => a.isElectricityTampering)
-      .map((a) => monthKey(a.detectedAt))
-      .toSet();
+  // --- Admin review queue ---
+  //
+  // An alert only appears once its AI write-up has been saved, so the admin
+  // never decides without the analysis in front of them. That makes a loading
+  // state unnecessary: an alert mid-generation simply is not in the list yet.
+  static bool awaitingDecision(Alert alert) =>
+      alert.status == AlertStatus.pendingReview && alert.aiGeneratedAt != null;
+
+  static bool inReviewQueue(Alert alert) =>
+      awaitingDecision(alert) || alert.status == AlertStatus.faults;
+
+  List<Alert> reviewQueue({String? sourceScope}) => _bySeverity(_alerts.where(
+      (a) =>
+          inReviewQueue(a) &&
+          (sourceScope == null || a.sourceScope == sourceScope)));
+
+  Future<void> approveAlert(int alertId) async {
+    await repository.updateAlertStatus(alertId, AlertStatus.pending);
+    await refresh();
+  }
+
+  Future<void> rejectAlert(int alertId) async {
+    await repository.updateAlertStatus(alertId, AlertStatus.faults);
+    await refresh();
+  }
 
   List<ElectricityRecord> get tamperingCandidates =>
       _electricityRecords.where((r) => r.isAnomaly).toList();
@@ -215,6 +293,30 @@ class AppState extends ChangeNotifier {
     await _seedDemoDataIfNeeded();
     _loading = false;
     notifyListeners();
+    _startPolling();
+  }
+
+  void _startPolling() {
+    WidgetsBinding.instance.addObserver(this);
+    _pollTimer ??= Timer.periodic(const Duration(seconds: 3), (_) => refresh());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _pollTimer ??=
+          Timer.periodic(const Duration(seconds: 3), (_) => refresh());
+    } else {
+      _pollTimer?.cancel();
+      _pollTimer = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   Future<void> _seedDemoDataIfNeeded() async {
@@ -466,110 +568,63 @@ class AppState extends ChangeNotifier {
       debugPrint('Could not refresh the local reading backup.');
     }
     _alerts = await repository.alerts();
+    _anomalyCases = await repository.anomalyCases();
     _reports = await repository.reports();
+    _workerNames = await repository.workerNames();
     notifyListeners();
   }
 
-  Future<bool> reportCustomerElectricityIssue({
-    required String scenarioLabel,
-    required bool isTampering,
+  Future<void> submitHouseholdProblem({
+    required Utility utility,
     required String state,
+    required String address,
+    required String category,
+    required String description,
+    required DateTime occurredAt,
   }) async {
-    final alert = Alert(
-      alertType: isTampering
-          ? AlertType.electricityTampering
-          : AlertType.electricityHotspot,
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      throw StateError('Please sign in before submitting a report.');
+    }
+    final householdId =
+        (user.userMetadata?['household_id'] as String?)?.trim().isNotEmpty ==
+                true
+            ? (user.userMetadata?['household_id'] as String).trim()
+            : 'H-305';
+    final now = DateTime.now();
+    await repository.insertAlert(Alert(
+      alertType: AlertType.household,
       state: state,
-      detectedAt: DateTime.now(),
-      signature: isTampering
-          ? LeakSignature.electricityTampering
-          : LeakSignature.electricityHotspot,
-      severity: isTampering ? Severity.high : Severity.medium,
-      explanation: isTampering
-          ? 'Consumer reported suspected meter tampering in $state. Recommend meter audit and site inspection.'
-          : 'Consumer reported: $scenarioLabel in $state. Recommend inspection of the distribution point.',
-      producedMld: 0,
-      billedMld: 0,
-      lossMld: 0,
-      lossPct: 0,
-      dataYear: DateTime.now().year,
-    );
-    await repository.insertAlert(alert);
+      detectedAt: now,
+      signature: LeakSignature.continuousLeak,
+      severity: Severity.medium,
+      explanation: '$category reported at $address: $description',
+      status: AlertStatus.pendingReview,
+      householdId: householdId,
+      sourceScope: AlertSourceScope.household,
+      utilityType: utility == Utility.water ? 'water' : 'electricity',
+      sourceKey: 'household:${user.id}:${now.microsecondsSinceEpoch}',
+    ));
     await refresh();
-    return true;
   }
 
-  // --- Water: admin reports a per-state NRW hotspot ---
-  Future<bool> reportAbnormalState(NrwResult result) async {
-    if (reportedWaterStates.contains(result.state)) return false;
-    final alert = Alert(
-      alertType: AlertType.nrwHotspot,
-      state: result.state,
-      detectedAt: DateTime.now(),
-      signature: LeakSignature.nrwHotspot,
-      severity: result.severity,
-      explanation: explainer.describeNrw(result, nrw.nationalLossPct),
-      producedMld: result.producedMld,
-      billedMld: result.billedMld,
-      lossMld: result.lossMld,
-      lossPct: result.lossPct,
-      dataYear: result.year,
-    );
-    await repository.insertAlert(alert);
-    await refresh();
-    return true;
-  }
+  /// Equipment needing attention, worst first — the Mall tier's source.
+  /// 'Critical' is a technician's own flag on the equipment record, so this
+  /// list always agrees with what Inventory shows for the same node.
+  static const _attentionStatuses = ['Critical', 'Warning', 'Maintenance'];
 
-  // --- Electricity: admin reports a per-state loss hotspot ---
-  Future<bool> reportElectricityState(NrwResult result) async {
-    if (reportedElectricityStates.contains(result.state)) return false;
-    final alert = Alert(
-      alertType: AlertType.electricityHotspot,
-      state: result.state,
-      detectedAt: DateTime.now(),
-      signature: LeakSignature.electricityHotspot,
-      severity: result.severity,
-      explanation: explainer.describeElectricityLoss(
-          result, electricityLoss.nationalLossPct),
-      producedMld: result.producedMld,
-      billedMld: result.billedMld,
-      lossMld: result.lossMld,
-      lossPct: result.lossPct,
-      dataYear: result.year,
-    );
-    await repository.insertAlert(alert);
-    await refresh();
-    return true;
-  }
+  static bool needsAttention(EquipmentNode node) =>
+      _attentionStatuses.contains(node.status);
 
-  // --- Electricity: admin reports a national tampering spike (a month) ---
-  Future<bool> reportElectricityTampering(ElectricityRecord record) async {
-    if (reportedTamperingKeys.contains(monthKey(record.date))) return false;
-    final lossPct =
-        record.supply == 0 ? 0.0 : record.losses / record.supply * 100;
-    final alert = Alert(
-      alertType: AlertType.electricityTampering,
-      state: 'Malaysia',
-      detectedAt: record.date,
-      signature: LeakSignature.electricityTampering,
-      severity: _tamperingSeverity(lossPct),
-      explanation:
-          explainer.describeTampering(record.date.year, lossPct, record.losses),
-      producedMld: record.supply,
-      billedMld: record.consumption,
-      lossMld: record.losses,
-      lossPct: lossPct,
-      dataYear: record.date.year,
-    );
-    await repository.insertAlert(alert);
-    await refresh();
-    return true;
-  }
-
-  String _tamperingSeverity(double lossPct) {
-    if (lossPct > 10) return Severity.high;
-    if (lossPct > 6) return Severity.medium;
-    return Severity.low;
+  static String equipmentSeverity(String status) {
+    switch (status) {
+      case 'Critical':
+        return Severity.high;
+      case 'Warning':
+        return Severity.medium;
+      default:
+        return Severity.low;
+    }
   }
 
   Future<SimulationOutcome> simulate(
@@ -579,8 +634,10 @@ class AppState extends ChangeNotifier {
     return outcome;
   }
 
-  Future<void> updateAlertStatus(int alertId, String status) async {
-    await repository.updateAlertStatus(alertId, status);
+  Future<void> updateAlertStatus(int alertId, String status,
+      {String? handledBy, String? handledById}) async {
+    await repository.updateAlertStatus(alertId, status,
+        handledBy: handledBy, handledById: handledById);
     await refresh();
   }
 

@@ -18,6 +18,7 @@ class Report {
   final int? id;
   final int alertId;
   final String workerName;
+  final String? workerId;
   final String findings;
   final String actionTaken;
   final String outcome;
@@ -29,6 +30,7 @@ class Report {
     this.id,
     required this.alertId,
     required this.workerName,
+    this.workerId,
     required this.findings,
     required this.actionTaken,
     required this.outcome,
@@ -43,6 +45,7 @@ class Report {
         'id': id,
         'alert_id': alertId,
         'worker_name': workerName,
+        'worker_id': workerId,
         'findings': findings,
         'action_taken': actionTaken,
         'outcome': outcome,
@@ -55,6 +58,7 @@ class Report {
         id: map['id'] as int?,
         alertId: map['alert_id'] as int,
         workerName: map['worker_name'] as String,
+        workerId: map['worker_id'] as String?,
         findings: map['findings'] as String,
         actionTaken: map['action_taken'] as String,
         outcome: map['outcome'] as String,

@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../theme/tokens.dart';
 import '../../leakage/models/alert.dart';
 import '../../leakage/screens/style.dart';
-import 'admin_page_header.dart';
+import '../../../theme/page_header.dart';
 
 class OversightLandscapeWorkspace extends StatelessWidget {
   const OversightLandscapeWorkspace({
@@ -92,7 +92,7 @@ class _CompactTopBar extends StatelessWidget {
   final VoidCallback onLogout;
 
   @override
-  Widget build(BuildContext context) => AdminPageHeader(
+  Widget build(BuildContext context) => PageHeader(
         title: 'Oversight',
         icon: Icons.shield_outlined,
         compact: true,

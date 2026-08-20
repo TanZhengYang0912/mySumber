@@ -1,3 +1,4 @@
+import '../../dataset/models/models.dart';
 import '../models/alert.dart';
 import '../models/reading.dart';
 import 'detection_engine.dart';
@@ -20,6 +21,19 @@ class Explainer {
         '${r.year}, above the national average of $national%. A gap this large '
         'between supply and metered consumption points to distribution losses '
         'or meter tampering. Recommend a field audit of the distribution grid.';
+  }
+
+  /// Legacy display text for equipment needing attention. New Mall alerts are
+  /// created by the baseline usage trigger, which includes its measured
+  /// baseline and multiple in the stored explanation.
+  String describeEquipmentAnomaly(EquipmentNode node) {
+    final facility = node.facilityName ?? 'an unlinked facility';
+    final flagged = node.status == 'Critical'
+        ? 'flagged Critical during maintenance inspection'
+        : 'placed under maintenance';
+    return '${node.nodeName} at $facility was $flagged. Equipment in this '
+        'state risks unmetered loss until serviced. Recommend an on-site '
+        'inspection of the unit.';
   }
 
   String describeTampering(int year, double lossPct, double lossKwh) {

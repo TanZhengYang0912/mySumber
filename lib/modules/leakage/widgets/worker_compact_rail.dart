@@ -19,6 +19,11 @@ class WorkerCompactRail extends StatelessWidget {
   final ValueChanged<int> onDestinationSelected;
   final VoidCallback onLogout;
 
+  /// Electricity sits fixed right below Water — only Reports floats to
+  /// dodge a camera cutout, since floating both non-Water items risks them
+  /// swapping order on odd screen heights.
+  static const _electricityTop = 108.0;
+
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
@@ -42,12 +47,22 @@ class WorkerCompactRail extends StatelessWidget {
                 ),
                 Positioned(
                   left: 14,
+                  top: _electricityTop,
+                  child: _utilityDestination(1),
+                ),
+                Positioned(
+                  left: 14,
                   top: _middleDestinationTop(
                     height: constraints.maxHeight,
                     logoutTop: logoutTop,
                     cameraCutout: cameraCutout,
                   ),
-                  child: _utilityDestination(1),
+                  child: _WorkerRailDestination(
+                    icon: Icons.description_outlined,
+                    label: 'Reports',
+                    selected: currentIndex == 2,
+                    onTap: () => onDestinationSelected(2),
+                  ),
                 ),
                 Positioned(
                   left: 14,
@@ -106,7 +121,7 @@ class WorkerCompactRail extends StatelessWidget {
   }) {
     const destinationHeight = 64.0;
     const clearance = 8.0;
-    const minimumTop = 86.0;
+    const minimumTop = _electricityTop + destinationHeight + clearance;
     final maximumTop = logoutTop - destinationHeight - clearance;
     final centeredTop = ((height - destinationHeight) / 2)
         .clamp(minimumTop, maximumTop)

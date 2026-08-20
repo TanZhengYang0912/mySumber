@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../../theme/filter_controls.dart';
 import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
-import '../../electricity/models/electricity_models.dart';
 import '../../leakage/models/alert.dart';
 import '../../leakage/screens/network_error.dart';
-import '../../leakage/services/nrw_service.dart';
+import '../../leakage/screens/style.dart';
 import '../../leakage/state/app_state.dart';
+import '../services/abnormal_production_filter.dart';
 import '../services/abnormal_production_layout.dart';
-import '../widgets/admin_page_header.dart';
+import '../../../theme/page_header.dart';
 
 class AbnormalProductionScreen extends StatefulWidget {
   final bool showBackToOversight;
@@ -28,9 +28,13 @@ class AbnormalProductionScreen extends StatefulWidget {
 class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tab;
-  String? _busyKey;
-  String? _selectedWaterState;
-  String? _selectedElectricityState;
+  int? _selectedStateAlertId;
+  int? _selectedMallAlertId;
+  Utility? _stateUtility;
+  Utility? _mallUtility;
+  String? _anomalyState;
+  String? _anomalySeverity;
+  final _search = TextEditingController();
 
   @override
   void initState() {
@@ -42,35 +46,88 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
     if (mounted) setState(() {});
   }
 
+  void _clearAnomalyFilters() {
+    setState(() {
+      _search.clear();
+      _anomalyState = null;
+      _anomalySeverity = null;
+      _stateUtility = null;
+      _mallUtility = null;
+    });
+  }
+
+  Widget _anomalyFilterBar({
+    required List<String> states,
+    required Map<String, int> stateCounts,
+    required Map<String, int> severityCounts,
+    required Utility? utility,
+    required ValueChanged<Utility?> onUtilityChanged,
+  }) {
+    return Column(
+      children: [
+        // Status arguments are omitted deliberately: AlertFilterBar hides the
+        // dropdown when statusOptions is null, and every row in this queue is
+        // pending review, so Reported/Unreported no longer means anything.
+        AlertFilterBar(
+          searchController: _search,
+          onSearchChanged: (_) => setState(() {}),
+          onSearchClear: () => setState(_search.clear),
+          selectedState: _anomalyState,
+          states: states,
+          stateCounts: stateCounts,
+          onStateChanged: (value) => setState(() => _anomalyState = value),
+          selectedSeverity: _anomalySeverity,
+          severityCounts: severityCounts,
+          onSeverityChanged: (value) =>
+              setState(() => _anomalySeverity = value),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+          child: UtilityChips(selected: utility, onChanged: onUtilityChanged),
+        ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: _clearAnomalyFilters,
+            child: const Text('Clear filters'),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   void dispose() {
     _tab
       ..removeListener(_refresh)
       ..dispose();
+    _search.dispose();
     super.dispose();
   }
 
-  Future<void> _run(
-    String busyKey,
-    String label,
-    Future<bool> Function() action,
-  ) async {
-    setState(() => _busyKey = busyKey);
+  Future<void> _decide(AppState app, int alertId,
+      {required bool approve}) async {
     try {
-      final reported = await action();
+      if (approve) {
+        await app.approveAlert(alertId);
+      } else {
+        await app.rejectAlert(alertId);
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(reported
-            ? 'Reported $label to the worker queue.'
-            : '$label was already reported.'),
-        backgroundColor: reported ? AppColors.adminPrimary : Colors.blueGrey,
+        content: Text(approve
+            ? 'Approved — sent to the worker queue.'
+            : 'Faulted — kept in Anomalies for the record.'),
+        backgroundColor: approve ? AppColors.adminPrimary : Colors.blueGrey,
       ));
     } catch (_) {
       if (mounted) showNetworkErrorSnackBar(context);
-    } finally {
-      if (mounted) setState(() => _busyKey = null);
     }
   }
+
+  List<Alert> _narrow(List<Alert> source, Utility? utility) => utility == null
+      ? source
+      : source.where((a) => a.utility == utility).toList();
 
   @override
   Widget build(BuildContext context) {
@@ -81,25 +138,23 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
       );
     }
 
-    final water = [...app.nrw.analyse()]
-      ..sort((a, b) => b.lossPct.compareTo(a.lossPct));
-    final electricity = [...app.electricityLoss.analyse()]
-      ..sort((a, b) => b.lossPct.compareTo(a.lossPct));
-    final tampering = [...app.tamperingCandidates]
-      ..sort((a, b) => b.date.compareTo(a.date));
+    final stateAlerts = _narrow(
+        app.reviewQueue(sourceScope: AlertSourceScope.state), _stateUtility);
+    final mallAlerts = _narrow(
+        app.reviewQueue(sourceScope: AlertSourceScope.mall), _mallUtility);
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
       body: Column(
         children: [
           _buildHeader(context),
-          _buildTabBar(water.length, electricity.length),
+          _buildTabBar(stateAlerts.length, mallAlerts.length),
           Expanded(
             child: TabBarView(
               controller: _tab,
               children: [
-                _waterTab(app, water),
-                _electricityTab(app, electricity, tampering),
+                _stateTab(app, stateAlerts),
+                _mallTab(app, mallAlerts),
               ],
             ),
           ),
@@ -109,8 +164,8 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
   }
 
   Widget _buildHeader(BuildContext context) {
-    return AdminPageHeader(
-      title: 'Abnormal Production',
+    return PageHeader(
+      title: 'Anomalies',
       icon: Icons.notifications_outlined,
       leading: widget.showBackToOversight
           ? IconButton(
@@ -123,7 +178,7 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
     );
   }
 
-  Widget _buildTabBar(int waterCount, int electricityCount) {
+  Widget _buildTabBar(int stateCount, int mallCount) {
     return Container(
       color: Colors.white,
       child: TabBar(
@@ -137,132 +192,28 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
         indicatorWeight: 3,
         dividerColor: AppColors.divider,
         tabs: [
-          Tab(text: 'Water $waterCount'),
-          Tab(text: 'Electricity $electricityCount'),
-        ],
-      ),
-    );
-  }
-
-  Widget _waterTab(AppState app, List<NrwResult> water) {
-    return _anomalyWorkspace(
-      results: water,
-      unit: 'MLD',
-      reportedStates: app.reportedWaterStates,
-      selectedState: _selectedWaterState,
-      onSelected: (state) => setState(() => _selectedWaterState = state),
-      onReport: (result) => _run(
-        'W-${result.state}',
-        result.state,
-        () => app.reportAbnormalState(result),
-      ),
-      busyKeyFor: (result) => 'W-${result.state}',
-    );
-  }
-
-  Widget _electricityTab(
-    AppState app,
-    List<NrwResult> electricity,
-    List<ElectricityRecord> tampering,
-  ) {
-    return _anomalyWorkspace(
-      results: electricity,
-      unit: 'GWh',
-      reportedStates: app.reportedElectricityStates,
-      selectedState: _selectedElectricityState,
-      onSelected: (state) => setState(() => _selectedElectricityState = state),
-      onReport: (result) => _run(
-        'E-${result.state}',
-        result.state,
-        () => app.reportElectricityState(result),
-      ),
-      busyKeyFor: (result) => 'E-${result.state}',
-      tampering: tampering,
-      onReportTampering: (record) {
-        final key = AppState.monthKey(record.date);
-        return _run(
-          'T-$key',
-          DateFormat('MMM y').format(record.date),
-          () => app.reportElectricityTampering(record),
-        );
-      },
-      isTamperingReported: (record) =>
-          app.reportedTamperingKeys.contains(AppState.monthKey(record.date)),
-    );
-  }
-
-  Widget _anomalyWorkspace({
-    required List<NrwResult> results,
-    required String unit,
-    required Set<String> reportedStates,
-    required String? selectedState,
-    required ValueChanged<String> onSelected,
-    required Future<void> Function(NrwResult result) onReport,
-    required String Function(NrwResult result) busyKeyFor,
-    List<ElectricityRecord> tampering = const [],
-    Future<void> Function(ElectricityRecord record)? onReportTampering,
-    bool Function(ElectricityRecord record)? isTamperingReported,
-  }) {
-    final selected = _selectedResult(results, selectedState);
-    final split = usesAbnormalProductionSplitView(MediaQuery.sizeOf(context));
-    final summary = _summaryStrip(results, reportedStates);
-
-    if (results.isEmpty) {
-      return ListView(
-        padding: const EdgeInsets.all(16),
-        children: [summary, const SizedBox(height: 16), _emptyCard(unit)],
-      );
-    }
-
-    final listChildren = _rankedChildren(
-      results: results,
-      unit: unit,
-      reportedStates: reportedStates,
-      selectedState: selected?.state,
-      onSelected: onSelected,
-      onReport: onReport,
-      busyKeyFor: busyKeyFor,
-      tampering: tampering,
-      onReportTampering: onReportTampering,
-      isTamperingReported: isTamperingReported,
-    );
-
-    if (!split) {
-      return ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-        children: [summary, const SizedBox(height: 16), ...listChildren],
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          summary,
-          const SizedBox(height: 12),
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.divider),
-              ),
+          Tab(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  SizedBox(
-                    width: 330,
-                    child: ListView(children: listChildren),
-                  ),
-                  const VerticalDivider(width: 1, color: AppColors.divider),
-                  Expanded(
-                    child: _detailPanel(
-                      result: selected!,
-                      unit: unit,
-                      reported: reportedStates.contains(selected.state),
-                      busyKey: busyKeyFor(selected),
-                      onReport: () => onReport(selected),
-                    ),
-                  ),
+                  const Text('State'),
+                  const SizedBox(width: 6),
+                  CountBadge(stateCount),
+                ],
+              ),
+            ),
+          ),
+          Tab(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Mall'),
+                  const SizedBox(width: 6),
+                  CountBadge(mallCount),
                 ],
               ),
             ),
@@ -272,472 +223,215 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
     );
   }
 
-  NrwResult? _selectedResult(List<NrwResult> results, String? selectedState) {
-    if (results.isEmpty) return null;
-    return results.firstWhere(
-      (result) => result.state == selectedState,
-      orElse: () => results.first,
-    );
+  Widget _stateTab(AppState app, List<Alert> alerts) => _reviewWorkspace(
+        app,
+        alerts,
+        selectedId: _selectedStateAlertId,
+        onSelected: (id) => setState(() => _selectedStateAlertId = id),
+        utility: _stateUtility,
+        onUtilityChanged: (u) => setState(() => _stateUtility = u),
+      );
+
+  Widget _mallTab(AppState app, List<Alert> alerts) => _reviewWorkspace(
+        app,
+        alerts,
+        selectedId: _selectedMallAlertId,
+        onSelected: (id) => setState(() => _selectedMallAlertId = id),
+        utility: _mallUtility,
+        onUtilityChanged: (u) => setState(() => _mallUtility = u),
+      );
+
+  /// The row whose detail panel is open. Falls back to the first row so the
+  /// split view is never blank, and self-heals when the selected alert leaves
+  /// the queue (approved, rejected, or filtered out).
+  Alert? _selectedAlert(List<Alert> filtered, int? selectedId) {
+    if (filtered.isEmpty) return null;
+    return filtered.firstWhere((a) => a.id == selectedId,
+        orElse: () => filtered.first);
   }
 
-  Widget _summaryStrip(List<NrwResult> results, Set<String> reportedStates) {
-    final critical =
-        results.where((result) => result.severity == Severity.high).length;
-    final high =
-        results.where((result) => result.severity == Severity.medium).length;
-    final reported =
-        results.where((result) => reportedStates.contains(result.state)).length;
+  Widget _reviewWorkspace(
+    AppState app,
+    List<Alert> alerts, {
+    required int? selectedId,
+    required ValueChanged<int> onSelected,
+    required Utility? utility,
+    required ValueChanged<Utility?> onUtilityChanged,
+  }) {
+    final split = usesAbnormalProductionSplitView(MediaQuery.sizeOf(context));
+    final states = alerts.map((a) => a.state).toSet().toList()..sort();
+    final stateCounts = countBy(alerts, (a) => a.state);
+    final severityCounts = countBy(alerts, (a) => a.severity);
+    final filtered = alerts
+        .where((a) => ReviewQueueFilter.matches(
+              query: _search.text,
+              alert: a,
+              selectedState: _anomalyState,
+              selectedSeverity: _anomalySeverity,
+            ))
+        .toList();
+    final selected = _selectedAlert(filtered, selectedId);
+    final filterBar = _anomalyFilterBar(
+      states: states,
+      stateCounts: stateCounts,
+      severityCounts: severityCounts,
+      utility: utility,
+      onUtilityChanged: onUtilityChanged,
+    );
 
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      crossAxisAlignment: WrapCrossAlignment.center,
+    if (filtered.isEmpty) {
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        children: [filterBar, const SizedBox(height: 12), _emptyCard()],
+      );
+    }
+
+    final list = ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: filtered.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      itemBuilder: (context, index) {
+        final alert = filtered[index];
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AlertCard(
+              alert: alert,
+              onTap: () {
+                if (alert.id != null) onSelected(alert.id!);
+              },
+            ),
+            _statusStrip(alert),
+          ],
+        );
+      },
+    );
+
+    if (!split) {
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          filterBar,
+          const SizedBox(height: 12),
+          for (final alert in filtered) ...[
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AlertCard(
+                  alert: alert,
+                  onTap: () {
+                    if (alert.id != null) onSelected(alert.id!);
+                  },
+                ),
+                _statusStrip(alert),
+              ],
+            ),
+            if (alert.id == selected?.id) ...[
+              const SizedBox(height: 10),
+              _reviewDetailPanel(app, alert),
+            ],
+            const SizedBox(height: 10),
+          ],
+        ],
+      );
+    }
+
+    return Column(
       children: [
-        _summaryPill('$critical Critical', AppColors.critical,
-            AppColors.criticalSurface),
-        _summaryPill('$high High', AppColors.warning, AppColors.warningSurface),
-        _summaryPill('$reported Reported', AppColors.waterAccent,
-            AppColors.waterSurface),
-        const Padding(
-          padding: EdgeInsets.only(left: 4),
-          child: Text(
-            'Sorted by highest loss',
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _summaryPill(String text, Color color, Color surface) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: surface,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        text,
-        style:
-            TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w800),
-      ),
-    );
-  }
-
-  List<Widget> _rankedChildren({
-    required List<NrwResult> results,
-    required String unit,
-    required Set<String> reportedStates,
-    required String? selectedState,
-    required ValueChanged<String> onSelected,
-    required Future<void> Function(NrwResult result) onReport,
-    required String Function(NrwResult result) busyKeyFor,
-    required List<ElectricityRecord> tampering,
-    required Future<void> Function(ElectricityRecord record)? onReportTampering,
-    required bool Function(ElectricityRecord record)? isTamperingReported,
-  }) {
-    return [
-      const Padding(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-        child: Text(
-          'Ranked by loss',
-          style: TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            letterSpacing: .2,
-          ),
-        ),
-      ),
-      ...results.map(
-        (result) => _anomalyRow(
-          result: result,
-          unit: unit,
-          selected: selectedState == result.state,
-          reported: reportedStates.contains(result.state),
-          onTap: () => _showResult(
-            result,
-            unit,
-            reportedStates.contains(result.state),
-            busyKeyFor(result),
-            () => onReport(result),
-          ),
-          onSelect: () => onSelected(result.state),
-        ),
-      ),
-      if (tampering.isNotEmpty) ...[
-        const Divider(height: 28, color: AppColors.divider),
-        const Padding(
-          padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Text(
-            'Tampering spikes',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ),
-        ...tampering.map(
-          (record) => _tamperingRow(
-            record,
-            isTamperingReported?.call(record) ?? false,
-            () => onReportTampering?.call(record),
-          ),
-        ),
-      ],
-    ];
-  }
-
-  Widget _anomalyRow({
-    required NrwResult result,
-    required String unit,
-    required bool selected,
-    required bool reported,
-    required VoidCallback onTap,
-    required VoidCallback onSelect,
-  }) {
-    final severity = _severityStyle(result.severity);
-    return Material(
-      color: selected ? AppColors.adminSurface : Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          onSelect();
-          if (!usesAbnormalProductionSplitView(MediaQuery.sizeOf(context))) {
-            onTap();
-          }
-        },
-        child: Container(
-          decoration: BoxDecoration(
-            border: Border(
-              left: BorderSide(
-                color: selected ? AppColors.adminPrimary : Colors.transparent,
-                width: 4,
-              ),
-              bottom: const BorderSide(color: AppColors.divider),
-            ),
-          ),
-          padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+        Padding(padding: const EdgeInsets.all(16), child: filterBar),
+        Expanded(
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 24,
-                height: 24,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                    color: severity.surface, shape: BoxShape.circle),
-                child: Text(
-                  '${result.lossPct.round()}',
-                  style: TextStyle(
-                      color: severity.color,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w800),
+              Expanded(flex: 3, child: list),
+              Expanded(
+                flex: 4,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: selected == null
+                      ? _emptyCard()
+                      : _reviewDetailPanel(app, selected),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _reviewDetailPanel(AppState app, Alert alert) {
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(alert.title,
+              style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary)),
+          const SizedBox(height: 8),
+          Wrap(spacing: 6, runSpacing: 6, children: [
+            severityPill(alert.severity),
+            utilityPill(alert.utility),
+            Pill(alert.sourceLabel,
+                color: AppColors.adminPrimary, outlined: true),
+          ]),
+          const SizedBox(height: 10),
+          Text(alert.explanation,
+              style: const TextStyle(
+                  color: AppColors.textSecondary, height: 1.35)),
+          const SizedBox(height: 12),
+          // Every alert in this list already has its AI saved, so the card
+          // always has content to show — no generate button needed here.
+          AiAnalysisCard(alert: alert, canGenerate: false),
+          const SizedBox(height: 14),
+          if (AppState.awaitingDecision(alert))
+            Row(children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: alert.id == null
+                      ? null
+                      : () => _decide(app, alert.id!, approve: false),
+                  child: const Text('Fault'),
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(result.state,
-                              style: const TextStyle(
-                                  color: AppColors.textPrimary,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w800)),
-                        ),
-                        _statusPill(
-                            reported ? 'Reported' : severity.label,
-                            reported ? AppColors.waterAccent : severity.color,
-                            reported
-                                ? AppColors.waterSurface
-                                : severity.surface),
-                      ],
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      '${result.lossPct.toStringAsFixed(1)}% loss · '
-                      '${(result.producedMld - result.billedMld).round()} $unit gap',
-                      style: const TextStyle(
-                          color: AppColors.textSecondary, fontSize: 12),
-                    ),
-                  ],
+                child: FilledButton(
+                  onPressed: alert.id == null
+                      ? null
+                      : () => _decide(app, alert.id!, approve: true),
+                  style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.adminPrimary),
+                  child: const Text('Approve to Worker queue'),
                 ),
               ),
-              const SizedBox(width: 2),
-              const Icon(Icons.chevron_right, color: AppColors.textTertiary),
-            ],
-          ),
-        ),
+            ])
+          else
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Pill(AlertStatus.label(alert.status),
+                  color: statusColor(alert.status), outlined: true),
+            ),
+        ],
       ),
     );
   }
 
-  void _showResult(
-    NrwResult result,
-    String unit,
-    bool reported,
-    String busyKey,
-    VoidCallback onReport,
-  ) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        builder: (sheetContext) => SafeArea(
-          child: SizedBox(
-            height: MediaQuery.sizeOf(sheetContext).height * .78,
-            child: _detailPanel(
-              result: result,
-              unit: unit,
-              reported: reported,
-              busyKey: busyKey,
-              onReport: onReport,
-            ),
-          ),
+  Widget _statusStrip(Alert alert) => Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Pill(AlertStatus.label(alert.status),
+              color: statusColor(alert.status), outlined: true),
         ),
       );
-    });
-  }
 
-  Widget _detailPanel({
-    required NrwResult result,
-    required String unit,
-    required bool reported,
-    required String busyKey,
-    required VoidCallback onReport,
-  }) {
-    final severity = _severityStyle(result.severity);
-    final gap = result.producedMld - result.billedMld;
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(result.state,
-              style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800)),
-          const SizedBox(height: 10),
-          _statusPill(severity.label, severity.color, severity.surface),
-          const SizedBox(height: 14),
-          RichText(
-            text: TextSpan(
-              children: [
-                TextSpan(
-                  text: '${result.lossPct.toStringAsFixed(1)}%',
-                  style: TextStyle(
-                      color: severity.color,
-                      fontSize: 42,
-                      fontWeight: FontWeight.w800),
-                ),
-                const TextSpan(
-                  text: ' loss',
-                  style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '${result.year} · production does not match billed consumption.',
-            style:
-                const TextStyle(color: AppColors.textSecondary, fontSize: 13),
-          ),
-          const SizedBox(height: 24),
-          _metricRow(result, unit, gap),
-          const SizedBox(height: 28),
-          _comparisonChart(result, unit),
-          const SizedBox(height: 28),
-          _actionButton(reported, busyKey, onReport),
-        ],
-      ),
-    );
-  }
-
-  Widget _metricRow(NrwResult result, String unit, double gap) {
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      children: [
-        _metric('Produced', result.producedMld, unit, AppColors.waterAccent),
-        _metric('Billed', result.billedMld, unit, AppColors.adminPrimary),
-        _metric('Estimated gap', gap, unit, AppColors.critical),
-      ],
-    );
-  }
-
-  Widget _metric(String label, double value, String unit, Color color) {
-    return Container(
-      width: 138,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: .07),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label,
-              style: const TextStyle(
-                  color: AppColors.textSecondary, fontSize: 11)),
-          const SizedBox(height: 4),
-          Text('${value.round()} $unit',
-              style: TextStyle(
-                  color: color, fontSize: 17, fontWeight: FontWeight.w800)),
-        ],
-      ),
-    );
-  }
-
-  Widget _comparisonChart(NrwResult result, String unit) {
-    final produced = result.producedMld;
-    final billed = result.billedMld;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Production vs. billed consumption ($unit)',
-            style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 14,
-                fontWeight: FontWeight.w800)),
-        const SizedBox(height: 12),
-        _comparisonBar(
-            'Produced', produced, produced, unit, AppColors.waterAccent),
-        const SizedBox(height: 10),
-        _comparisonBar(
-            'Billed', billed, produced, unit, AppColors.adminPrimary),
-      ],
-    );
-  }
-
-  Widget _comparisonBar(
-      String label, double value, double maximum, String unit, Color color) {
-    final fraction = maximum == 0 ? 0.0 : (value / maximum).clamp(0.0, 1.0);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-                child: Text(label,
-                    style: const TextStyle(
-                        color: AppColors.textSecondary, fontSize: 12))),
-            Text('${value.round()} $unit',
-                style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700)),
-          ],
-        ),
-        const SizedBox(height: 5),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(999),
-          child: LinearProgressIndicator(
-            value: fraction,
-            minHeight: 10,
-            color: color,
-            backgroundColor: AppColors.divider,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _tamperingRow(
-      ElectricityRecord record, bool reported, VoidCallback onReport) {
-    final lossPct =
-        record.supply == 0 ? 0.0 : record.losses / record.supply * 100;
-    return ListTile(
-      dense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-      title: Text(DateFormat('MMM y').format(record.date),
-          style: const TextStyle(
-              fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
-      subtitle: Text('${lossPct.toStringAsFixed(1)}% of supply',
-          style: const TextStyle(color: AppColors.textSecondary)),
-      trailing: TextButton(
-        onPressed: reported ? null : onReport,
-        child: Text(reported ? 'Reported' : 'Report'),
-      ),
-    );
-  }
-
-  Widget _emptyCard(String unit) => AppCard(
+  Widget _emptyCard() => const AppCard(
         child: Text(
-          'No abnormal $unit production states detected.',
-          style: const TextStyle(color: AppColors.textSecondary),
+          'No anomalies awaiting review.',
+          style: TextStyle(color: AppColors.textSecondary),
         ),
       );
-
-  Widget _statusPill(String text, Color color, Color surface) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-          color: surface, borderRadius: BorderRadius.circular(999)),
-      child: Text(text,
-          style: TextStyle(
-              color: color, fontSize: 11, fontWeight: FontWeight.w800)),
-    );
-  }
-
-  _SeverityStyle _severityStyle(String severity) {
-    if (severity == Severity.high) {
-      return const _SeverityStyle(
-          'Critical', AppColors.critical, AppColors.criticalSurface);
-    }
-    if (severity == Severity.medium) {
-      return const _SeverityStyle(
-          'High', AppColors.warning, AppColors.warningSurface);
-    }
-    return const _SeverityStyle(
-        'Monitor', AppColors.success, AppColors.successSurface);
-  }
-
-  Widget _actionButton(bool reported, String busyKey, VoidCallback onReport) {
-    final busy = _busyKey == busyKey;
-    return SizedBox(
-      width: double.infinity,
-      height: 46,
-      child: reported
-          ? OutlinedButton.icon(
-              onPressed: null,
-              icon: const Icon(Icons.check_circle_outline, size: 18),
-              label: const Text('Already reported'),
-            )
-          : FilledButton.icon(
-              onPressed: busy ? null : onReport,
-              style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.adminPrimary),
-              icon: busy
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Icon(Icons.person_add_alt_1_outlined, size: 18),
-              label: const Text('Send to worker queue'),
-            ),
-    );
-  }
-}
-
-class _SeverityStyle {
-  final String label;
-  final Color color;
-  final Color surface;
-
-  const _SeverityStyle(this.label, this.color, this.surface);
 }

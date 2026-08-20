@@ -11,6 +11,14 @@ import '../state/app_state.dart';
 /// depend on who's viewing it, only the actions below it do.
 
 String alertSubtitle(Alert alert, String date) {
+  switch (alert.sourceScope) {
+    case AlertSourceScope.mall:
+      final equipment = alert.equipmentName ?? 'Equipment';
+      return '$equipment · ${alert.state} · flagged $date';
+    case AlertSourceScope.household:
+      return 'Household ${alert.householdId ?? 'Unknown'} · flagged $date';
+  }
+
   switch (alert.alertType) {
     case AlertType.nrwHotspot:
       return 'NRW hotspot · ${alert.dataYear} data · flagged $date';
@@ -23,10 +31,37 @@ String alertSubtitle(Alert alert, String date) {
   }
 }
 
+enum AlertEvidenceKind {
+  stateBalance,
+  stateTampering,
+  mallUsage,
+  householdUsage,
+  unavailable,
+}
+
+AlertEvidenceKind alertEvidenceKindFor(Alert alert) {
+  if (alert.isMall) return AlertEvidenceKind.mallUsage;
+  if (alert.isHousehold) return AlertEvidenceKind.householdUsage;
+  if (alert.canRenderBalanceEvidence) return AlertEvidenceKind.stateBalance;
+  if (alert.canRenderTamperingEvidence) {
+    return AlertEvidenceKind.stateTampering;
+  }
+  return AlertEvidenceKind.unavailable;
+}
+
 Widget alertEvidence(BuildContext context, AppState app, Alert alert) {
-  if (alert.isLossBalance) return _balanceEvidence(app, alert);
-  if (alert.isElectricityTampering) return _tamperingEvidence(alert);
-  return _householdEvidence(alert);
+  switch (alertEvidenceKindFor(alert)) {
+    case AlertEvidenceKind.stateBalance:
+      return _balanceEvidence(app, alert);
+    case AlertEvidenceKind.stateTampering:
+      return _tamperingEvidence(alert);
+    case AlertEvidenceKind.mallUsage:
+      return _mallEvidence(alert);
+    case AlertEvidenceKind.householdUsage:
+      return _householdEvidence(alert);
+    case AlertEvidenceKind.unavailable:
+      return _unavailableEvidence(alert);
+  }
 }
 
 Widget alertAssessment(Alert alert) => Container(
@@ -165,6 +200,36 @@ Widget _householdEvidence(Alert alert) {
   ]);
 }
 
+Widget _mallEvidence(Alert alert) {
+  final unit = alert.utility == Utility.water ? 'L/day' : 'Wh/day';
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(alert.equipmentName ?? 'Equipment anomaly',
+          style: const TextStyle(fontWeight: FontWeight.w600)),
+      const SizedBox(height: 8),
+      _metricRow('Mall', alert.facilityName ?? alert.state),
+      _metricRow('Expected', '${alert.baselineL.round()} $unit'),
+      _metricRow('Actual', '${alert.actualL.round()} $unit'),
+      _metricRow('Usage ratio', '${alert.ratio.toStringAsFixed(1)}× baseline'),
+    ],
+  );
+}
+
+Widget _unavailableEvidence(Alert alert) => Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Balance data unavailable',
+            style: TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 6),
+        Text(
+          'This ${alert.sourceLabel.toLowerCase()} alert has no complete '
+          'calculation data yet. Review the detection context before action.',
+          style: const TextStyle(fontSize: 12, color: Colors.black54),
+        ),
+      ],
+    );
+
 Widget _metricCard(String label, double value, String unit) {
   return Container(
     padding: const EdgeInsets.all(12),
@@ -221,8 +286,8 @@ class _SparklinePainter extends CustomPainter {
       ..strokeWidth = 2;
     canvas.drawPath(path, paint);
 
-    final last = Offset(size.width,
-        size.height - ((values.last - minV) / range) * size.height);
+    final last = Offset(
+        size.width, size.height - ((values.last - minV) / range) * size.height);
     canvas.drawCircle(last, 3.5, Paint()..color = Colors.red.shade600);
   }
 

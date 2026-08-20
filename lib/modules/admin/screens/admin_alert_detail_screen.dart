@@ -7,40 +7,23 @@ import '../services/admin_tablet_layout.dart';
 import '../../leakage/models/alert.dart';
 import '../../leakage/models/report.dart';
 import '../../leakage/screens/alert_evidence.dart';
-import '../../leakage/screens/network_error.dart';
 import '../../leakage/screens/report_view_screen.dart';
 import '../../leakage/screens/style.dart';
 import '../../leakage/state/app_state.dart';
 
 /// Admin's read-only view of an alert: full evidence + linked investigation
-/// reports, plus the false-positive gate (pending ↔ faults) when applicable.
-/// Admin cannot investigate, write a report, or resolve an alert.
+/// reports. False positives are rejected from the Admin Review case before a
+/// Worker alert exists; Admin cannot investigate, write a report, or resolve
+/// a Worker alert.
 class AdminAlertDetailScreen extends StatefulWidget {
   final int alertId;
   const AdminAlertDetailScreen({super.key, required this.alertId});
 
   @override
-  State<AdminAlertDetailScreen> createState() =>
-      _AdminAlertDetailScreenState();
+  State<AdminAlertDetailScreen> createState() => _AdminAlertDetailScreenState();
 }
 
 class _AdminAlertDetailScreenState extends State<AdminAlertDetailScreen> {
-  bool _busy = false;
-
-  Future<void> _toggleGate(AppState app, Alert alert) async {
-    setState(() => _busy = true);
-    final next = alert.status == AlertStatus.pending
-        ? AlertStatus.faults
-        : AlertStatus.pending;
-    try {
-      await app.updateAlertStatus(alert.id!, next);
-    } catch (_) {
-      if (mounted) showNetworkErrorSnackBar(context);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
@@ -60,9 +43,8 @@ class _AdminAlertDetailScreenState extends State<AdminAlertDetailScreen> {
         app.reports.where((r) => r.alertId == widget.alertId).toList();
     final date = DateFormat('d MMM y').format(alert.detectedAt);
     final subtitle = alertSubtitle(alert, date);
-    final isPhoneLandscape =
-        adminLayoutModeFor(MediaQuery.sizeOf(context)) ==
-            AdminLayoutMode.phoneLandscape;
+    final isPhoneLandscape = adminLayoutModeFor(MediaQuery.sizeOf(context)) ==
+        AdminLayoutMode.phoneLandscape;
 
     if (isPhoneLandscape) {
       return _phoneLandscapeLayout(
@@ -89,11 +71,9 @@ class _AdminAlertDetailScreenState extends State<AdminAlertDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(children: [
-                  Pill(Severity.label(alert.severity),
-                      color: severityColor(alert.severity)),
+                  severityPill(alert.severity),
                   const SizedBox(width: 8),
-                  Pill(AlertStatus.label(alert.status),
-                      color: statusColor(alert.status)),
+                  statusPill(alert.status),
                 ]),
                 const SizedBox(height: 8),
                 Text(alert.title,
@@ -131,14 +111,14 @@ class _AdminAlertDetailScreenState extends State<AdminAlertDetailScreen> {
               ],
             ),
           ),
+          const SizedBox(height: 10),
+          AiAnalysisCard(alert: alert),
           if (reports.isNotEmpty) ...[
             const SizedBox(height: 16),
             const SectionLabel('INVESTIGATION REPORTS'),
             const SizedBox(height: 8),
             _reportsList(context, reports),
           ],
-          const SizedBox(height: 10),
-          _gateButton(app, alert),
           const SizedBox(height: 24),
         ],
       ),
@@ -182,10 +162,7 @@ class _AdminAlertDetailScreenState extends State<AdminAlertDetailScreen> {
                         ),
                       ),
                     ),
-                    Pill(
-                      AlertStatus.label(alert.status),
-                      color: statusColor(alert.status),
-                    ),
+                    statusPill(alert.status),
                   ],
                 ),
               ),
@@ -220,33 +197,7 @@ class _AdminAlertDetailScreenState extends State<AdminAlertDetailScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const Text(
-                            'STATUS ACTION',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: AppColors.textSecondary,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1.1,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          _landscapeGateButton(app, alert),
                           const Spacer(),
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: AppColors.warningSurface,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Text(
-                              'Mark as fault only after confirming the detection is invalid.',
-                              style: TextStyle(
-                                color: AppColors.textSecondary,
-                                fontSize: 12,
-                                height: 1.35,
-                              ),
-                            ),
-                          ),
                         ],
                       ),
                     ),
@@ -379,9 +330,8 @@ class _AdminAlertDetailScreenState extends State<AdminAlertDetailScreen> {
                     report.isFixed
                         ? Icons.check_circle_outline
                         : Icons.build_outlined,
-                    color: report.isFixed
-                        ? AppColors.success
-                        : AppColors.warning,
+                    color:
+                        report.isFixed ? AppColors.success : AppColors.warning,
                     size: 18,
                   ),
                 ),
@@ -399,68 +349,14 @@ class _AdminAlertDetailScreenState extends State<AdminAlertDetailScreen> {
                 trailing: const Icon(Icons.chevron_right,
                     color: AppColors.textTertiary),
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => ReportViewScreen(report: report))),
+                    builder: (_) => ReportViewScreen(
+                        report: report, barColor: AppColors.adminPrimary))),
               ),
             ),
           ),
           const SizedBox(height: 8),
         ],
       ],
-    );
-  }
-
-  Widget _gateButton(AppState app, Alert alert) {
-    if (alert.status != AlertStatus.pending &&
-        alert.status != AlertStatus.faults) {
-      return const SizedBox.shrink();
-    }
-    final isFaults = alert.status == AlertStatus.faults;
-    return OutlinedButton.icon(
-      onPressed: _busy ? null : () => _toggleGate(app, alert),
-      icon: _busy
-          ? const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2))
-          : Icon(isFaults ? Icons.undo : Icons.block,
-              color: isFaults ? AppColors.adminPrimary : AppColors.critical),
-      label: Text(
-        isFaults ? 'Restore to Pending' : 'Mark as Fault',
-        style: TextStyle(
-            color: isFaults ? AppColors.adminPrimary : AppColors.critical,
-            fontWeight: FontWeight.w600),
-      ),
-      style: OutlinedButton.styleFrom(
-        minimumSize: const Size.fromHeight(48),
-        side: BorderSide(
-            color: isFaults ? AppColors.adminPrimary : AppColors.critical),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      ),
-    );
-  }
-
-  Widget _landscapeGateButton(AppState app, Alert alert) {
-    if (alert.status != AlertStatus.pending &&
-        alert.status != AlertStatus.faults) {
-      return const SizedBox.shrink();
-    }
-    final isFaults = alert.status == AlertStatus.faults;
-    final color = isFaults ? AppColors.adminPrimary : AppColors.critical;
-    return FilledButton.icon(
-      onPressed: _busy ? null : () => _toggleGate(app, alert),
-      icon: _busy
-          ? const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : Icon(isFaults ? Icons.undo : Icons.block),
-      label: Text(isFaults ? 'Restore to Pending' : 'Mark as Fault'),
-      style: FilledButton.styleFrom(
-        backgroundColor: color,
-        foregroundColor: Colors.white,
-        minimumSize: const Size.fromHeight(48),
-      ),
     );
   }
 }

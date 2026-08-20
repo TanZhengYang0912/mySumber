@@ -213,10 +213,17 @@ class _FakeLeakageRemote implements LeakageRemoteStore {
   }
 
   @override
-  Future<Map<String, Object?>> updateAlertStatus(int id, String status) async {
+  Future<Map<String, Object?>> updateAlertStatus(
+    int id,
+    String status, {
+    String? handledBy,
+    String? handledById,
+  }) async {
     _checkOnline();
     final row = alertRows.firstWhere((row) => row['id'] == id);
     row['status'] = status;
+    row['handled_by'] = handledBy;
+    row['handled_by_id'] = handledById;
     return row;
   }
 

@@ -8,6 +8,7 @@ import 'package:mysumber/modules/dataset/screens/dashboard_screen.dart';
 import 'package:mysumber/modules/dataset/screens/inventory_screen.dart';
 import 'package:mysumber/modules/dataset/services/inventory_filter.dart';
 import 'package:mysumber/modules/dataset/state/dataset_state.dart';
+import 'package:mysumber/theme/filter_controls.dart';
 import 'package:mysumber/theme/tokens.dart';
 
 void main() {
@@ -61,7 +62,7 @@ void main() {
     expect(restored.facilityCity, 'Petaling Jaya');
   });
 
-  testWidgets('inventory can open with a selected state filter',
+  testWidgets('Mall Monitoring can open with a selected state filter',
       (tester) async {
     tester.view.physicalSize = const Size(800, 5000);
     tester.view.devicePixelRatio = 1;
@@ -79,20 +80,61 @@ void main() {
     );
     await tester.pump(const Duration(seconds: 1));
 
-    expect(find.text('State / Federal Territory'), findsOneWidget);
-    expect(find.text('All Shopping Malls'), findsOneWidget);
+    expect(find.text('Mall Monitoring'), findsOneWidget);
+    expect(find.widgetWithText(FilterDropdown, 'State / Federal Territory'),
+        findsOneWidget);
     expect(find.text('Aman Central'), findsNothing);
+  });
 
-    await tester.tap(find.text('Selangor').last);
-    await tester.pump(const Duration(milliseconds: 300));
-    await tester.tap(find.text('Johor').last);
+  testWidgets('usage comparison alone renders electricity in yellow',
+      (tester) async {
+    tester.view.physicalSize = const Size(900, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final datasetState = _StaticDatasetState()
+      ..stateWaterSupply['Selangor'] = 2000
+      ..stateWaterConsumption['Selangor'] = 1000
+      ..stateElectricitySupply['Selangor'] = 9000
+      ..stateElectricityConsumption['Selangor'] = 2000;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChangeNotifierProvider<DatasetState>.value(
+          value: datasetState,
+          child: const DashboardScreen(),
+        ),
+      ),
+    );
     await tester.pump();
 
-    expect(find.text('All Shopping Malls'), findsOneWidget);
+    final electricityLabel = tester.widget<Text>(find.text('Top Elec. Loss'));
+    expect(electricityLabel.style?.color, AppColors.warning);
+
+    final legendMarker = tester.widget<Container>(
+      find.byKey(const ValueKey('usage-comparison-electricity-legend')),
+    );
+    expect(
+      (legendMarker.decoration! as BoxDecoration).color,
+      AppColors.warning,
+    );
+
+    final electricityBar = find.byKey(
+      const ValueKey('usage-comparison-electricity-bar'),
+    );
+    final fills = find.descendant(
+      of: electricityBar,
+      matching: find.byType(Container),
+    );
+    final fill = tester.widget<Container>(fills.at(1));
+    expect((fill.decoration! as BoxDecoration).color, AppColors.warning);
+
+    expect(AppColors.electricityAccent, const Color(0xFF3B82F6));
+    expect(AppColors.electricitySurface, const Color(0xFFE0EBFB));
   });
 
   testWidgets(
-      'inventory keeps portrait location labels outside dropdown borders',
+      'Mall Monitoring keeps its state filter labelled outside the border',
       (tester) async {
     tester.view.physicalSize = const Size(800, 1600);
     tester.view.devicePixelRatio = 1;
@@ -110,17 +152,10 @@ void main() {
     );
     await tester.pump(const Duration(seconds: 1));
 
-    final stateDropdown = tester.widget<DropdownButtonFormField<String>>(
-      find.byKey(const ValueKey('State / Federal Territory-All')),
-    );
-    final mallDropdown = tester.widget<DropdownButtonFormField<String>>(
-      find.byKey(const ValueKey('Shopping Mall-All')),
-    );
-
-    expect(stateDropdown.decoration.labelText, isNull);
-    expect(mallDropdown.decoration.labelText, isNull);
+    expect(find.byType(FilterDropdown), findsOneWidget);
     expect(find.text('State / Federal Territory'), findsOneWidget);
-    expect(find.text('Shopping Mall'), findsOneWidget);
+    expect(find.widgetWithText(FilterDropdown, 'State / Federal Territory'),
+        findsOneWidget);
   });
 
   testWidgets('dashboard keeps full details below its landscape summary',
@@ -131,18 +166,17 @@ void main() {
     final datasetState = _StaticDatasetState()
       ..nodes = const [
         EquipmentNode(
+          nodeId: 'valve-1',
           nodeName: 'Cooling Tower Valve',
           utilityType: 'Water',
           zoneId: 'Selangor',
           status: 'Critical',
-          healthScore: 58,
         ),
         EquipmentNode(
           nodeName: 'Main Water Pump A1',
           utilityType: 'Water',
           zoneId: 'Selangor',
           status: 'Active',
-          healthScore: 92,
         ),
       ];
 
@@ -224,7 +258,7 @@ void main() {
     expect(result.statusCounts['Maintenance'], 6);
   });
 
-  testWidgets('inventory exposes single-select status chips', (tester) async {
+  testWidgets('Mall Monitoring search narrows the mall cards', (tester) async {
     tester.view.physicalSize = const Size(800, 5000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -241,12 +275,14 @@ void main() {
     );
     await tester.pump(const Duration(seconds: 1));
 
-    expect(find.text('Active (65)'), findsOneWidget);
-    expect(find.text('Critical (7)'), findsOneWidget);
+    expect(find.text('Sunway Pyramid'), findsOneWidget);
+    expect(find.text('Suria KLCC'), findsOneWidget);
 
-    await tester.tap(find.text('Critical (7)'));
+    await tester.enterText(find.byType(TextField), 'Sunway');
     await tester.pump();
-    expect(find.text('Critical (7)'), findsOneWidget);
+
+    expect(find.text('Sunway Pyramid'), findsOneWidget);
+    expect(find.text('Suria KLCC'), findsNothing);
   });
 
   testWidgets('inventory clear filters restores the default selections',
@@ -271,12 +307,10 @@ void main() {
     await tester.tap(find.text('Clear filters'));
     await tester.pump();
 
-    expect(find.text('All States'), findsOneWidget);
-    expect(find.text('All Shopping Malls'), findsOneWidget);
-    expect(find.text('All (78)'), findsNWidgets(2));
+    expect(find.text('All malls'), findsOneWidget);
   });
 
-  testWidgets('inventory uses a compact filter workspace in phone landscape',
+  testWidgets('Mall Monitoring keeps the mall list usable in phone landscape',
       (tester) async {
     tester.view.physicalSize = const Size(914, 411);
     tester.view.devicePixelRatio = 1;
@@ -306,21 +340,12 @@ void main() {
       ),
     );
 
-    expect(
-      find.byKey(const PageStorageKey('phone-landscape-inventory')),
-      findsOneWidget,
-    );
-    expect(find.byTooltip('Filter equipment'), findsOneWidget);
-    expect(find.byTooltip('Add equipment'), findsOneWidget);
-    expect(find.text('State / Federal Territory'), findsNothing);
-    expect(find.byType(FloatingActionButton), findsNothing);
-
-    await tester.tap(find.byTooltip('Filter equipment'));
-    await tester.pumpAndSettle();
+    expect(find.text('Mall Monitoring'), findsOneWidget);
     expect(find.text('State / Federal Territory'), findsOneWidget);
+    expect(find.byType(FloatingActionButton), findsNothing);
   });
 
-  testWidgets('inventory aligns equipment details into four wide-card zones',
+  testWidgets('Mall Monitoring opens a detail surface for its mall card',
       (tester) async {
     tester.view.physicalSize = const Size(1024, 768);
     tester.view.devicePixelRatio = 1;
@@ -335,7 +360,6 @@ void main() {
           facilityCity: 'Kuala Lumpur',
           manufacturer: 'Grundfos',
           status: 'Active',
-          healthScore: 96,
         ),
       ];
 
@@ -347,41 +371,11 @@ void main() {
     ));
     await tester.pump();
 
-    expect(find.text('Status'), findsOneWidget);
-    expect(find.text('Health'), findsOneWidget);
-    expect(find.text('Operation'), findsOneWidget);
-    expect(find.text('96%'), findsOneWidget);
-    expect(find.byTooltip('Edit equipment'), findsOneWidget);
-
-    final statusColumn = tester.widget<Column>(
-      find
-          .ancestor(
-            of: find.text('Status'),
-            matching: find.byType(Column),
-          )
-          .first,
-    );
-    final healthColumn = tester.widget<Column>(
-      find
-          .ancestor(
-            of: find.text('Health'),
-            matching: find.byType(Column),
-          )
-          .first,
-    );
-    expect(statusColumn.crossAxisAlignment, CrossAxisAlignment.center);
-    expect(healthColumn.crossAxisAlignment, CrossAxisAlignment.center);
-
-    final statusLabelY = tester.getCenter(find.text('Status')).dy;
-    final healthLabelY = tester.getCenter(find.text('Health')).dy;
-    final operationLabelY = tester.getCenter(find.text('Operation')).dy;
-    final statusValueY = tester.getCenter(find.text('Active')).dy;
-    final healthValueY = tester.getCenter(find.text('96%')).dy;
-    final operationY = tester.getCenter(find.byTooltip('Edit equipment')).dy;
-    expect(statusLabelY, closeTo(healthLabelY, 1));
-    expect(statusLabelY, closeTo(operationLabelY, 1));
-    expect(statusValueY, closeTo(healthValueY, 1));
-    expect(statusValueY, closeTo(operationY, 1));
+    expect(find.text('Suria KLCC'), findsOneWidget);
+    await tester.tap(find.text('Suria KLCC'));
+    await tester.pumpAndSettle();
+    expect(find.text('Equipment (1)'), findsOneWidget);
+    expect(find.text('Manage equipment'), findsOneWidget);
   });
 }
 

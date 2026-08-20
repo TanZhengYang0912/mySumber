@@ -6,7 +6,7 @@ import '../../auth/state/auth_state.dart';
 import '../data/worker_repository.dart';
 import '../models/worker_account.dart';
 import '../services/admin_tablet_layout.dart';
-import '../widgets/admin_page_header.dart';
+import '../../../theme/page_header.dart';
 
 class WorkerAccountsScreen extends StatefulWidget {
   const WorkerAccountsScreen({super.key, this.repository});
@@ -210,7 +210,7 @@ class _WorkerAccountsScreenState extends State<WorkerAccountsScreen> {
   }
 
   Widget _header() {
-    return AdminPageHeader(
+    return PageHeader(
       title: 'Worker Accounts',
       icon: Icons.manage_accounts_outlined,
       onLogout: () => context.read<RoleState>().logout(),

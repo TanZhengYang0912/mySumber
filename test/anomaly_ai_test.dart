@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:mysumber/modules/leakage/models/ai_anomaly_analysis.dart';
 import 'package:mysumber/modules/leakage/models/alert.dart';
+import 'package:mysumber/modules/leakage/models/anomaly_case.dart';
 import 'package:mysumber/modules/leakage/services/anomaly_ai_service.dart';
 
 void main() {
@@ -20,11 +21,18 @@ void main() {
     expect(File(functionPath).existsSync(), isTrue);
 
     final functionSource = File(functionPath).readAsStringSync();
-    expect(functionSource, contains("Deno.env.get('GROQ_API_KEY')"));
-    expect(functionSource, contains("const groqModel = 'openai/gpt-oss-20b'"));
+    // main's stricter assertions, re-quoted to match this branch's function:
+    // index.ts here is double-quoted where main's was single-quoted, so the
+    // literals differ even though the code they check is identical.
+    //
+    // The model stays on 120b, deliberately diverging from main's 20b. It
+    // produces better write-ups and is proven working on this branch; the
+    // trade-off is heavier Groq rate limiting on bulk inserts.
+    expect(functionSource, contains('Deno.env.get("GROQ_API_KEY")'));
+    expect(functionSource, contains('const groqModel = "openai/gpt-oss-120b"'));
     expect(functionSource, isNot(contains('llama-3.1-8b-instant')));
-    expect(functionSource, contains("profile.role !== 'admin'"));
-    expect(functionSource, contains("profile.status !== 'active'"));
+    expect(functionSource, contains('profile.role !== "admin"'));
+    expect(functionSource, contains('profile.status !== "active"'));
   });
 
   test('parses a valid Groq anomaly response', () {
@@ -204,6 +212,40 @@ void main() {
     expect(result.summary, 'Pump usage is abnormal.');
   });
 
+  test('sends only the saved case ID to the private edge function', () async {
+    String? requestedCaseId;
+    final service = AnomalyAiService.forTesting(
+      (_) async => throw UnimplementedError('alert analysis is not used here'),
+      null,
+      (caseId) async {
+        requestedCaseId = caseId;
+        return {
+          'analysis': {
+            'summary': 'The household circuit is unstable.',
+            'possible_cause': 'Loose connection.',
+            'severity_assessment': 'Medium',
+            'confidence': 0.8,
+            'recommendation': 'Inspect the consumer unit.',
+          },
+        };
+      },
+    );
+
+    final result = await service.generateCase(const AnomalyCase(
+      id: '7199ec20-cb82-4ea8-aecc-c78adc7e00d1',
+      sourceScope: AlertSourceScope.household,
+      sourceKey: 'household:demo:H-305',
+      utility: Utility.electricity,
+      state: 'Selangor',
+      householdId: 'H-305',
+      severity: Severity.medium,
+      explanation: 'Kitchen lights repeatedly flicker.',
+    ));
+
+    expect(requestedCaseId, '7199ec20-cb82-4ea8-aecc-c78adc7e00d1');
+    expect(result.severityAssessment, 'Medium');
+  });
+
   test('maps edge-function failures to an anomaly AI exception', () async {
     final service = AnomalyAiService.forTesting(
       (_) async => throw StateError('Function unavailable'),
@@ -230,6 +272,97 @@ void main() {
 
     expect(
       () => service.generate(_testAlert()),
+      throwsA(
+        isA<AnomalyAiException>().having(
+          (error) => error.failure,
+          'failure',
+          AnomalyAiFailure.invalidResponse,
+        ),
+      ),
+    );
+  });
+
+  test('preview sends the raw evidence and returns a validated analysis',
+      () async {
+    Map<String, Object?>? sentEvidence;
+    final service = AnomalyAiService.forTesting(
+      (_) async => throw UnimplementedError('generate not used here'),
+      (evidence) async {
+        sentEvidence = evidence;
+        return {
+          'analysis': {
+            'summary': 'Perlis loss is above the national average.',
+            'possible_cause': 'Distribution-network leakage.',
+            'severity_assessment': 'High',
+            'confidence': 0.86,
+            'recommendation': 'Field inspection of the district network.',
+          },
+        };
+      },
+    );
+
+    final result = await service.preview({'state': 'Perlis', 'loss_pct': 59.7});
+
+    expect(sentEvidence, {'state': 'Perlis', 'loss_pct': 59.7});
+    expect(result.summary, 'Perlis loss is above the national average.');
+    expect(result.severityAssessment, 'High');
+  });
+
+  test('mall preview always identifies the Mall source', () async {
+    Map<String, Object?>? sentEvidence;
+    final service = AnomalyAiService.forTesting(
+      (_) async => throw UnimplementedError('generate not used here'),
+      (evidence) async {
+        sentEvidence = evidence;
+        return {
+          'analysis': {
+            'summary': 'Chiller usage needs inspection.',
+            'possible_cause': 'A load issue.',
+            'severity_assessment': 'Medium',
+            'confidence': 0.8,
+            'recommendation': 'Review the equipment list.',
+          },
+        };
+      },
+    );
+
+    await service.previewMall({'facility_name': 'Sunway Pyramid'});
+
+    expect(sentEvidence, {
+      'facility_name': 'Sunway Pyramid',
+      'source_scope': 'mall',
+    });
+  });
+
+  test('preview maps edge-function failures to an anomaly AI exception',
+      () async {
+    final service = AnomalyAiService.forTesting(
+      (_) async => throw UnimplementedError('generate not used here'),
+      (_) async => throw StateError('Function unavailable'),
+    );
+
+    expect(
+      () => service.preview({'state': 'Perlis'}),
+      throwsA(
+        isA<AnomalyAiException>().having(
+          (error) => error.failure,
+          'failure',
+          AnomalyAiFailure.apiError,
+        ),
+      ),
+    );
+  });
+
+  test('preview rejects an incomplete edge-function response', () async {
+    final service = AnomalyAiService.forTesting(
+      (_) async => throw UnimplementedError('generate not used here'),
+      (_) async => {
+        'analysis': {'summary': 'Incomplete'}
+      },
+    );
+
+    expect(
+      () => service.preview({'state': 'Perlis'}),
       throwsA(
         isA<AnomalyAiException>().having(
           (error) => error.failure,

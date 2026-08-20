@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
+import '../../leakage/models/alert.dart';
 import '../../leakage/screens/network_error.dart';
 import '../../leakage/services/simulation_service.dart';
 import '../../leakage/state/app_state.dart';
@@ -171,8 +172,8 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
                 foregroundColor: AppColors.critical,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14)),
-                textStyle: const TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.w800),
+                textStyle:
+                    const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
               ),
             ),
           ),
@@ -185,8 +186,8 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
               style: TextButton.styleFrom(
                 minimumSize: const Size.fromHeight(52),
                 foregroundColor: AppColors.critical,
-                textStyle: const TextStyle(
-                    fontSize: 14, fontWeight: FontWeight.w700),
+                textStyle:
+                    const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
               ),
             ),
           ),
@@ -378,8 +379,7 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
     );
   }
 
-  Widget _profileCard(
-      String name, String email, String initials, String? phone,
+  Widget _profileCard(String name, String email, String initials, String? phone,
       RoleState role) {
     return AppCard(
       padding: EdgeInsets.zero,
@@ -553,8 +553,9 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
                     value: usage.pushNotificationsEnabled,
                     activeThumbColor: Colors.white,
                     activeTrackColor: AppColors.adminPrimary,
-                    onChanged: (v) =>
-                        context.read<UsageState>().setPushNotificationsEnabled(v),
+                    onChanged: (v) => context
+                        .read<UsageState>()
+                        .setPushNotificationsEnabled(v),
                   ),
                 ),
               ],
@@ -564,8 +565,8 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
           _menuItem(
             icon: Icons.flag_outlined,
             label: 'Report a Problem',
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => const ReportFlowScreen())),
+            onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const ReportFlowScreen())),
           ),
           const Divider(height: 1, indent: 16, endIndent: 16),
           _menuItem(
@@ -573,8 +574,8 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
             label: 'App Settings',
             onTap: () => Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => const AccountSettingsScreen())),
-            trailing: const Icon(Icons.chevron_right,
-                color: AppColors.textTertiary),
+            trailing:
+                const Icon(Icons.chevron_right, color: AppColors.textTertiary),
           ),
         ],
       ),
@@ -603,8 +604,7 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
                       color: AppColors.textPrimary)),
             ),
             trailing ??
-                const Icon(Icons.chevron_right,
-                    color: AppColors.textTertiary),
+                const Icon(Icons.chevron_right, color: AppColors.textTertiary),
           ],
         ),
       ),
@@ -637,6 +637,25 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
   bool _isWater = true;
   LeakScenario? _pendingWater;
   _ElecScenario? _pendingElec;
+  final _description = TextEditingController();
+  final _address = TextEditingController();
+  DateTime _occurredAt = DateTime.now();
+  bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _address.text = (Supabase.instance.client.auth.currentUser
+            ?.userMetadata?['service_address'] as String?) ??
+        _defaultServiceAddress;
+  }
+
+  @override
+  void dispose() {
+    _description.dispose();
+    _address.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -680,11 +699,16 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
             padding: const EdgeInsets.all(4),
             child: Row(
               children: [
-                Expanded(child: _utilityTab('Water', Icons.water_drop_outlined,
-                    AppColors.waterAccent, _isWater, () => setState(() {
-                          _isWater = true;
-                          _pendingElec = null;
-                        }))),
+                Expanded(
+                    child: _utilityTab(
+                        'Water',
+                        Icons.water_drop_outlined,
+                        AppColors.waterAccent,
+                        _isWater,
+                        () => setState(() {
+                              _isWater = true;
+                              _pendingElec = null;
+                            }))),
                 Expanded(
                     child: _utilityTab(
                         'Electricity',
@@ -738,12 +762,10 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
               children: [
                 const SectionLabel('WHAT\'S HAPPENING'),
                 const SizedBox(height: 4),
-                Text(
-                  _isWater
-                      ? 'Describe what\'s happening — we\'ll check it against your state\'s average.'
-                      : 'Select the issue you\'re experiencing — we\'ll escalate it to the team.',
-                  style: const TextStyle(
-                      fontSize: 13, color: AppColors.textSecondary),
+                const Text(
+                  'Choose a category, then give the Admin enough detail to review it.',
+                  style:
+                      TextStyle(fontSize: 13, color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: 14),
                 Wrap(
@@ -759,6 +781,63 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
                 ),
               ],
             ),
+          ),
+          const SizedBox(height: 10),
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SectionLabel('REPORT DETAILS'),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _address,
+                  decoration:
+                      const InputDecoration(labelText: 'Service address'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _description,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    labelText: 'What happened?',
+                    hintText:
+                        'For example: water is pooling under the kitchen sink.',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _occurredAt,
+                      firstDate:
+                          DateTime.now().subtract(const Duration(days: 30)),
+                      lastDate: DateTime.now(),
+                    );
+                    if (picked != null && mounted) {
+                      setState(() => _occurredAt = picked);
+                    }
+                  },
+                  icon: const Icon(Icons.schedule_outlined),
+                  label: Text(
+                      'Occurred: ${_occurredAt.day}/${_occurredAt.month}/${_occurredAt.year}'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          FilledButton.icon(
+            onPressed: _submitting ? null : () => _submit(app),
+            style:
+                FilledButton.styleFrom(backgroundColor: AppColors.adminPrimary),
+            icon: _submitting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.send_outlined),
+            label: const Text('Submit for Admin review'),
           ),
           const SizedBox(height: 24),
         ],
@@ -802,7 +881,6 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
     return GestureDetector(
       onTap: () {
         setState(() => _pendingWater = scenario);
-        _submitWater(app, scenario);
       },
       child: _chip(scenario.label, selected, AppColors.waterAccent),
     );
@@ -813,7 +891,6 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
     return GestureDetector(
       onTap: () {
         setState(() => _pendingElec = scenario);
-        _submitElectricity(app, scenario);
       },
       child: _chip(scenario.label, selected, AppColors.electricityAccent),
     );
@@ -839,44 +916,41 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
     );
   }
 
-  Future<void> _submitWater(AppState app, LeakScenario scenario) async {
-    try {
-      final outcome = await app.simulate(scenario, _selectedState);
-      if (!mounted) return;
-      setState(() => _pendingWater = null);
-      final message = outcome.anomalyRaised
-          ? 'Thanks — flagged as ${outcome.result.signature} (${outcome.result.severity}) and sent to our team.'
-          : 'Your usage looks within the normal range (${outcome.result.ratio.toStringAsFixed(1)}x average). No report needed.';
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(message),
-        backgroundColor:
-            outcome.anomalyRaised ? AppColors.critical : AppColors.success,
-      ));
-    } catch (_) {
-      if (mounted) {
-        setState(() => _pendingWater = null);
-        showNetworkErrorSnackBar(context);
-      }
+  Future<void> _submit(AppState app) async {
+    final category = _isWater ? _pendingWater?.label : _pendingElec?.label;
+    if (category == null ||
+        _description.text.trim().isEmpty ||
+        _address.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text(
+              'Choose a category and complete the address and description.')));
+      return;
     }
-  }
-
-  Future<void> _submitElectricity(AppState app, _ElecScenario scenario) async {
+    setState(() => _submitting = true);
     try {
-      await app.reportCustomerElectricityIssue(
-        scenarioLabel: scenario.label,
-        isTampering: scenario.isTampering,
+      await app.submitHouseholdProblem(
+        utility: _isWater ? Utility.water : Utility.electricity,
         state: _selectedState,
+        address: _address.text.trim(),
+        category: category,
+        description: _description.text.trim(),
+        occurredAt: _occurredAt,
       );
       if (!mounted) return;
-      setState(() => _pendingElec = null);
+      setState(() {
+        _submitting = false;
+        _description.clear();
+        _pendingWater = null;
+        _pendingElec = null;
+      });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(
-            'Thanks — your ${scenario.label.toLowerCase()} report in $_selectedState has been sent to our team.'),
-        backgroundColor: AppColors.electricityAccent,
+        content: const Text(
+            'Submitted for Admin review. You will see updates after it is reviewed.'),
+        backgroundColor: AppColors.adminPrimary,
       ));
     } catch (_) {
       if (mounted) {
-        setState(() => _pendingElec = null);
+        setState(() => _submitting = false);
         showNetworkErrorSnackBar(context);
       }
     }

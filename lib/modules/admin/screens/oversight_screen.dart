@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
-import '../../../theme/segmented_chips.dart';
+import '../../../theme/filter_controls.dart';
 import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
 import '../../leakage/models/alert.dart';
@@ -15,7 +14,7 @@ import 'admin_alert_detail_screen.dart';
 import '../services/admin_tablet_layout.dart';
 import '../services/anomaly_review_filter.dart';
 import '../widgets/landscape_filter_menu.dart';
-import '../widgets/admin_page_header.dart';
+import '../../../theme/page_header.dart';
 import '../widgets/oversight_landscape_workspace.dart';
 
 enum OversightSection { alerts, reports }
@@ -33,7 +32,9 @@ class _OversightScreenState extends State<OversightScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _outerTab;
   Utility? _alertUtility;
-  String _alertStatus = AlertStatus.pending;
+  String? _alertStatus;
+  String? _alertState;
+  String? _alertSeverity;
   Utility? _reportUtility;
   String? _reportOutcome;
   String? _reportState;
@@ -42,6 +43,7 @@ class _OversightScreenState extends State<OversightScreen>
   bool _landscapeHighSeverityOnly = false;
   final _landscapeAlertController = ScrollController();
   final _reportSearch = TextEditingController();
+  final _alertSearch = TextEditingController();
 
   @override
   void initState() {
@@ -59,6 +61,7 @@ class _OversightScreenState extends State<OversightScreen>
     _outerTab.dispose();
     _landscapeAlertController.dispose();
     _reportSearch.dispose();
+    _alertSearch.dispose();
     super.dispose();
   }
 
@@ -87,6 +90,25 @@ class _OversightScreenState extends State<OversightScreen>
     });
   }
 
+  void _clearAlertFilters() {
+    setState(() {
+      _alertSearch.clear();
+      _alertState = null;
+      _alertSeverity = null;
+      _alertStatus = null;
+      _alertUtility = null;
+    });
+  }
+
+  void _clearReportFilters() {
+    setState(() {
+      _reportSearch.clear();
+      _reportState = null;
+      _reportOutcome = null;
+      _reportUtility = null;
+    });
+  }
+
   int get _activeLandscapeReportFilterCount {
     var count = 0;
     if (_reportState != null) count++;
@@ -109,7 +131,8 @@ class _OversightScreenState extends State<OversightScreen>
     final mode = adminLayoutModeFor(MediaQuery.sizeOf(context));
     final isPhoneLandscape = mode == AdminLayoutMode.phoneLandscape;
     final isAlertsTab = _outerTab.index == 0;
-    final pendingCount = app.pendingAlerts().length;
+    final pendingCount =
+        app.alerts.where((a) => a.status == AlertStatus.pending).length;
 
     if (isPhoneLandscape) {
       final landscapeAlerts =
@@ -187,12 +210,24 @@ class _OversightScreenState extends State<OversightScreen>
                       children: [
                         const Text('Alert Queue'),
                         const SizedBox(width: 6),
-                        _countBadge(pendingCount),
+                        CountBadge(pendingCount),
                       ],
                     ),
                   ),
                 ),
-                const Tab(text: 'Reports'),
+                Tab(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('Reports'),
+                        const SizedBox(width: 6),
+                        CountBadge(app.reports.length),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -200,25 +235,13 @@ class _OversightScreenState extends State<OversightScreen>
             child: TabBarView(
               controller: _outerTab,
               children: [
-                _alertQueueTab(app),
+                _workerAlertQueueTab(app),
                 _reportsTab(app),
               ],
             ),
           ),
         ],
       ),
-      floatingActionButton: isAlertsTab
-          ? FloatingActionButton.extended(
-              backgroundColor: AppColors.adminPrimary,
-              foregroundColor: Colors.white,
-              icon: const Icon(Icons.add_alert_outlined),
-              label: const Text('Report State'),
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const AbnormalProductionScreen(
-                        showBackToOversight: true,
-                      ))),
-            )
-          : null,
     );
   }
 
@@ -230,10 +253,6 @@ class _OversightScreenState extends State<OversightScreen>
     if (_landscapeStatuses.length == 1 &&
         _landscapeStatuses.contains(AlertStatus.resolved)) {
       return 'Resolved alerts';
-    }
-    if (_landscapeStatuses.length == 1 &&
-        _landscapeStatuses.contains(AlertStatus.faults)) {
-      return 'Fault alerts';
     }
     return 'Filtered alerts';
   }
@@ -258,7 +277,6 @@ class _OversightScreenState extends State<OversightScreen>
             _landscapeStatusChip('Investigating', {AlertStatus.investigating}),
             _landscapeStatusChip('Not Fixed', {AlertStatus.notFixed}),
             _landscapeStatusChip('Resolved', {AlertStatus.resolved}),
-            _landscapeStatusChip('Faults', {AlertStatus.faults}),
           ],
         ),
         const SizedBox(height: 12),
@@ -389,156 +407,135 @@ class _OversightScreenState extends State<OversightScreen>
       left.length == right.length && left.containsAll(right);
 
   Widget _header(BuildContext context) {
-    return AdminPageHeader(
+    return PageHeader(
       title: 'Oversight',
       icon: Icons.shield_outlined,
       onLogout: () => context.read<RoleState>().logout(),
     );
   }
 
-  Widget _countBadge(int count) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: AppColors.criticalSurface,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        '$count',
-        style: const TextStyle(
-            color: AppColors.critical,
-            fontSize: 11,
-            fontWeight: FontWeight.w700),
-      ),
-    );
-  }
+  Widget _workerAlertQueueTab(AppState app) {
+    const queueStatuses = [
+      AlertStatus.pending,
+      AlertStatus.investigating,
+      AlertStatus.notFixed,
+      AlertStatus.resolved,
+    ];
 
-  // --- Alert Queue tab ---
+    final states = app.alerts.map((a) => a.state).toSet().toList()..sort();
+    final scoped = app
+        .alertsFiltered(utility: _alertUtility)
+        .where((a) => a.status != AlertStatus.pendingReview)
+        .toList();
 
-  Widget _alertQueueTab(AppState app) {
-    final pending = app.pendingAlerts(_alertUtility);
-    final investigating = app.investigatingAlerts(_alertUtility);
-    final notFixed = app.notFixedAlerts(_alertUtility);
-    final solved = app.solvedAlerts(_alertUtility);
-    final faults = app.faultAlerts(_alertUtility);
-    final active = _activeStatusGroup(
-        pending, investigating, notFixed, solved, faults);
+    final query = _alertSearch.text.trim().toLowerCase();
+    bool matchesQuery(Alert a) =>
+        query.isEmpty ||
+        a.state.toLowerCase().contains(query) ||
+        a.title.toLowerCase().contains(query);
+
+    // Each filter's counts reflect every OTHER active filter but not its own
+    // selection, so picking "High" doesn't collapse Severity's own list.
+    List<Alert> excluding(
+        {bool state = true, bool severity = true, bool status = true}) {
+      return scoped.where((a) {
+        if (!matchesQuery(a)) return false;
+        if (state && _alertState != null && a.state != _alertState) {
+          return false;
+        }
+        if (severity &&
+            _alertSeverity != null &&
+            a.severity != _alertSeverity) {
+          return false;
+        }
+        if (status && _alertStatus != null && a.status != _alertStatus) {
+          return false;
+        }
+        return true;
+      }).toList();
+    }
+
+    final alerts = excluding();
+    final stateCounts = countBy(excluding(state: false), (a) => a.state);
+    final severityCounts =
+        countBy(excluding(severity: false), (a) => a.severity);
+    final statusCounts = countBy(excluding(status: false), (a) => a.status);
+    final utilityCounts = countBy(
+        app
+            .alertsFiltered(
+                state: _alertState,
+                status: _alertStatus,
+                severity: _alertSeverity)
+            .where(matchesQuery),
+        (a) => a.utility == Utility.electricity ? 'electricity' : 'water');
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          color: AppColors.surface,
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-          child: SegmentedChipRow(
-            children: [
-              SegmentedChip(
-                label: 'Pending',
-                count: pending.length,
-                selected: _alertStatus == AlertStatus.pending,
-                onTap: () => setState(() => _alertStatus = AlertStatus.pending),
-                color: AppColors.adminPrimary,
-              ),
-              SegmentedChip(
-                label: 'Investigating',
-                count: investigating.length,
-                selected: _alertStatus == AlertStatus.investigating,
-                onTap: () =>
-                    setState(() => _alertStatus = AlertStatus.investigating),
-                color: AppColors.adminPrimary,
-              ),
-              SegmentedChip(
-                label: 'Not Fixed',
-                count: notFixed.length,
-                selected: _alertStatus == AlertStatus.notFixed,
-                onTap: () =>
-                    setState(() => _alertStatus = AlertStatus.notFixed),
-                color: AppColors.adminPrimary,
-              ),
-              SegmentedChip(
-                label: 'Resolved',
-                count: solved.length,
-                selected: _alertStatus == AlertStatus.resolved,
-                onTap: () =>
-                    setState(() => _alertStatus = AlertStatus.resolved),
-                color: AppColors.adminPrimary,
-              ),
-              SegmentedChip(
-                label: 'Faults',
-                count: faults.length,
-                selected: _alertStatus == AlertStatus.faults,
-                onTap: () => setState(() => _alertStatus = AlertStatus.faults),
-                color: AppColors.adminPrimary,
-              ),
-            ],
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+          child: AlertFilterBar(
+            searchController: _alertSearch,
+            onSearchChanged: (_) => setState(() {}),
+            selectedState: _alertState,
+            states: states,
+            stateCounts: stateCounts,
+            onStateChanged: (v) => setState(() => _alertState = v),
+            selectedSeverity: _alertSeverity,
+            severityCounts: severityCounts,
+            onSeverityChanged: (v) => setState(() => _alertSeverity = v),
+            selectedStatus: _alertStatus,
+            statusOptions: queueStatuses,
+            statusCounts: statusCounts,
+            onStatusChanged: (v) => setState(() => _alertStatus = v),
           ),
         ),
-        const Divider(height: 1),
-        Container(
-          color: AppColors.canvas,
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-          child: SegmentedChipRow(
-            spacing: 8,
-            children: [
-              SegmentedChip(
-                label: 'All',
-                selected: _alertUtility == null,
-                onTap: () => setState(() => _alertUtility = null),
-                color: AppColors.adminPrimary,
-              ),
-              SegmentedChip(
-                label: 'Water',
-                icon: Icons.water_drop_outlined,
-                selected: _alertUtility == Utility.water,
-                onTap: () => setState(() => _alertUtility = Utility.water),
-                color: AppColors.adminPrimary,
-              ),
-              SegmentedChip(
-                label: 'Electricity',
-                icon: Icons.electric_bolt_outlined,
-                selected: _alertUtility == Utility.electricity,
-                onTap: () =>
-                    setState(() => _alertUtility = Utility.electricity),
-                color: AppColors.adminPrimary,
-              ),
-            ],
+        const SizedBox(height: 10),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: UtilityChips(
+            selected: _alertUtility,
+            allCount: utilityCounts.values.fold<int>(0, (a, b) => a + b),
+            waterCount: utilityCounts['water'] ?? 0,
+            electricityCount: utilityCounts['electricity'] ?? 0,
+            onChanged: (u) => setState(() => _alertUtility = u),
           ),
         ),
-        Expanded(child: _alertList(active.alerts, active.empty)),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: _clearAlertFilters,
+            child: const Text('Clear filters'),
+          ),
+        ),
+        const SizedBox(height: 14),
+        Expanded(
+          child: alerts.isEmpty
+              ? const Center(
+                  child: Text('No alerts match these filters.',
+                      style: TextStyle(color: AppColors.textSecondary)),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+                  itemCount: alerts.length,
+                  itemBuilder: (context, index) {
+                    final alert = alerts[index];
+                    return AlertCard(
+                      alert: alert,
+                      utility: alert.utility,
+                      resolvedAt: alert.id == null
+                          ? null
+                          : app.resolvedAtFor(alert.id!),
+                      resolvedHandledBy:
+                          app.workerNames[alert.handledById] ?? alert.handledBy,
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) =>
+                              AdminAlertDetailScreen(alertId: alert.id!))),
+                    );
+                  },
+                ),
+        ),
       ],
-    );
-  }
-
-  ({List<Alert> alerts, String empty}) _activeStatusGroup(
-    List<Alert> pending,
-    List<Alert> investigating,
-    List<Alert> notFixed,
-    List<Alert> solved,
-    List<Alert> faults,
-  ) =>
-      switch (_alertStatus) {
-        AlertStatus.investigating => (
-            alerts: investigating,
-            empty: 'No investigations in progress.'
-          ),
-        AlertStatus.notFixed => (
-            alerts: notFixed,
-            empty: 'No alerts awaiting follow-up.'
-          ),
-        AlertStatus.resolved => (alerts: solved, empty: 'No resolved alerts yet.'),
-        AlertStatus.faults => (alerts: faults, empty: 'No faults yet.'),
-        _ => (alerts: pending, empty: 'No pending alerts.'),
-      };
-
-  Widget _alertList(List<Alert> alerts, String emptyMessage) {
-    if (alerts.isEmpty) {
-      return Center(
-          child: Text(emptyMessage,
-              style: const TextStyle(color: AppColors.textSecondary)));
-    }
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
-      itemCount: alerts.length,
-      itemBuilder: (context, index) => _AlertCard(alert: alerts[index]),
     );
   }
 
@@ -546,196 +543,118 @@ class _OversightScreenState extends State<OversightScreen>
 
   Widget _reportsTab(AppState app, {bool compact = false}) {
     final states = app.alerts.map((a) => a.state).toSet().toList()..sort();
+    final alertById = {
+      for (final a in app.alerts)
+        if (a.id != null) a.id!: a,
+    };
     final query = _reportSearch.text.trim().toLowerCase();
-    var reports = app.reportsFiltered(
-      utility: _reportUtility,
-      outcome: _reportOutcome,
-      state: _reportState,
-    );
-    if (query.isNotEmpty) {
-      final alertById = {
-        for (final a in app.alerts)
-          if (a.id != null) a.id!: a,
-      };
-      reports = reports.where((r) {
-        final alert = alertById[r.alertId];
-        final state = alert?.state.toLowerCase() ?? '';
-        return state.contains(query) ||
-            r.findings.toLowerCase().contains(query) ||
-            r.actionTaken.toLowerCase().contains(query);
-      }).toList();
+    bool matchesQuery(Report r) {
+      if (query.isEmpty) return true;
+      final state = alertById[r.alertId]?.state.toLowerCase() ?? '';
+      return state.contains(query) ||
+          r.findings.toLowerCase().contains(query) ||
+          r.actionTaken.toLowerCase().contains(query);
     }
 
-    final total = app.reportsFiltered(utility: _reportUtility).length;
-    final fixed = app
-        .reportsFiltered(utility: _reportUtility, outcome: ReportOutcome.fixed)
-        .length;
-    final notFixed = app
-        .reportsFiltered(
-            utility: _reportUtility, outcome: ReportOutcome.notFixed)
-        .length;
+    // Each filter's counts reflect every OTHER active filter but not its own
+    // selection, so picking "Fixed" doesn't collapse Outcome's own list.
+    List<Report> excluding(
+        {bool state = true, bool outcome = true, bool utility = true}) {
+      return app
+          .reportsFiltered(
+            state: state ? _reportState : null,
+            outcome: outcome ? _reportOutcome : null,
+            utility: utility ? _reportUtility : null,
+          )
+          .where(matchesQuery)
+          .toList();
+    }
 
-    return ListView(
-      padding: compact
-          ? const EdgeInsets.fromLTRB(16, 8, 16, 12)
-          : const EdgeInsets.fromLTRB(12, 12, 12, 24),
+    final reports = excluding();
+    final stateCounts = countBy(
+        excluding(state: false), (r) => alertById[r.alertId]?.state ?? '');
+    final outcomeCounts = countBy(excluding(outcome: false), (r) => r.outcome);
+    final utilityCounts = countBy(
+        excluding(utility: false),
+        (r) => alertById[r.alertId]?.utility == Utility.electricity
+            ? 'electricity'
+            : 'water');
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _reportSummaryRow(
-          compact: compact,
-          total: total,
-          fixed: fixed,
-          notFixed: notFixed,
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _reportSearch,
-          onChanged: (_) => setState(() {}),
-          decoration: InputDecoration(
-            hintText: 'Search location or notes',
-            hintStyle: const TextStyle(color: AppColors.textTertiary),
-            prefixIcon: const Icon(Icons.search, color: AppColors.textTertiary),
-            isDense: true,
-            filled: true,
-            fillColor: AppColors.surface,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.divider),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.divider),
+        if (compact)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: FilterSearchField(
+              controller: _reportSearch,
+              hint: 'Type anything to search',
+              onChanged: (_) => setState(() {}),
             ),
           ),
-        ),
         if (!compact) ...[
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: _dropdown(
-                    value: _reportState,
-                    hint: 'All States',
-                    items: [
-                      const DropdownMenuItem(
-                          value: null, child: Text('All States')),
-                      ...states.map(
-                          (s) => DropdownMenuItem(value: s, child: Text(s))),
-                    ],
-                    onChanged: (v) => setState(() => _reportState = v)),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _dropdown(
-                    value: _reportUtility?.name,
-                    hint: 'All Types',
-                    items: const [
-                      DropdownMenuItem(value: null, child: Text('All Types')),
-                      DropdownMenuItem(value: 'water', child: Text('Water')),
-                      DropdownMenuItem(
-                          value: 'electricity', child: Text('Electricity')),
-                    ],
-                    onChanged: (v) => setState(() {
-                          _reportUtility = v == null
-                              ? null
-                              : Utility.values.firstWhere((u) => u.name == v);
-                        })),
-              ),
-            ],
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+            child: ReportFilterBar(
+              searchController: _reportSearch,
+              onSearchChanged: (_) => setState(() {}),
+              selectedState: _reportState,
+              states: states,
+              stateCounts: stateCounts,
+              onStateChanged: (v) => setState(() => _reportState = v),
+              selectedOutcome: _reportOutcome,
+              outcomeCounts: outcomeCounts,
+              onOutcomeChanged: (v) => setState(() => _reportOutcome = v),
+            ),
           ),
           const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: _outcomeToggle('All', _reportOutcome == null,
-                    () => setState(() => _reportOutcome = null)),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _outcomeToggle(
-                    'Fixed',
-                    _reportOutcome == ReportOutcome.fixed,
-                    () => setState(() => _reportOutcome = ReportOutcome.fixed)),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _outcomeToggle(
-                    'Not Fixed',
-                    _reportOutcome == ReportOutcome.notFixed,
-                    () => setState(
-                        () => _reportOutcome = ReportOutcome.notFixed)),
-              ),
-            ],
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: UtilityChips(
+              selected: _reportUtility,
+              allCount: utilityCounts.values.fold<int>(0, (a, b) => a + b),
+              waterCount: utilityCounts['water'] ?? 0,
+              electricityCount: utilityCounts['electricity'] ?? 0,
+              onChanged: (u) => setState(() => _reportUtility = u),
+            ),
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: _clearReportFilters,
+              child: const Text('Clear filters'),
+            ),
           ),
         ],
         const SizedBox(height: 14),
-        if (reports.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 40),
-            child: Center(
-              child: Text('No reports match these filters.',
-                  style: TextStyle(color: AppColors.textSecondary)),
-            ),
-          )
-        else
-          ...reports
-              .map((r) => _ReportCard(report: r, app: app, landscape: compact)),
-      ],
-    );
-  }
-
-  Widget _reportSummaryRow({
-    required bool compact,
-    required int total,
-    required int fixed,
-    required int notFixed,
-  }) {
-    final cells = [
-      StatCell(
-        icon: Icons.description_outlined,
-        iconColor: AppColors.textPrimary,
-        value: total.toString(),
-        label: 'Total',
-        background: const Color(0xFFF3F4F6),
-        compact: compact,
-      ),
-      StatCell(
-        icon: Icons.check_circle_outline,
-        iconColor: AppColors.success,
-        value: fixed.toString(),
-        label: 'Fixed',
-        background: AppColors.successSurface,
-        compact: compact,
-      ),
-      StatCell(
-        icon: Icons.warning_amber_outlined,
-        iconColor: AppColors.warning,
-        value: notFixed.toString(),
-        label: 'Not Fixed',
-        background: AppColors.warningSurface,
-        compact: compact,
-      ),
-    ];
-
-    if (compact) {
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          for (var index = 0; index < cells.length; index++) ...[
-            if (index > 0) const SizedBox(width: 10),
-            SizedBox(width: 164, child: cells[index]),
-          ],
-        ],
-      );
-    }
-
-    return Row(
-      children: [
-        for (var index = 0; index < cells.length; index++) ...[
-          if (index > 0) const SizedBox(width: 10),
-          Expanded(child: cells[index]),
-        ],
+        Expanded(
+          child: reports.isEmpty
+              ? const Center(
+                  child: Text('No reports match these filters.',
+                      style: TextStyle(color: AppColors.textSecondary)),
+                )
+              : ListView.builder(
+                  padding: compact
+                      ? const EdgeInsets.fromLTRB(16, 0, 16, 12)
+                      : const EdgeInsets.fromLTRB(12, 0, 12, 24),
+                  itemCount: reports.length,
+                  itemBuilder: (context, index) {
+                    final report = reports[index];
+                    final alert = alertById[report.alertId];
+                    return ReportCard(
+                      report: report,
+                      locationLabel: alert?.title ?? 'Alert #${report.alertId}',
+                      utility: alert?.utility,
+                      resolvedWorkerName:
+                          app.workerNames[report.workerId] ?? report.workerName,
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => ReportViewScreen(
+                              report: report,
+                              barColor: AppColors.adminPrimary))),
+                    );
+                  },
+                ),
+        ),
       ],
     );
   }
@@ -792,523 +711,6 @@ class _OversightScreenState extends State<OversightScreen>
             color: selected ? Colors.white : AppColors.textPrimary,
           ),
         ),
-      ),
-    );
-  }
-
-  // --- Shared controls ---
-
-  static Widget _landscapeContent({
-    required bool isFixed,
-    required Color outcomeColor,
-    required Color outcomeBg,
-    required String state,
-    required Color utilityColor,
-    required Color utilityBg,
-    required IconData utilityIcon,
-    required String utilityLabel,
-    required String date,
-    required String description,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Expanded(
-          flex: 2,
-          child: Row(
-            children: [
-              Icon(
-                isFixed ? Icons.check_circle : Icons.warning_amber_rounded,
-                color: outcomeColor,
-                size: 22,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      state,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: utilityBg,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(utilityIcon, size: 12, color: utilityColor),
-                          const SizedBox(width: 4),
-                          Text(
-                            utilityLabel,
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: utilityColor,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        _landscapeDivider(),
-        Expanded(
-          flex: 4,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _landscapeMetricColumn(
-              label: 'Details',
-              value: Text(
-                description,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
-                  height: 1.35,
-                ),
-              ),
-            ),
-          ),
-        ),
-        _landscapeDivider(),
-        SizedBox(
-          width: 136,
-          child: _landscapeMetricColumn(
-            label: 'Outcome',
-            value: Pill(
-              isFixed ? 'Fixed' : 'Not Fixed',
-              color: outcomeColor,
-              background: outcomeBg,
-            ),
-          ),
-        ),
-        _landscapeDivider(),
-        SizedBox(
-          width: 126,
-          child: _landscapeMetricColumn(
-            label: 'Updated',
-            value: Text(
-              date,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 6),
-        const Icon(Icons.chevron_right, color: AppColors.textTertiary),
-      ],
-    );
-  }
-
-  static Widget _landscapeMetricColumn({
-    required String label,
-    required Widget value,
-  }) {
-    const labelStyle = TextStyle(
-      fontSize: 11,
-      fontWeight: FontWeight.w700,
-      color: AppColors.textTertiary,
-    );
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          height: 18,
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Text(label, style: labelStyle),
-          ),
-        ),
-        const SizedBox(height: 6),
-        SizedBox(
-          height: 38,
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: value,
-          ),
-        ),
-        const SizedBox(height: 6),
-        const SizedBox(height: 6),
-      ],
-    );
-  }
-
-  static Widget _landscapeDivider() {
-    return Container(
-      width: 1,
-      height: 48,
-      color: AppColors.divider,
-    );
-  }
-}
-
-class _AlertCard extends StatelessWidget {
-  final Alert alert;
-  const _AlertCard({required this.alert});
-
-  @override
-  Widget build(BuildContext context) {
-    final sev = alert.severity;
-    final sevColor = severityColor(sev);
-    final isWater = alert.utility == Utility.water;
-    final utilityColor =
-        isWater ? AppColors.waterAccent : AppColors.electricityAccent;
-    final utilityBg =
-        isWater ? AppColors.waterSurface : AppColors.electricitySurface;
-    final utilityIcon =
-        isWater ? Icons.water_drop_outlined : Icons.electric_bolt_outlined;
-    final utilityLabel = isWater ? 'Water' : 'Electricity';
-    final date = DateFormat('d MMM').format(alert.detectedAt);
-
-    final usesLossPct = alert.lossPct != null;
-    final metric = usesLossPct
-        ? '${alert.lossPct!.toStringAsFixed(1)}%'
-        : '${alert.ratio.toStringAsFixed(1)}x';
-    final metricUnit = usesLossPct ? 'of supply lost' : 'of state average';
-
-    final typeLabel = _typeLabel(alert.alertType);
-
-    return GestureDetector(
-      onTap: () => Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => AdminAlertDetailScreen(alertId: alert.id!))),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x0F000000),
-              blurRadius: 10,
-              offset: Offset(0, 3),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(14),
-          child: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Container(width: 4, color: sevColor),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 12, 8, 12),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(
-                                    child: Wrap(
-                                      spacing: 8,
-                                      runSpacing: 6,
-                                      crossAxisAlignment:
-                                          WrapCrossAlignment.center,
-                                      children: [
-                                        Text(
-                                          alert.title,
-                                          style: const TextStyle(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w700,
-                                            color: AppColors.textPrimary,
-                                          ),
-                                        ),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 8, vertical: 3),
-                                          decoration: BoxDecoration(
-                                            color: utilityBg,
-                                            borderRadius:
-                                                BorderRadius.circular(999),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(utilityIcon,
-                                                  size: 12,
-                                                  color: utilityColor),
-                                              const SizedBox(width: 4),
-                                              Text(
-                                                utilityLabel,
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  color: utilityColor,
-                                                  fontWeight: FontWeight.w700,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Pill(
-                                    Severity.label(alert.severity),
-                                    color: sevColor,
-                                    background:
-                                        sevColor.withValues(alpha: 0.12),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                '$typeLabel · Flagged $date',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                              if (alert.baselineL > 0 ||
-                                  alert.lossPct != null) ...[
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    Icon(Icons.trending_up,
-                                        size: 14, color: sevColor),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      '$metric $metricUnit',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: sevColor,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        const Icon(Icons.chevron_right,
-                            color: AppColors.textTertiary, size: 20),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _typeLabel(String type) {
-    switch (type) {
-      case AlertType.nrwHotspot:
-        return 'NRW Hotspot';
-      case AlertType.electricityHotspot:
-        return 'Electricity Loss';
-      case AlertType.electricityTampering:
-        return 'Tampering';
-      default:
-        return 'Household';
-    }
-  }
-}
-
-class _ReportCard extends StatelessWidget {
-  final Report report;
-  final AppState app;
-  final bool landscape;
-
-  const _ReportCard({
-    required this.report,
-    required this.app,
-    this.landscape = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isFixed = report.isFixed;
-    final outcomeColor = isFixed ? AppColors.success : AppColors.warning;
-    final outcomeBg =
-        isFixed ? AppColors.successSurface : AppColors.warningSurface;
-    final matches = app.alerts.where((a) => a.id == report.alertId);
-    final alert = matches.isEmpty ? null : matches.first;
-    final state = alert?.state ?? 'Unknown';
-    final isWater = alert?.utility == Utility.water;
-    final utilityColor =
-        isWater ? AppColors.waterAccent : AppColors.electricityAccent;
-    final utilityBg =
-        isWater ? AppColors.waterSurface : AppColors.electricitySurface;
-    final utilityIcon =
-        isWater ? Icons.water_drop_outlined : Icons.electric_bolt_outlined;
-    final utilityLabel = isWater ? 'Water' : 'Electricity';
-    final date = DateFormat('d MMM y, HH:mm').format(report.updatedAt);
-    final description = report.findings.isEmpty
-        ? (isFixed
-            ? 'No findings. Sensor reading normalized.'
-            : 'No findings recorded.')
-        : report.findings;
-
-    return GestureDetector(
-      onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => ReportViewScreen(report: report))),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x0F000000),
-              blurRadius: 10,
-              offset: Offset(0, 3),
-            ),
-          ],
-        ),
-        key: landscape ? const Key('oversight-landscape-report-card') : null,
-        child: landscape
-            ? _OversightScreenState._landscapeContent(
-                isFixed: isFixed,
-                outcomeColor: outcomeColor,
-                outcomeBg: outcomeBg,
-                state: state,
-                utilityColor: utilityColor,
-                utilityBg: utilityBg,
-                utilityIcon: utilityIcon,
-                utilityLabel: utilityLabel,
-                date: date,
-                description: description,
-              )
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        isFixed
-                            ? Icons.check_circle
-                            : Icons.warning_amber_rounded,
-                        color: outcomeColor,
-                        size: 22,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        state,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Pill(
-                        isFixed ? 'Fixed' : 'Not Fixed',
-                        color: outcomeColor,
-                        background: outcomeBg,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    description,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: AppColors.textSecondary,
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: utilityBg,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(utilityIcon, size: 12, color: utilityColor),
-                            const SizedBox(width: 4),
-                            Text(
-                              utilityLabel,
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: utilityColor,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Text(
-                        date,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textTertiary,
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: AppColors.customerSurface,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.person_outline,
-                                size: 12, color: AppColors.customerPrimary),
-                            const SizedBox(width: 4),
-                            Text(
-                              report.workerName,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: AppColors.customerPrimary,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
       ),
     );
   }

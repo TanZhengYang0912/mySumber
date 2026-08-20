@@ -47,6 +47,12 @@ app.*.map.json
 # Local-only, not shared with the team
 /docs/superpowers/
 /.superpowers/
+# MCP servers are per-developer (own Supabase account + own OAuth)
+.mcp.json
+# Claude Code / agent tooling — per-developer, not project config
+.claude/
+.codex/
+AGENTS.md
 
 # Local AI assistants and MCP tooling
 **/AGENTS*.md
@@ -70,3 +76,5 @@ app.*.map.json
 lib/config.dart
 .worktrees/
 mysumber_flowchart.drawio
+
+.figma_ref
