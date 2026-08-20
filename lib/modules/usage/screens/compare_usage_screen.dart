@@ -8,7 +8,7 @@ import '../models/utility_entry.dart';
 import '../services/customer_compact_layout.dart';
 import '../state/usage_state.dart';
 import '../widgets/add_consumption_sheet.dart';
-import 'notifications_screen.dart';
+import '../widgets/customer_header.dart';
 import 'report_problem_screen.dart';
 
 const _monthNames = [
@@ -76,7 +76,11 @@ class _CompareUsageScreenState extends State<CompareUsageScreen>
           : ListView(
               padding: EdgeInsets.zero,
               children: [
-                _header(context),
+                CustomerHeader(
+                  subtitle: 'Good morning,',
+                  title: context.watch<RoleState>().displayName,
+                  notificationCount: usage.notifications.length,
+                ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
                   child: _utilityTabs(accent),
@@ -589,104 +593,6 @@ class _CompareUsageScreenState extends State<CompareUsageScreen>
               ),
             ],
           const SizedBox(height: 8),
-        ],
-      ),
-    );
-  }
-
-  Widget _header(BuildContext context) {
-    final displayName = context.watch<RoleState>().displayName;
-
-    return Container(
-      width: double.infinity,
-      color: AppColors.adminPrimary,
-      padding: EdgeInsets.fromLTRB(
-        20,
-        MediaQuery.of(context).padding.top + 14,
-        20,
-        18,
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.18),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.person_outline,
-                color: Colors.white, size: 22),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Good morning,',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 13,
-                    )),
-                const SizedBox(height: 2),
-                Text(displayName,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      height: 1.1,
-                    )),
-              ],
-            ),
-          ),
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const NotificationsScreen(),
-                ),
-              ),
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.18),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.notifications_outlined,
-                        color: Colors.white, size: 20),
-                  ),
-                  Positioned(
-                    top: -3,
-                    right: -3,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 5, vertical: 1),
-                      decoration: BoxDecoration(
-                        color: AppColors.critical,
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                            color: AppColors.adminPrimary, width: 1.5),
-                      ),
-                      child: const Text(
-                        '2',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
         ],
       ),
     );

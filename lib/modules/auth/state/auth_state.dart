@@ -494,7 +494,12 @@ class RoleState extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _errorMessage = 'Could not delete account: $e';
+      // AuthRetryableFetchError means the request never reached Supabase
+      // (network drop, timeout) — it's transient, not a real failure, so
+      // don't show the raw exception text.
+      _errorMessage = e.toString().contains('AuthRetryableFetchError')
+          ? 'Could not delete account: network issue, please try again.'
+          : 'Could not delete account: $e';
       _isLoading = false;
       notifyListeners();
       return false;

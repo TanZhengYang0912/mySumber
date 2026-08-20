@@ -68,6 +68,9 @@ class MySumberApp extends StatelessWidget {
   final LocalDatabase database;
   final CacheStatus cacheStatus;
 
+  static final GlobalKey<NavigatorState> _navigatorKey =
+      GlobalKey<NavigatorState>();
+
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
@@ -132,6 +135,7 @@ class MySumberApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
+        navigatorKey: _navigatorKey,
         title: 'mySumber',
         debugShowCheckedModeBanner: false,
         builder: (context, child) => OfflineStatusBanner(
@@ -201,6 +205,13 @@ class MySumberApp extends StatelessWidget {
         home: Consumer<RoleState>(
           builder: (BuildContext context, RoleState authState, Widget? _) {
             if (authState.requiresPasswordReset) {
+              // ResetPasswordScreen just became the root route, but a
+              // pushed screen (e.g. ForgotPasswordScreen) may still be
+              // sitting on top of it from before the reset-link email was
+              // opened — pop back to root so it's actually visible.
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _navigatorKey.currentState?.popUntil((route) => route.isFirst);
+              });
               return const ResetPasswordScreen();
             }
             if (authState.isLoggedIn) {

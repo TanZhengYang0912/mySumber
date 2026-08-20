@@ -63,22 +63,24 @@ Deno.serve(async (request) => {
 
     const action = parseWorkerAction(await request.json());
     if (action.action === 'create') {
-      const {data: invited, error: inviteError} =
-          await adminClient.auth.admin.inviteUserByEmail(action.email, {
-            redirectTo: 'io.supabase.mysumber://login-callback',
-            data: {
+      // Default password is the worker's own email — they're forced through
+      // ResetPasswordScreen on first login (see must_set_password below), so
+      // this is a known-to-them starter password, not a long-lived secret.
+      const {data: created, error: createError} =
+          await adminClient.auth.admin.createUser({
+            email: action.email,
+            password: action.email,
+            email_confirm: true,
+            user_metadata: {
               display_name: action.fullName,
               must_set_password: true,
             },
+            app_metadata: {role: 'worker'},
           });
-      if (inviteError != null || invited.user == null) {
-        return json({error: inviteError?.message ?? 'Could not invite worker'}, 400);
+      if (createError != null || created.user == null) {
+        return json({error: createError?.message ?? 'Could not invite worker'}, 400);
       }
-      const workerId = invited.user.id;
-      const {error: authError} = await adminClient.auth.admin.updateUserById(workerId, {
-        app_metadata: {role: 'worker'},
-      });
-      if (authError != null) throw authError;
+      const workerId = created.user.id;
       const {error: upsertError} = await adminClient.from('profiles').upsert({
         id: workerId,
         full_name: action.fullName,

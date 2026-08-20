@@ -8,6 +8,7 @@ import '../../leakage/screens/network_error.dart';
 import '../../leakage/services/simulation_service.dart';
 import '../../leakage/state/app_state.dart';
 import '../state/usage_state.dart';
+import '../widgets/customer_header.dart';
 import '../widgets/edit_address_dialog.dart';
 import '../widgets/edit_profile_dialog.dart';
 import '../widgets/logout_confirmation_dialog.dart';
@@ -115,6 +116,7 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
   @override
   Widget build(BuildContext context) {
     final role = context.watch<RoleState>();
+    final notificationCount = context.watch<UsageState>().notifications.length;
     final email = role.email ?? '';
     final displayName = role.displayName;
     final initials = displayName
@@ -139,7 +141,11 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
       body: ListView(
         padding: EdgeInsets.zero,
         children: [
-          _header(context),
+          CustomerHeader(
+            subtitle: 'mySumber · PROFILE',
+            title: 'My Account',
+            notificationCount: notificationCount,
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
             child: _profileCard(
@@ -399,94 +405,6 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
             value: 'Residential Standard',
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _header(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      decoration: const BoxDecoration(
-        color: AppColors.adminPrimary,
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(24),
-          bottomRight: Radius.circular(24),
-        ),
-      ),
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-      child: SafeArea(
-        bottom: false,
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.18),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.person_outline,
-                  color: Colors.white, size: 22),
-            ),
-            const SizedBox(width: 12),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('mySumber · PROFILE',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 13,
-                      )),
-                  SizedBox(height: 2),
-                  Text('My Account',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                      )),
-                ],
-              ),
-            ),
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.18),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.notifications_outlined,
-                      color: Colors.white, size: 20),
-                ),
-                Positioned(
-                  top: -2,
-                  right: -2,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 5, vertical: 1),
-                    decoration: BoxDecoration(
-                      color: AppColors.critical,
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(
-                          color: AppColors.adminPrimary, width: 1.5),
-                    ),
-                    child: const Text(
-                      '2',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }

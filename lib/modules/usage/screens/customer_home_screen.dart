@@ -8,7 +8,8 @@ import '../models/utility_entry.dart';
 import '../services/customer_compact_layout.dart';
 import '../state/usage_state.dart';
 import '../widgets/add_consumption_sheet.dart';
-import '../widgets/logout_confirmation_dialog.dart';
+import '../widgets/customer_header.dart';
+import 'notifications_screen.dart';
 
 class CustomerHomeScreen extends StatelessWidget {
   final VoidCallback? onUsageTap;
@@ -30,7 +31,11 @@ class CustomerHomeScreen extends StatelessWidget {
       body: ListView(
         padding: EdgeInsets.zero,
         children: [
-          _greetingHeader(context, displayName),
+          CustomerHeader(
+            subtitle: 'Good morning,',
+            title: displayName,
+            notificationCount: usage.notifications.length,
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
             child: _statusBanner(),
@@ -131,7 +136,7 @@ class CustomerHomeScreen extends StatelessWidget {
                       ],
                     ),
                   ),
-                  _notificationButton(),
+                  _notificationButton(context, usage.notifications.length),
                   const SizedBox(width: 8),
                   FilledButton.icon(
                     onPressed: () => showAddConsumptionFlow(context),
@@ -166,48 +171,66 @@ class CustomerHomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _notificationButton() {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border.all(color: AppColors.divider),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Icon(
-            Icons.notifications_outlined,
-            color: AppColors.textSecondary,
-            size: 21,
-          ),
-        ),
-        Positioned(
-          top: -4,
-          right: -4,
-          child: Container(
-            width: 17,
-            height: 17,
-            alignment: Alignment.center,
+  void _openNotifications(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+    );
+  }
+
+  Widget _notificationButton(BuildContext context, int count) {
+    final size = _notificationButtonSize(context);
+    return GestureDetector(
+      onTap: () => _openNotifications(context),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: size,
+            height: size,
             decoration: BoxDecoration(
-              color: AppColors.critical,
-              shape: BoxShape.circle,
-              border: Border.all(color: AppColors.canvas, width: 2),
+              color: Colors.white,
+              border: Border.all(color: AppColors.divider),
+              borderRadius: BorderRadius.circular(size * 0.3),
             ),
-            child: const Text(
-              '2',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 9,
-                fontWeight: FontWeight.w800,
+            child: Icon(
+              Icons.notifications_outlined,
+              color: AppColors.textSecondary,
+              size: size * 0.525,
+            ),
+          ),
+          if (count > 0)
+            Positioned(
+              top: -size * 0.1,
+              right: -size * 0.1,
+              child: Container(
+                width: size * 0.425,
+                height: size * 0.425,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppColors.critical,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.canvas, width: 2),
+                ),
+                child: Text(
+                  count > 9 ? '9+' : '$count',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: size * 0.2,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
               ),
             ),
-          ),
-        ),
-      ],
+        ],
+      ),
     );
+  }
+
+  /// Notification bell scales with screen width, clamped to a sane range
+  /// so it stays legible on small phones and doesn't balloon on tablets.
+  double _notificationButtonSize(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    return (width * 0.1).clamp(32.0, 48.0);
   }
 
   Widget _landscapeStatusBanner() {
@@ -520,110 +543,6 @@ class CustomerHomeScreen extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _greetingHeader(BuildContext context, String name) {
-    return Container(
-      width: double.infinity,
-      decoration: const BoxDecoration(
-        color: AppColors.adminPrimary,
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(24),
-          bottomRight: Radius.circular(24),
-        ),
-      ),
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-      child: SafeArea(
-        bottom: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.18),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.person_outline,
-                      color: Colors.white, size: 24),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Good morning,',
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 14,
-                        ),
-                      ),
-                      Text(
-                        name,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.18),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.notifications_outlined,
-                          color: Colors.white, size: 20),
-                    ),
-                    Positioned(
-                      top: -2,
-                      right: -2,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 5, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: AppColors.critical,
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(
-                              color: AppColors.adminPrimary, width: 1.5),
-                        ),
-                        child: const Text(
-                          '2',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                IconButton(
-                  icon:
-                      const Icon(Icons.logout, color: Colors.white70, size: 20),
-                  onPressed: () => showLogoutConfirmation(
-                    context,
-                    onConfirm: () => context.read<RoleState>().logout(),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }

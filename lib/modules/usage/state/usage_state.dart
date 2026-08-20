@@ -1,10 +1,20 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../theme/tokens.dart';
 import '../../leakage/services/baseline_service.dart';
 import '../data/usage_repository.dart';
+import '../models/app_notification.dart';
 import '../models/utility_entry.dart';
 import '../services/electricity_baseline_service.dart';
+
+const _monthNames = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+String _monthYearLabel(DateTime month) =>
+    '${_monthNames[month.month - 1]} ${month.year}';
 
 class UsageState extends ChangeNotifier {
   final UsageRepository _repository;
@@ -34,9 +44,55 @@ class UsageState extends ChangeNotifier {
     UtilityType.electricity: [],
   };
 
+  final List<AppNotification> _notifications = [
+    AppNotification(
+      icon: Icons.warning_amber_rounded,
+      color: AppColors.warning,
+      bg: AppColors.warningSurface,
+      title: 'Bill Due Soon',
+      message: 'Your July bill of RM 78.40 is due on 31 Jul 2025.',
+      timestamp: DateTime.now().subtract(const Duration(hours: 2)),
+      showStrip: true,
+    ),
+    AppNotification(
+      icon: Icons.check_circle_outline,
+      color: AppColors.success,
+      bg: AppColors.successSurface,
+      title: 'Usage Down This Month',
+      message: 'Great news! Your water usage dropped 3.1% vs last month.',
+      timestamp: DateTime.now().subtract(const Duration(days: 1)),
+      showStrip: true,
+    ),
+    AppNotification(
+      icon: Icons.info_outline,
+      color: AppColors.waterAccent,
+      bg: AppColors.waterSurface,
+      title: 'Scheduled Maintenance',
+      message: 'Water supply interruption on 10 Aug, 9am–12pm.',
+      timestamp: DateTime.now().subtract(const Duration(days: 2)),
+    ),
+    AppNotification(
+      icon: Icons.check_circle_outline,
+      color: AppColors.success,
+      bg: AppColors.successSurface,
+      title: 'Meter Reading Confirmed',
+      message: 'Your July meter reading has been recorded successfully.',
+      timestamp: DateTime.now().subtract(const Duration(days: 3)),
+    ),
+  ];
+
   bool get loading => _loading;
   String? get error => _error;
   String get selectedState => _selectedState;
+
+  /// Newest first.
+  List<AppNotification> get notifications =>
+      List.unmodifiable(_notifications.reversed);
+
+  void clearNotifications() {
+    _notifications.clear();
+    notifyListeners();
+  }
 
   /// Whether [selectedState] came from the user's saved service address
   /// (Profile tab) rather than the fallback default.
@@ -197,11 +253,23 @@ class UsageState extends ChangeNotifier {
     required double value,
     DateTime? month,
   }) async {
+    final resolvedMonth = month ?? _currentMonth;
     await _repository.upsertEntry(
       utility: utility,
-      month: month ?? _currentMonth,
+      month: resolvedMonth,
       value: value,
     );
     await _reload(utility);
+    _notifications.add(AppNotification(
+      icon: Icons.check_circle_outline,
+      color: AppColors.success,
+      bg: AppColors.successSurface,
+      title: '${utility.label} Reading Saved',
+      message:
+          '${_monthYearLabel(resolvedMonth)} was successfully entered.',
+      timestamp: DateTime.now(),
+      showStrip: true,
+    ));
+    notifyListeners();
   }
 }
