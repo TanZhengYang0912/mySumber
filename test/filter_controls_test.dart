@@ -148,8 +148,40 @@ void main() {
     expect(find.text('All States (7)'), findsOneWidget);
   });
 
+  testWidgets('alert filter bar can present reporting statuses',
+      (tester) async {
+    final controller = TextEditingController();
+    addTearDown(controller.dispose);
+
+    await _pump(
+      tester,
+      AlertFilterBar(
+        searchController: controller,
+        onSearchChanged: (_) {},
+        selectedState: null,
+        states: const ['Selangor'],
+        stateCounts: const {'Selangor': 1},
+        onStateChanged: (_) {},
+        selectedSeverity: null,
+        severityCounts: const {Severity.high: 1},
+        onSeverityChanged: (_) {},
+        selectedStatus: 'reported',
+        statusOptions: const ['reported', 'unreported'],
+        statusCounts: const {'reported': 1, 'unreported': 2},
+        onStatusChanged: (_) {},
+        statusCaption: 'Reporting',
+        statusLabelFor: (value) =>
+            value == 'reported' ? 'Reported' : 'Unreported',
+      ),
+    );
+
+    expect(find.text('Reporting'), findsOneWidget);
+    expect(find.text('Reported (1)'), findsOneWidget);
+  });
+
   test('countBy tallies items per key', () {
-    final counts = countBy(['a', 'bb', 'cc', 'ddd'], (s) => s.length.toString());
+    final counts =
+        countBy(['a', 'bb', 'cc', 'ddd'], (s) => s.length.toString());
     expect(counts, {'1': 1, '2': 2, '3': 1});
   });
 }

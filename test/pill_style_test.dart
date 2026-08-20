@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:mysumber/modules/leakage/models/alert.dart';
+import 'package:mysumber/modules/leakage/models/report.dart';
 import 'package:mysumber/modules/leakage/screens/style.dart';
 import 'package:mysumber/theme/tokens.dart';
 
@@ -36,7 +37,8 @@ void main() {
 
   testWidgets('an outlined pill has a coloured border and no fill',
       (tester) async {
-    await _pump(tester, const Pill('Water', color: Colors.blue, outlined: true));
+    await _pump(
+        tester, const Pill('Water', color: Colors.blue, outlined: true));
 
     final decoration = _decorationOf(tester);
     expect(decoration.color, Colors.transparent);
@@ -50,8 +52,8 @@ void main() {
     expect(find.text('High'), findsOneWidget);
     final decoration = _decorationOf(tester);
     expect(decoration.color, Colors.transparent);
-    expect((decoration.border! as Border).top.color,
-        severityColor(Severity.high));
+    expect(
+        (decoration.border! as Border).top.color, severityColor(Severity.high));
   });
 
   testWidgets('statusPill is outlined and uses the status colour',
@@ -63,5 +65,23 @@ void main() {
     expect(decoration.color, Colors.transparent);
     expect((decoration.border! as Border).top.color,
         statusColor(AlertStatus.notFixed));
+  });
+
+  test('status colour is the requested dark grey', () {
+    expect(statusColor(AlertStatus.pending), const Color(0xFF374151));
+    expect(statusColor(AlertStatus.notFixed), const Color(0xFF374151));
+  });
+
+  testWidgets('fixed and not-fixed outcomes reuse the status pill treatment',
+      (tester) async {
+    for (final outcome in [ReportOutcome.fixed, ReportOutcome.notFixed]) {
+      await _pump(tester, outcomePill(outcome));
+      final decoration = _decorationOf(tester);
+      expect(decoration.color, Colors.transparent);
+      expect(
+        (decoration.border! as Border).top.color,
+        const Color(0xFF374151),
+      );
+    }
   });
 }

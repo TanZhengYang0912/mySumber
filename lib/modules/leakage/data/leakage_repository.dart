@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/alert.dart';
+import '../models/anomaly_case.dart';
 import '../models/reading.dart';
 import '../models/report.dart';
 
@@ -41,6 +42,53 @@ class LeakageRepository {
     final row =
         await _client.from('alerts').select().eq('id', id).maybeSingle();
     return row == null ? null : Alert.fromMap(row);
+  }
+
+  Future<List<AnomalyCase>> anomalyCases({String? sourceScope}) async {
+    // AppState starts while the landing screen is still unauthenticated. The
+    // Admin-review table is deliberately not readable by anon, so defer this
+    // query until a real session exists; the normal polling refresh then loads
+    // the correct role-scoped cases after sign-in.
+    if (_client.auth.currentUser == null) return const [];
+    var query = _client.from('anomaly_cases').select();
+    if (sourceScope != null) {
+      query = query.eq('source_scope', sourceScope);
+    }
+    final rows = await query.order('created_at', ascending: false);
+    return rows.map((row) => AnomalyCase.fromMap(row)).toList();
+  }
+
+  Future<AnomalyCase> insertAnomalyCase(AnomalyCase anomalyCase) async {
+    final row = await _client
+        .from('anomaly_cases')
+        .insert(anomalyCase.toInsertMap())
+        .select()
+        .single();
+    return AnomalyCase.fromMap(row);
+  }
+
+  Future<AnomalyCase> upsertAnomalyCase(AnomalyCase anomalyCase) async {
+    final row = await _client
+        .from('anomaly_cases')
+        .upsert(anomalyCase.toInsertMap(), onConflict: 'source_key')
+        .select()
+        .single();
+    return AnomalyCase.fromMap(row);
+  }
+
+  Future<int> approveAnomalyCase(String caseId) async {
+    final result = await _client.rpc(
+      'approve_anomaly_case',
+      params: {'p_case_id': caseId},
+    );
+    return (result as num).toInt();
+  }
+
+  Future<void> rejectAnomalyCase(String caseId, String reason) async {
+    await _client.rpc(
+      'reject_anomaly_case',
+      params: {'p_case_id': caseId, 'p_reason': reason},
+    );
   }
 
   Future<void> updateAlertStatus(int id, String status,

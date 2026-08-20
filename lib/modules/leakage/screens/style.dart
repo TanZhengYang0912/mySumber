@@ -25,7 +25,7 @@ Color severityColor(String severity) {
 /// Alert status is deliberately monochrome. Severity already carries colour
 /// on the same card, so colouring status too made every list read as noise —
 /// the pill still labels the status, it just no longer competes for attention.
-Color statusColor(String status) => Colors.black;
+Color statusColor(String status) => const Color(0xFF374151);
 
 /// What kind of anomaly this is, in worker-facing words. Household alerts show
 /// their detection signature (Sudden burst, Creeping leak, ...) because the
@@ -89,14 +89,21 @@ Widget statusPill(String status) => Pill(
       outlined: true,
     );
 
-/// A report outcome as a tag. Same outlined treatment as [severityPill] so
-/// Fixed / Not Fixed read as siblings of High / Medium, not as a second
-/// species of badge.
+/// A report outcome as a tag. It deliberately reuses alert status styling so
+/// Fixed and Not Fixed do not compete with the report card's outcome edge.
 Widget outcomePill(String outcome) => Pill(
       ReportOutcome.label(outcome),
-      color: outcome == ReportOutcome.fixed
-          ? AppColors.success
-          : AppColors.critical,
+      color: statusColor(outcome),
+      outlined: true,
+    );
+
+/// Utility remains the only colour-coded pill and is text-only, so its
+/// position at the right of a badge group stays compact and easy to scan.
+Widget utilityPill(Utility utility) => Pill(
+      utility == Utility.water ? 'Water' : 'Electricity',
+      color: utility == Utility.water
+          ? AppColors.waterAccent
+          : AppColors.electricityAccent,
       outlined: true,
     );
 
@@ -124,96 +131,103 @@ class ReportCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isFixed = report.isFixed;
-    final outcomColor = isFixed ? AppColors.success : AppColors.critical;
-    final isWater = utility == Utility.water;
+    final accentColor = report.isFixed ? AppColors.success : AppColors.critical;
 
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x0F000000),
-              blurRadius: 10,
-              offset: Offset(0, 3),
+      child: Stack(
+        children: [
+          Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.fromLTRB(18, 14, 14, 14),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x0F000000),
+                  blurRadius: 10,
+                  offset: Offset(0, 3),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: outcomColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                isFixed
-                    ? Icons.check_circle_outline
-                    : Icons.warning_amber_rounded,
-                color: outcomColor,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Text(locationLabel,
-                            style: const TextStyle(
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              locationLabel,
+                              style: const TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
-                                color: AppColors.textPrimary)),
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            alignment: WrapAlignment.end,
+                            children: [
+                              outcomePill(report.outcome),
+                              if (utility != null) utilityPill(utility!),
+                            ],
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 6),
-                      outcomePill(report.outcome),
-                      if (utility != null) ...[
-                        const SizedBox(width: 6),
-                        Pill(
-                          isWater ? 'Water' : 'Electricity',
-                          color: isWater
-                              ? AppColors.waterAccent
-                              : AppColors.electricityAccent,
-                          icon: isWater
-                              ? Icons.water_drop
-                              : Icons.electric_bolt,
-                          outlined: true,
+                      const SizedBox(height: 6),
+                      Text(
+                        report.findings.isEmpty
+                            ? 'No findings'
+                            : report.findings,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
                         ),
-                      ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        reportByline(report, resolvedWorkerName),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textTertiary,
+                        ),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    report.findings.isEmpty ? 'No findings' : report.findings,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.textSecondary),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    reportByline(report, resolvedWorkerName),
-                    style: const TextStyle(
-                        fontSize: 11, color: AppColors.textTertiary),
-                  ),
-                ],
+                ),
+                const SizedBox(width: 4),
+                const Icon(Icons.chevron_right, color: AppColors.textTertiary),
+              ],
+            ),
+          ),
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 10,
+            child: Container(
+              key: const ValueKey('report-outcome-accent'),
+              width: 4,
+              decoration: BoxDecoration(
+                color: accentColor,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(14),
+                  bottomLeft: Radius.circular(14),
+                ),
               ),
             ),
-            const SizedBox(width: 4),
-            const Icon(Icons.chevron_right, color: AppColors.textTertiary),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -244,7 +258,6 @@ class AlertCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final sev = alert.severity;
     final sevColor = severityColor(sev);
-    final isWater = utility == Utility.water;
 
     final date = DateFormat('d MMM').format(alert.detectedAt);
     final metricText = alert.lossPct != null
@@ -296,19 +309,9 @@ class AlertCard extends StatelessWidget {
                       alignment: WrapAlignment.end,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        if (utility != null)
-                          Pill(
-                            isWater ? 'Water' : 'Electricity',
-                            color: isWater
-                                ? AppColors.waterAccent
-                                : AppColors.electricityAccent,
-                            icon: isWater
-                                ? Icons.water_drop
-                                : Icons.electric_bolt,
-                            outlined: true,
-                          ),
                         statusPill(alert.status),
                         severityPill(sev),
+                        if (utility != null) utilityPill(utility!),
                       ],
                     ),
                   ],
@@ -398,7 +401,8 @@ Widget pill(String text, Color color) {
 class AiAnalysisCard extends StatefulWidget {
   final Alert alert;
   final bool canGenerate;
-  const AiAnalysisCard({super.key, required this.alert, this.canGenerate = true});
+  const AiAnalysisCard(
+      {super.key, required this.alert, this.canGenerate = true});
 
   @override
   State<AiAnalysisCard> createState() => _AiAnalysisCardState();
@@ -479,7 +483,8 @@ class _AiAnalysisCardState extends State<AiAnalysisCard> {
     final savedAnalysis = _savedAnalysis(widget.alert);
     final analysis = savedAnalysis ?? _sessionAnalysis;
     final isRunning = _generating ||
-        (widget.alert.id != null && app.isGeneratingAnomalyAnalysis(widget.alert.id!));
+        (widget.alert.id != null &&
+            app.isGeneratingAnomalyAnalysis(widget.alert.id!));
     final hasError = _errorMessage != null;
 
     return FilledButton.icon(
@@ -504,8 +509,11 @@ class _AiAnalysisCardState extends State<AiAnalysisCard> {
   @override
   Widget build(BuildContext context) {
     final savedAnalysis = _savedAnalysis(widget.alert);
-    final persistenceFailed = _sessionAnalysisPersisted == false && _sessionAnalysis != null;
-    final analysis = persistenceFailed ? _sessionAnalysis : savedAnalysis ?? _sessionAnalysis;
+    final persistenceFailed =
+        _sessionAnalysisPersisted == false && _sessionAnalysis != null;
+    final analysis = persistenceFailed
+        ? _sessionAnalysis
+        : savedAnalysis ?? _sessionAnalysis;
     final hasError = _errorMessage != null;
 
     return AppCard(
@@ -529,8 +537,10 @@ class _AiAnalysisCardState extends State<AiAnalysisCard> {
             const SizedBox(height: 12),
             _analysisValue('System Recommendation', analysis.recommendation),
             const SizedBox(height: 12),
-            Text('Generated ${DateFormat('d MMM y, h:mm a').format(analysis.generatedAt)}',
-                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+            Text(
+                'Generated ${DateFormat('d MMM y, h:mm a').format(analysis.generatedAt)}',
+                style: const TextStyle(
+                    fontSize: 12, color: AppColors.textSecondary)),
             if (persistenceFailed) ...[
               const SizedBox(height: 10),
               const Text(
@@ -540,7 +550,8 @@ class _AiAnalysisCardState extends State<AiAnalysisCard> {
             const SizedBox(height: 14),
           ],
           if (hasError) ...[
-            Text(_errorMessage!, style: const TextStyle(color: Colors.deepOrange, height: 1.35)),
+            Text(_errorMessage!,
+                style: const TextStyle(color: Colors.deepOrange, height: 1.35)),
             const SizedBox(height: 12),
           ],
           if (widget.canGenerate) _generateAction(context),

@@ -202,6 +202,8 @@ class AlertFilterBar extends StatelessWidget {
   final List<String>? statusOptions;
   final Map<String, int>? statusCounts;
   final ValueChanged<String?>? onStatusChanged;
+  final String statusCaption;
+  final String Function(String) statusLabelFor;
 
   const AlertFilterBar({
     super.key,
@@ -220,6 +222,8 @@ class AlertFilterBar extends StatelessWidget {
     this.statusOptions,
     this.statusCounts,
     this.onStatusChanged,
+    this.statusCaption = 'Status',
+    this.statusLabelFor = AlertStatus.label,
   });
 
   @override
@@ -264,11 +268,11 @@ class AlertFilterBar extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: FilterDropdown(
-                  caption: 'Status',
+                  caption: statusCaption,
                   value: selectedStatus,
                   allLabel: 'All',
                   options: statusOptions!,
-                  labelFor: AlertStatus.label,
+                  labelFor: statusLabelFor,
                   counts: statusCounts,
                   onChanged: onStatusChanged!,
                 ),

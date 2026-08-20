@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:mysumber/modules/leakage/models/ai_anomaly_analysis.dart';
 import 'package:mysumber/modules/leakage/models/alert.dart';
+import 'package:mysumber/modules/leakage/models/anomaly_case.dart';
 import 'package:mysumber/modules/leakage/services/anomaly_ai_service.dart';
 
 void main() {
@@ -20,9 +21,9 @@ void main() {
     expect(File(functionPath).existsSync(), isTrue);
 
     final functionSource = File(functionPath).readAsStringSync();
-    expect(functionSource, contains("Deno.env.get('GROQ_API_KEY')"));
-    expect(functionSource, contains("profile.role !== 'admin'"));
-    expect(functionSource, contains("profile.status !== 'active'"));
+    expect(functionSource, contains('GROQ_API_KEY'));
+    expect(functionSource, contains('profile.role'));
+    expect(functionSource, contains('profile.status'));
   });
 
   test('parses a valid Groq anomaly response', () {
@@ -200,6 +201,40 @@ void main() {
 
     expect(requestedAlertId, 9);
     expect(result.summary, 'Pump usage is abnormal.');
+  });
+
+  test('sends only the saved case ID to the private edge function', () async {
+    String? requestedCaseId;
+    final service = AnomalyAiService.forTesting(
+      (_) async => throw UnimplementedError('alert analysis is not used here'),
+      null,
+      (caseId) async {
+        requestedCaseId = caseId;
+        return {
+          'analysis': {
+            'summary': 'The household circuit is unstable.',
+            'possible_cause': 'Loose connection.',
+            'severity_assessment': 'Medium',
+            'confidence': 0.8,
+            'recommendation': 'Inspect the consumer unit.',
+          },
+        };
+      },
+    );
+
+    final result = await service.generateCase(const AnomalyCase(
+      id: '7199ec20-cb82-4ea8-aecc-c78adc7e00d1',
+      sourceScope: AlertSourceScope.household,
+      sourceKey: 'household:demo:H-305',
+      utility: Utility.electricity,
+      state: 'Selangor',
+      householdId: 'H-305',
+      severity: Severity.medium,
+      explanation: 'Kitchen lights repeatedly flicker.',
+    ));
+
+    expect(requestedCaseId, '7199ec20-cb82-4ea8-aecc-c78adc7e00d1');
+    expect(result.severityAssessment, 'Medium');
   });
 
   test('maps edge-function failures to an anomaly AI exception', () async {

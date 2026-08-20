@@ -92,6 +92,53 @@ void main() {
     expect(find.widgetWithText(FilterDropdown, 'Shopping Mall'), findsOneWidget);
   });
 
+  testWidgets('usage comparison alone renders electricity in yellow',
+      (tester) async {
+    tester.view.physicalSize = const Size(900, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final datasetState = _StaticDatasetState()
+      ..stateWaterSupply['Selangor'] = 2000
+      ..stateWaterConsumption['Selangor'] = 1000
+      ..stateElectricitySupply['Selangor'] = 9000
+      ..stateElectricityConsumption['Selangor'] = 2000;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChangeNotifierProvider<DatasetState>.value(
+          value: datasetState,
+          child: const DashboardScreen(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final electricityLabel = tester.widget<Text>(find.text('Top Elec. Loss'));
+    expect(electricityLabel.style?.color, AppColors.warning);
+
+    final legendMarker = tester.widget<Container>(
+      find.byKey(const ValueKey('usage-comparison-electricity-legend')),
+    );
+    expect(
+      (legendMarker.decoration! as BoxDecoration).color,
+      AppColors.warning,
+    );
+
+    final electricityBar = find.byKey(
+      const ValueKey('usage-comparison-electricity-bar'),
+    );
+    final fills = find.descendant(
+      of: electricityBar,
+      matching: find.byType(Container),
+    );
+    final fill = tester.widget<Container>(fills.at(1));
+    expect((fill.decoration! as BoxDecoration).color, AppColors.warning);
+
+    expect(AppColors.electricityAccent, const Color(0xFF3B82F6));
+    expect(AppColors.electricitySurface, const Color(0xFFE0EBFB));
+  });
+
   testWidgets(
       'inventory keeps portrait location labels outside dropdown borders',
       (tester) async {

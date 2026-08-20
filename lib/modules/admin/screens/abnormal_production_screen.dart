@@ -8,13 +8,12 @@ import '../../auth/state/auth_state.dart';
 import '../../dataset/models/models.dart';
 import '../../dataset/state/dataset_state.dart';
 import '../../electricity/models/electricity_models.dart';
-import '../../leakage/models/ai_anomaly_analysis.dart';
 import '../../leakage/models/alert.dart';
 import '../../leakage/screens/network_error.dart';
 import '../../leakage/screens/style.dart';
-import '../../leakage/services/anomaly_ai_service.dart';
 import '../../leakage/services/nrw_service.dart';
 import '../../leakage/state/app_state.dart';
+import '../services/abnormal_production_filter.dart';
 import '../services/abnormal_production_layout.dart';
 import '../../../theme/page_header.dart';
 
@@ -39,8 +38,11 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
   String? _selectedElectricityState;
   String? _selectedMallNodeId;
   String? _selectedAllState;
-  Utility? _stateUtility = Utility.water;
-  Utility? _mallUtility = Utility.water;
+  Utility? _stateUtility;
+  Utility? _mallUtility;
+  String? _anomalyState;
+  String? _anomalySeverity;
+  String? _anomalyReportingStatus;
   final _search = TextEditingController();
 
   @override
@@ -54,6 +56,56 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
 
   void _refresh() {
     if (mounted) setState(() {});
+  }
+
+  void _clearAnomalyFilters() {
+    setState(() {
+      _search.clear();
+      _anomalyState = null;
+      _anomalySeverity = null;
+      _anomalyReportingStatus = null;
+      _stateUtility = null;
+      _mallUtility = null;
+    });
+  }
+
+  Widget _anomalyFilterBar({
+    required List<String> states,
+    required Map<String, int> stateCounts,
+    required Map<String, int> severityCounts,
+    required Map<String, int> reportingCounts,
+  }) {
+    return Column(
+      children: [
+        AlertFilterBar(
+          searchController: _search,
+          onSearchChanged: (_) => setState(() {}),
+          onSearchClear: () => setState(_search.clear),
+          selectedState: _anomalyState,
+          states: states,
+          stateCounts: stateCounts,
+          onStateChanged: (value) => setState(() => _anomalyState = value),
+          selectedSeverity: _anomalySeverity,
+          severityCounts: severityCounts,
+          onSeverityChanged: (value) =>
+              setState(() => _anomalySeverity = value),
+          selectedStatus: _anomalyReportingStatus,
+          statusOptions: AnomalyReportingStatus.all,
+          statusCounts: reportingCounts,
+          onStatusChanged: (value) =>
+              setState(() => _anomalyReportingStatus = value),
+          statusCaption: 'Reporting',
+          statusLabelFor: AnomalyReportingStatus.label,
+        ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: _clearAnomalyFilters,
+            child: const Text('Clear filters'),
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -76,8 +128,8 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(reported
-            ? 'Reported $label to the worker queue.'
-            : '$label was already reported.'),
+            ? '$label was submitted for Admin review.'
+            : '$label is already in Admin review.'),
         backgroundColor: reported ? AppColors.adminPrimary : Colors.blueGrey,
       ));
     } catch (_) {
@@ -318,28 +370,53 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
 
   Widget _mallWorkspace(AppState app, List<EquipmentNode> nodes) {
     final split = usesAbnormalProductionSplitView(MediaQuery.sizeOf(context));
-    final query = _search.text.trim().toLowerCase();
-    final filtered = query.isEmpty
-        ? nodes
-        : nodes
-            .where((n) =>
-                n.nodeName.toLowerCase().contains(query) ||
-                (n.facilityName?.toLowerCase().contains(query) ?? false))
-            .toList();
+    final states =
+        nodes.map((node) => node.zoneId ?? 'Unknown').toSet().toList()..sort();
+    final stateCounts = countBy(nodes, (node) => node.zoneId ?? 'Unknown');
+    final severityCounts = countBy(
+      nodes,
+      (node) => AppState.equipmentSeverity(node.status),
+    );
+    final reportingCounts = countBy(
+      nodes,
+      (node) => app.reportedEquipmentNodeIds.contains(node.nodeId)
+          ? AnomalyReportingStatus.reported
+          : AnomalyReportingStatus.unreported,
+    );
+    final filtered = nodes.where((node) {
+      final nodeState = node.zoneId ?? 'Unknown';
+      final nodeSeverity = AppState.equipmentSeverity(node.status);
+      final nodeReported = app.reportedEquipmentNodeIds.contains(node.nodeId);
+      final searchableText = [
+        node.nodeName,
+        node.facilityName,
+        node.facilityCity,
+        nodeState,
+      ].whereType<String>().join(' ');
+      return AbnormalProductionFilter.matches(
+        query: _search.text,
+        searchableText: searchableText,
+        state: nodeState,
+        severity: nodeSeverity,
+        reported: nodeReported,
+        selectedState: _anomalyState,
+        selectedSeverity: _anomalySeverity,
+        selectedReportingStatus: _anomalyReportingStatus,
+      );
+    }).toList();
     final selected = _selectedMallNode(filtered);
-    final searchBar = FilterSearchField(
-      controller: _search,
-      hint: 'Type anything to search',
-      accent: AppColors.adminPrimary,
-      onChanged: (_) => setState(() {}),
-      onClear: () => setState(_search.clear),
+    final filterBar = _anomalyFilterBar(
+      states: states,
+      stateCounts: stateCounts,
+      severityCounts: severityCounts,
+      reportingCounts: reportingCounts,
     );
 
     if (filtered.isEmpty) {
       return ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          searchBar,
+          filterBar,
           const SizedBox(height: 16),
           const AppCard(child: Text('No equipment flagged for attention.')),
         ],
@@ -361,7 +438,7 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
     if (!split) {
       return ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-        children: [searchBar, const SizedBox(height: 16), ...listChildren],
+        children: [filterBar, const SizedBox(height: 16), ...listChildren],
       );
     }
 
@@ -369,7 +446,7 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          searchBar,
+          filterBar,
           const SizedBox(height: 12),
           Expanded(
             child: Container(
@@ -435,6 +512,7 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
                           child: Text(node.nodeName,
@@ -443,11 +521,18 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
                                   fontSize: 16,
                                   fontWeight: FontWeight.w800)),
                         ),
-                        reported
-                            ? const Pill('Reported',
-                                color: AppColors.waterAccent, outlined: true)
-                            : severityPill(
-                                AppState.equipmentSeverity(node.status)),
+                        const SizedBox(width: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          alignment: WrapAlignment.end,
+                          children: [
+                            _reportingPill(reported),
+                            severityPill(
+                              AppState.equipmentSeverity(node.status),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                     const SizedBox(height: 5),
@@ -467,6 +552,16 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
       ),
     );
   }
+
+  Widget _reportingPill(bool reported) => Pill(
+        AnomalyReportingStatus.label(
+          reported
+              ? AnomalyReportingStatus.reported
+              : AnomalyReportingStatus.unreported,
+        ),
+        color: statusColor(reported ? 'reported' : 'unreported'),
+        outlined: true,
+      );
 
   void _showMallResult(AppState app, EquipmentNode node) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -523,24 +618,18 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
                 fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 18),
-          _AiPreviewCard(key: ValueKey('mall-${node.nodeId}'), evidence: {
-            'alert_type': node.utilityType == 'Water'
-                ? 'nrw_hotspot'
-                : 'electricity_hotspot',
-            'state': node.zoneId,
-            'facility_name': node.facilityName,
-            'facility_city': node.facilityCity,
-            'equipment_name': node.nodeName,
-            'severity': severity,
-            'explanation': app.explainer.describeEquipmentAnomaly(node),
-          }),
+          _SavedAiCaseCard(
+            sourceKey: _mallCaseKey(node),
+            calculationNote:
+                'Mall equipment status is classified from its saved usage baseline. Warning is 1.25×–<1.50× normal usage; Critical is ≥1.50×.',
+          ),
           const SizedBox(height: 18),
           SizedBox(
             width: double.infinity,
             height: 46,
             child: reported
                 ? const OutlinedButton(
-                    onPressed: null, child: Text('Already reported'))
+                    onPressed: null, child: Text('In Admin review'))
                 : FilledButton.icon(
                     onPressed: _busyKey == busyKey
                         ? null
@@ -555,7 +644,7 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
                             child: CircularProgressIndicator(
                                 strokeWidth: 2, color: Colors.white))
                         : const Icon(Icons.person_add_alt_1_outlined, size: 18),
-                    label: const Text('Send to worker queue'),
+                    label: const Text('Submit for Admin review'),
                   ),
           ),
         ],
@@ -577,23 +666,40 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
     bool Function(ElectricityRecord record)? isTamperingReported,
   }) {
     final split = usesAbnormalProductionSplitView(MediaQuery.sizeOf(context));
-    final query = _search.text.trim().toLowerCase();
-    final filtered = query.isEmpty
-        ? results
-        : results.where((r) => r.state.toLowerCase().contains(query)).toList();
+    final states = results.map((result) => result.state).toSet().toList()
+      ..sort();
+    final stateCounts = countBy(results, (result) => result.state);
+    final severityCounts = countBy(results, (result) => result.severity);
+    final reportingCounts = countBy(
+      results,
+      (result) => reportedStates.contains(result.state)
+          ? AnomalyReportingStatus.reported
+          : AnomalyReportingStatus.unreported,
+    );
+    final filtered = results.where((result) {
+      return AbnormalProductionFilter.matches(
+        query: _search.text,
+        searchableText: result.state,
+        state: result.state,
+        severity: result.severity,
+        reported: reportedStates.contains(result.state),
+        selectedState: _anomalyState,
+        selectedSeverity: _anomalySeverity,
+        selectedReportingStatus: _anomalyReportingStatus,
+      );
+    }).toList();
     final selected = _selectedResult(filtered, selectedState);
-    final searchBar = FilterSearchField(
-      controller: _search,
-      hint: 'Type anything to search',
-      accent: AppColors.adminPrimary,
-      onChanged: (_) => setState(() {}),
-      onClear: () => setState(_search.clear),
+    final filterBar = _anomalyFilterBar(
+      states: states,
+      stateCounts: stateCounts,
+      severityCounts: severityCounts,
+      reportingCounts: reportingCounts,
     );
 
     if (filtered.isEmpty) {
       return ListView(
         padding: const EdgeInsets.all(16),
-        children: [searchBar, const SizedBox(height: 16), _emptyCard()],
+        children: [filterBar, const SizedBox(height: 16), _emptyCard()],
       );
     }
 
@@ -614,7 +720,7 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
     if (!split) {
       return ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-        children: [searchBar, const SizedBox(height: 16), ...listChildren],
+        children: [filterBar, const SizedBox(height: 16), ...listChildren],
       );
     }
 
@@ -622,7 +728,7 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          searchBar,
+          filterBar,
           const SizedBox(height: 12),
           Expanded(
             child: Container(
@@ -767,6 +873,7 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
                           child: Text(result.state,
@@ -775,10 +882,16 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
                                   fontSize: 16,
                                   fontWeight: FontWeight.w800)),
                         ),
-                        reported
-                            ? const Pill('Reported',
-                                color: AppColors.waterAccent, outlined: true)
-                            : severityPill(result.severity),
+                        const SizedBox(width: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          alignment: WrapAlignment.end,
+                          children: [
+                            _reportingPill(reported),
+                            severityPill(result.severity),
+                          ],
+                        ),
                       ],
                     ),
                     const SizedBox(height: 5),
@@ -886,22 +999,12 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
           const SizedBox(height: 18),
           Builder(builder: (context) {
             final isWater = unit == 'MLD';
-            return _AiPreviewCard(
-                key: ValueKey('state-${result.state}-$isWater'),
-                evidence: {
-                  'alert_type': isWater ? 'nrw_hotspot' : 'electricity_hotspot',
-                  'state': result.state,
-                  'produced_mld': result.producedMld,
-                  'billed_mld': result.billedMld,
-                  'loss_mld': result.lossMld,
-                  'loss_pct': result.lossPct,
-                  'severity': result.severity,
-                  'explanation': isWater
-                      ? app.explainer
-                          .describeNrw(result, app.nrw.nationalLossPct)
-                      : app.explainer.describeElectricityLoss(
-                          result, app.electricityLoss.nationalLossPct),
-                });
+            return _SavedAiCaseCard(
+              sourceKey: _stateCaseKey(
+                  result, isWater ? Utility.water : Utility.electricity),
+              calculationNote:
+                  'State loss is calculated as supply/production − billed consumption. The displayed loss rate is that gap divided by supply/production.',
+            );
           }),
           const SizedBox(height: 18),
           _actionButton(reported, busyKey, onReport),
@@ -1034,7 +1137,7 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
           ? OutlinedButton.icon(
               onPressed: null,
               icon: const Icon(Icons.check_circle_outline, size: 18),
-              label: const Text('Already reported'),
+              label: const Text('In Admin review'),
             )
           : FilledButton.icon(
               onPressed: busy ? null : onReport,
@@ -1048,95 +1151,86 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
                           strokeWidth: 2, color: Colors.white),
                     )
                   : const Icon(Icons.person_add_alt_1_outlined, size: 18),
-              label: const Text('Send to worker queue'),
+              label: const Text('Submit for Admin review'),
             ),
     );
   }
 }
 
-/// AI's read of a detected anomaly before admin decides whether to forward
-/// it — nothing is written anywhere. Distinct from [AiAnalysisCard]: that
-/// one reads/writes a persisted Alert row, this one is a throwaway preview
-/// over evidence that has no alert_id yet, since the alert doesn't exist
-/// until "Send to worker queue" is tapped.
-class _AiPreviewCard extends StatefulWidget {
-  final Map<String, Object?> evidence;
-  // A stable Key (keyed by the result's identity, e.g. state name or node
-  // id) is required from every call site. Map doesn't override ==, so a
-  // freshly-built evidence literal is never equal to the previous one on
-  // rebuild — without a stable key, a naive didUpdateWidget map comparison
-  // would treat every parent rebuild as "the evidence changed" and re-fire
-  // the Groq call on every rebuild (e.g. every 10s poll tick). The key lets
-  // Flutter's own widget identity do this instead: same key across a
-  // rebuild reuses this State (no reload); a different key (a genuinely
-  // different result selected) tears down and recreates it, running
-  // initState fresh exactly once for that result.
-  const _AiPreviewCard({required super.key, required this.evidence});
+String _stateCaseKey(NrwResult result, Utility utility) =>
+    'state:${utility == Utility.water ? 'water' : 'electricity'}:${result.state}:${result.year}';
 
-  @override
-  State<_AiPreviewCard> createState() => _AiPreviewCardState();
+String _mallCaseKey(EquipmentNode node) {
+  final now = DateTime.now();
+  return 'mall:${node.nodeId}:${now.year}-${now.month.toString().padLeft(2, '0')}';
 }
 
-class _AiPreviewCardState extends State<_AiPreviewCard> {
-  AiAnomalyAnalysis? _analysis;
-  String? _error;
-  bool _loading = true;
+class _SavedAiCaseCard extends StatelessWidget {
+  final String sourceKey;
+  final String calculationNote;
 
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final analysis =
-          await context.read<AppState>().anomalyAi.preview(widget.evidence);
-      if (!mounted) return;
-      setState(() {
-        _analysis = analysis;
-        _loading = false;
-      });
-    } on AnomalyAiException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.message;
-        _loading = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _error = 'AI preview is unavailable right now.';
-        _loading = false;
-      });
-    }
-  }
+  const _SavedAiCaseCard({
+    required this.sourceKey,
+    required this.calculationNote,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    final matches =
+        app.anomalyCases.where((item) => item.sourceKey == sourceKey);
+    final anomalyCase = matches.isEmpty ? null : matches.first;
     return AppCard(
       background: AppColors.adminSurface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SectionLabel('AI PREVIEW', color: AppColors.adminPrimary),
-          const SizedBox(height: 10),
-          if (_loading)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else if (_error != null)
-            Text(_error!,
-                style: const TextStyle(color: Colors.deepOrange, height: 1.35))
-          else if (_analysis != null) ...[
-            Text(_analysis!.summary, style: const TextStyle(height: 1.45)),
+          Row(children: [
+            const Expanded(
+                child: SectionLabel('SAVED AI ANALYSIS',
+                    color: AppColors.adminPrimary)),
+            IconButton(
+              tooltip: 'How AI and calculation work',
+              icon: const Icon(Icons.info_outline, size: 20),
+              onPressed: () => showDialog<void>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('How this analysis works'),
+                  content: Text(
+                    '$calculationNote\n\nAI uses the saved source, utility, evidence and deterministic explanation to write a summary. It does not change severity, approve a case, or create a Worker alert. The result is saved once on the review case; use retry only when analysis is unavailable.',
+                  ),
+                  actions: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Close'))
+                  ],
+                ),
+              ),
+            ),
+          ]),
+          if (anomalyCase == null)
+            const Text(
+                'Submit this anomaly for Admin review to generate and save its AI analysis.',
+                style: TextStyle(color: AppColors.textSecondary, height: 1.4))
+          else if (!anomalyCase.hasAiAnalysis)
+            Row(children: [
+              const Expanded(
+                  child: Text(
+                      'AI analysis is being saved. You can retry only if it does not appear.',
+                      style: TextStyle(
+                          color: AppColors.textSecondary, height: 1.4))),
+              TextButton(
+                onPressed: anomalyCase.id == null ||
+                        app.isGeneratingAnomalyCaseAnalysis(anomalyCase.id!)
+                    ? null
+                    : () => app.generateAnomalyCaseAnalysis(anomalyCase),
+                child: const Text('Retry'),
+              ),
+            ])
+          else ...[
+            Text(anomalyCase.aiSummary!, style: const TextStyle(height: 1.45)),
             const SizedBox(height: 10),
-            Text(_analysis!.recommendation,
+            Text(anomalyCase.aiRecommendation!,
                 style:
                     const TextStyle(height: 1.45, fontWeight: FontWeight.w600)),
           ],

@@ -4,16 +4,8 @@ class AlertStatus {
   static const resolved = 'resolved';
   static const notFixed = 'not_fixed';
   static const dismissed = 'dismissed';
-  static const faults = 'faults';
 
-  static const all = [
-    pending,
-    investigating,
-    resolved,
-    notFixed,
-    dismissed,
-    faults,
-  ];
+  static const all = [pending, investigating, resolved, notFixed, dismissed];
   static const unresolved = [pending, investigating, notFixed];
 
   static String label(String status) {
@@ -28,8 +20,6 @@ class AlertStatus {
         return 'Not Fixed';
       case dismissed:
         return 'Dismissed';
-      case faults:
-        return 'Faults';
       default:
         return status;
     }
@@ -44,6 +34,29 @@ class AlertType {
 
   static const _electricity = [electricityHotspot, electricityTampering];
   static bool isElectricity(String type) => _electricity.contains(type);
+}
+
+/// What location/model produced an alert. Utility describes Water or
+/// Electricity; source scope decides the title and evidence layout.
+class AlertSourceScope {
+  static const state = 'state';
+  static const mall = 'mall';
+  static const household = 'household';
+
+  static const all = [state, mall, household];
+
+  static String label(String scope) {
+    switch (scope) {
+      case state:
+        return 'State';
+      case mall:
+        return 'Mall';
+      case household:
+        return 'Household';
+      default:
+        return 'Unknown';
+    }
+  }
 }
 
 /// Which utility an alert belongs to — used to split the worker's Water
@@ -89,6 +102,9 @@ class Alert {
   final int? id;
   final int? readingId;
   final String alertType;
+  final String sourceScope;
+  final String? utilityType;
+  final String? reviewCaseId;
   final String? householdId;
   final String? equipmentNodeId;
   final String? facilityName;
@@ -124,6 +140,9 @@ class Alert {
     this.id,
     this.readingId,
     required this.alertType,
+    String? sourceScope,
+    this.utilityType,
+    this.reviewCaseId,
     this.householdId,
     this.equipmentNodeId,
     this.facilityName,
@@ -151,20 +170,55 @@ class Alert {
     this.aiRecommendation,
     this.aiConfidence,
     this.aiGeneratedAt,
-  });
+  }) : sourceScope = sourceScope == AlertSourceScope.state
+            ? AlertSourceScope.state
+            : sourceScope == AlertSourceScope.mall
+                ? AlertSourceScope.mall
+                : sourceScope == AlertSourceScope.household
+                    ? AlertSourceScope.household
+                    : equipmentNodeId != null
+                        ? AlertSourceScope.mall
+                        : householdId != null
+                            ? AlertSourceScope.household
+                            : AlertSourceScope.state;
 
   bool get isNrw => alertType == AlertType.nrwHotspot;
   bool get isElectricity => AlertType.isElectricity(alertType);
   bool get isElectricityHotspot => alertType == AlertType.electricityHotspot;
   bool get isElectricityTampering =>
       alertType == AlertType.electricityTampering;
-  Utility get utility => isElectricity ? Utility.electricity : Utility.water;
+  Utility get utility => utilityType == 'electricity'
+      ? Utility.electricity
+      : utilityType == 'water'
+          ? Utility.water
+          : isElectricity
+              ? Utility.electricity
+              : Utility.water;
+  bool get isMall => sourceScope == AlertSourceScope.mall;
+  bool get isHousehold => sourceScope == AlertSourceScope.household;
+  String get sourceLabel => AlertSourceScope.label(sourceScope);
 
   /// True for the per-region loss alerts (water NRW or electricity hotspot)
   /// that share the produced/billed/loss "balance" evidence layout.
   bool get isLossBalance =>
       alertType == AlertType.nrwHotspot ||
       alertType == AlertType.electricityHotspot;
+
+  bool get canRenderBalanceEvidence =>
+      sourceScope == AlertSourceScope.state &&
+      isLossBalance &&
+      producedMld != null &&
+      billedMld != null &&
+      lossMld != null &&
+      lossPct != null;
+
+  bool get canRenderTamperingEvidence =>
+      sourceScope == AlertSourceScope.state &&
+      isElectricityTampering &&
+      producedMld != null &&
+      billedMld != null &&
+      lossMld != null &&
+      lossPct != null;
 
   double get ratio => baselineL == 0 ? 0 : actualL / baselineL;
   bool get isUnresolved => AlertStatus.unresolved.contains(status);
@@ -177,14 +231,26 @@ class Alert {
       aiConfidence != null &&
       aiGeneratedAt != null;
 
-  String get title => alertType == AlertType.household
-      ? '$state · ${householdId ?? ''}'
-      : state;
+  String get shortTitle {
+    switch (sourceScope) {
+      case AlertSourceScope.mall:
+        return facilityName ?? state;
+      case AlertSourceScope.household:
+        return '$state · ${householdId ?? 'Unknown'}';
+      default:
+        return state;
+    }
+  }
+
+  String get title => shortTitle;
 
   Map<String, Object?> toMap() => {
         'id': id,
         'reading_id': readingId,
         'alert_type': alertType,
+        'source_scope': sourceScope,
+        if (utilityType != null) 'utility_type': utilityType,
+        if (reviewCaseId != null) 'review_case_id': reviewCaseId,
         'household_id': householdId,
         if (equipmentNodeId != null) 'equipment_node_id': equipmentNodeId,
         if (facilityName != null) 'facility_name': facilityName,
@@ -220,6 +286,9 @@ class Alert {
         id: map['id'] as int?,
         readingId: map['reading_id'] as int?,
         alertType: map['alert_type'] as String,
+        sourceScope: map['source_scope'] as String?,
+        utilityType: map['utility_type'] as String?,
+        reviewCaseId: map['review_case_id'] as String?,
         householdId: map['household_id'] as String?,
         equipmentNodeId: map['equipment_node_id'] as String?,
         facilityName: map['facility_name'] as String?,
@@ -257,6 +326,9 @@ class Alert {
     String? handledBy,
     String? handledById,
     bool? isDeleted,
+    String? sourceScope,
+    String? utilityType,
+    String? reviewCaseId,
     String? equipmentNodeId,
     String? facilityName,
     String? facilityCity,
@@ -272,6 +344,9 @@ class Alert {
         id: id ?? this.id,
         readingId: readingId,
         alertType: alertType,
+        sourceScope: sourceScope ?? this.sourceScope,
+        utilityType: utilityType ?? this.utilityType,
+        reviewCaseId: reviewCaseId ?? this.reviewCaseId,
         householdId: householdId,
         equipmentNodeId: equipmentNodeId ?? this.equipmentNodeId,
         facilityName: facilityName ?? this.facilityName,

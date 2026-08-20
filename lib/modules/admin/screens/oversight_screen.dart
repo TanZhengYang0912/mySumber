@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../theme/filter_controls.dart';
 import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
 import '../../leakage/models/alert.dart';
+import '../../leakage/models/anomaly_case.dart';
 import '../../leakage/models/report.dart';
 import '../../leakage/screens/report_view_screen.dart';
 import '../../leakage/screens/style.dart';
@@ -132,7 +132,9 @@ class _OversightScreenState extends State<OversightScreen>
     final mode = adminLayoutModeFor(MediaQuery.sizeOf(context));
     final isPhoneLandscape = mode == AdminLayoutMode.phoneLandscape;
     final isAlertsTab = _outerTab.index == 0;
-    final pendingCount = app.pendingAlerts().length;
+    final pendingCount = app.anomalyCases
+        .where((item) => item.status == AnomalyCaseStatus.pendingReview)
+        .length;
 
     if (isPhoneLandscape) {
       final landscapeAlerts =
@@ -208,7 +210,7 @@ class _OversightScreenState extends State<OversightScreen>
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Text('Alert Queue'),
+                        const Text('Admin Review'),
                         const SizedBox(width: 6),
                         CountBadge(pendingCount),
                       ],
@@ -242,18 +244,6 @@ class _OversightScreenState extends State<OversightScreen>
           ),
         ],
       ),
-      floatingActionButton: isAlertsTab
-          ? FloatingActionButton.extended(
-              backgroundColor: AppColors.adminPrimary,
-              foregroundColor: Colors.white,
-              icon: const Icon(Icons.add_alert_outlined),
-              label: const Text('Report State'),
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const AbnormalProductionScreen(
-                        showBackToOversight: true,
-                      ))),
-            )
-          : null,
     );
   }
 
@@ -265,10 +255,6 @@ class _OversightScreenState extends State<OversightScreen>
     if (_landscapeStatuses.length == 1 &&
         _landscapeStatuses.contains(AlertStatus.resolved)) {
       return 'Resolved alerts';
-    }
-    if (_landscapeStatuses.length == 1 &&
-        _landscapeStatuses.contains(AlertStatus.faults)) {
-      return 'Fault alerts';
     }
     return 'Filtered alerts';
   }
@@ -293,7 +279,6 @@ class _OversightScreenState extends State<OversightScreen>
             _landscapeStatusChip('Investigating', {AlertStatus.investigating}),
             _landscapeStatusChip('Not Fixed', {AlertStatus.notFixed}),
             _landscapeStatusChip('Resolved', {AlertStatus.resolved}),
-            _landscapeStatusChip('Faults', {AlertStatus.faults}),
           ],
         ),
         const SizedBox(height: 12),
@@ -431,19 +416,150 @@ class _OversightScreenState extends State<OversightScreen>
     );
   }
 
-  // --- Alert Queue tab ---
-
-  /// The statuses offered in the queue filter. `dismissed` is deliberately
-  /// left out — it is a terminal state nobody triages from this screen.
-  static const _queueStatuses = [
-    AlertStatus.pending,
-    AlertStatus.investigating,
-    AlertStatus.notFixed,
-    AlertStatus.resolved,
-    AlertStatus.faults,
-  ];
+  // --- Admin review tab ---
 
   Widget _alertQueueTab(AppState app) {
+    final cases = [...app.anomalyCases]..sort((left, right) {
+        final leftPending = left.status == AnomalyCaseStatus.pendingReview;
+        final rightPending = right.status == AnomalyCaseStatus.pendingReview;
+        if (leftPending != rightPending) return leftPending ? -1 : 1;
+        return (right.createdAt ?? DateTime(0))
+            .compareTo(left.createdAt ?? DateTime(0));
+      });
+    if (cases.isEmpty) {
+      return const Center(child: Text('No anomaly cases are awaiting review.'));
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: cases.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      itemBuilder: (context, index) {
+        final anomalyCase = cases[index];
+        final pending = anomalyCase.status == AnomalyCaseStatus.pendingReview;
+        return AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Expanded(
+                  child: Text(anomalyCase.title,
+                      style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary)),
+                ),
+                Pill(anomalyCase.sourceLabel,
+                    color: AppColors.adminPrimary, outlined: true),
+                const SizedBox(width: 6),
+                utilityPill(anomalyCase.utility),
+              ]),
+              const SizedBox(height: 8),
+              Wrap(spacing: 6, runSpacing: 6, children: [
+                severityPill(anomalyCase.severity),
+                Pill(AnomalyCaseStatus.label(anomalyCase.status),
+                    color: statusColor(anomalyCase.status), outlined: true),
+              ]),
+              const SizedBox(height: 10),
+              Text(anomalyCase.explanation,
+                  style: const TextStyle(
+                      color: AppColors.textSecondary, height: 1.35)),
+              if (anomalyCase.hasAiAnalysis) ...[
+                const SizedBox(height: 10),
+                Text(anomalyCase.aiSummary!,
+                    style: const TextStyle(height: 1.35)),
+              ],
+              if (anomalyCase.rejectionReason != null) ...[
+                const SizedBox(height: 8),
+                Text('Rejected: ${anomalyCase.rejectionReason}',
+                    style: const TextStyle(color: AppColors.critical)),
+              ],
+              if (pending) ...[
+                const SizedBox(height: 14),
+                Row(children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: anomalyCase.id == null
+                          ? null
+                          : () => _rejectCase(context, app, anomalyCase),
+                      child: const Text('Reject'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: anomalyCase.id == null
+                          ? null
+                          : () async {
+                              try {
+                                await app.approveAnomalyCase(anomalyCase.id!);
+                              } catch (_) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                          content: Text(
+                                              'Could not approve this case.')));
+                                }
+                              }
+                            },
+                      style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.adminPrimary),
+                      child: const Text('Approve to Worker queue'),
+                    ),
+                  ),
+                ]),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _rejectCase(
+      BuildContext context, AppState app, AnomalyCase anomalyCase) async {
+    final controller = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Reject anomaly case'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 3,
+          decoration: const InputDecoration(labelText: 'Rejection reason'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, controller.text),
+              child: const Text('Reject')),
+        ],
+      ),
+    );
+    final value = reason?.trim();
+    if (value == null || value.isEmpty || anomalyCase.id == null) return;
+    try {
+      await app.rejectAnomalyCase(anomalyCase.id!, value);
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not reject this case.')));
+      }
+    }
+  }
+
+  // The previous Worker-alert view remains for landscape compatibility while
+  // the phone/tablet surface uses the source-aware Admin review queue above.
+  Widget _workerAlertQueueTab(AppState app) {
+    const queueStatuses = [
+      AlertStatus.pending,
+      AlertStatus.investigating,
+      AlertStatus.notFixed,
+      AlertStatus.resolved,
+    ];
+
     final states = app.alerts.map((a) => a.state).toSet().toList()..sort();
     final scoped = app.alertsFiltered(utility: _alertUtility);
 
@@ -462,7 +578,9 @@ class _OversightScreenState extends State<OversightScreen>
         if (state && _alertState != null && a.state != _alertState) {
           return false;
         }
-        if (severity && _alertSeverity != null && a.severity != _alertSeverity) {
+        if (severity &&
+            _alertSeverity != null &&
+            a.severity != _alertSeverity) {
           return false;
         }
         if (status && _alertStatus != null && a.status != _alertStatus) {
@@ -502,7 +620,7 @@ class _OversightScreenState extends State<OversightScreen>
             severityCounts: severityCounts,
             onSeverityChanged: (v) => setState(() => _alertSeverity = v),
             selectedStatus: _alertStatus,
-            statusOptions: _queueStatuses,
+            statusOptions: queueStatuses,
             statusCounts: statusCounts,
             onStatusChanged: (v) => setState(() => _alertStatus = v),
           ),
@@ -588,8 +706,8 @@ class _OversightScreenState extends State<OversightScreen>
     }
 
     final reports = excluding();
-    final stateCounts =
-        countBy(excluding(state: false), (r) => alertById[r.alertId]?.state ?? '');
+    final stateCounts = countBy(
+        excluding(state: false), (r) => alertById[r.alertId]?.state ?? '');
     final outcomeCounts = countBy(excluding(outcome: false), (r) => r.outcome);
     final utilityCounts = countBy(
         excluding(utility: false),
@@ -657,9 +775,6 @@ class _OversightScreenState extends State<OversightScreen>
                   itemCount: reports.length,
                   itemBuilder: (context, index) {
                     final report = reports[index];
-                    if (compact) {
-                      return _ReportCard(report: report, app: app);
-                    }
                     final alert = alertById[report.alertId];
                     return ReportCard(
                       report: report,
@@ -669,7 +784,8 @@ class _OversightScreenState extends State<OversightScreen>
                           app.workerNames[report.workerId] ?? report.workerName,
                       onTap: () => Navigator.of(context).push(MaterialPageRoute(
                           builder: (_) => ReportViewScreen(
-                              report: report, barColor: AppColors.adminPrimary))),
+                              report: report,
+                              barColor: AppColors.adminPrimary))),
                     );
                   },
                 ),
@@ -729,244 +845,6 @@ class _OversightScreenState extends State<OversightScreen>
             fontWeight: FontWeight.w700,
             color: selected ? Colors.white : AppColors.textPrimary,
           ),
-        ),
-      ),
-    );
-  }
-
-  // --- Shared controls ---
-
-  static Widget _landscapeContent({
-    required bool isFixed,
-    required Color outcomeColor,
-    required Color outcomeBg,
-    required String state,
-    required Color utilityColor,
-    required Color utilityBg,
-    required IconData utilityIcon,
-    required String utilityLabel,
-    required String date,
-    required String description,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Expanded(
-          flex: 2,
-          child: Row(
-            children: [
-              Icon(
-                isFixed ? Icons.check_circle : Icons.warning_amber_rounded,
-                color: outcomeColor,
-                size: 22,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      state,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: utilityBg,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(utilityIcon, size: 12, color: utilityColor),
-                          const SizedBox(width: 4),
-                          Text(
-                            utilityLabel,
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: utilityColor,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        _landscapeDivider(),
-        Expanded(
-          flex: 4,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _landscapeMetricColumn(
-              label: 'Details',
-              value: Text(
-                description,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
-                  height: 1.35,
-                ),
-              ),
-            ),
-          ),
-        ),
-        _landscapeDivider(),
-        SizedBox(
-          width: 136,
-          child: _landscapeMetricColumn(
-            label: 'Outcome',
-            value: Pill(
-              isFixed ? 'Fixed' : 'Not Fixed',
-              color: outcomeColor,
-              background: outcomeBg,
-            ),
-          ),
-        ),
-        _landscapeDivider(),
-        SizedBox(
-          width: 126,
-          child: _landscapeMetricColumn(
-            label: 'Updated',
-            value: Text(
-              date,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 6),
-        const Icon(Icons.chevron_right, color: AppColors.textTertiary),
-      ],
-    );
-  }
-
-  static Widget _landscapeMetricColumn({
-    required String label,
-    required Widget value,
-  }) {
-    const labelStyle = TextStyle(
-      fontSize: 11,
-      fontWeight: FontWeight.w700,
-      color: AppColors.textTertiary,
-    );
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          height: 18,
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Text(label, style: labelStyle),
-          ),
-        ),
-        const SizedBox(height: 6),
-        SizedBox(
-          height: 38,
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: value,
-          ),
-        ),
-        const SizedBox(height: 6),
-        const SizedBox(height: 6),
-      ],
-    );
-  }
-
-  static Widget _landscapeDivider() {
-    return Container(
-      width: 1,
-      height: 48,
-      color: AppColors.divider,
-    );
-  }
-}
-
-
-/// The wide, tablet-landscape report row. Portrait uses the shared
-/// [ReportCard] from `style.dart` instead — this one only ever renders in
-/// [OversightLandscapeWorkspace]'s `reportsBody`.
-class _ReportCard extends StatelessWidget {
-  final Report report;
-  final AppState app;
-
-  const _ReportCard({required this.report, required this.app});
-
-  @override
-  Widget build(BuildContext context) {
-    final isFixed = report.isFixed;
-    final outcomeColor = isFixed ? AppColors.success : AppColors.warning;
-    final outcomeBg =
-        isFixed ? AppColors.successSurface : AppColors.warningSurface;
-    final matches = app.alerts.where((a) => a.id == report.alertId);
-    final alert = matches.isEmpty ? null : matches.first;
-    final state = alert?.state ?? 'Unknown';
-    final isWater = alert?.utility == Utility.water;
-    final utilityColor =
-        isWater ? AppColors.waterAccent : AppColors.electricityAccent;
-    final utilityBg =
-        isWater ? AppColors.waterSurface : AppColors.electricitySurface;
-    final utilityIcon =
-        isWater ? Icons.water_drop_outlined : Icons.electric_bolt_outlined;
-    final utilityLabel = isWater ? 'Water' : 'Electricity';
-    final date = DateFormat('d MMM y, HH:mm').format(report.updatedAt);
-    final description = report.findings.isEmpty
-        ? (isFixed
-            ? 'No findings. Sensor reading normalized.'
-            : 'No findings recorded.')
-        : report.findings;
-
-    return GestureDetector(
-      onTap: () => Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => ReportViewScreen(
-              report: report, barColor: AppColors.adminPrimary))),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x0F000000),
-              blurRadius: 10,
-              offset: Offset(0, 3),
-            ),
-          ],
-        ),
-        key: const Key('oversight-landscape-report-card'),
-        child: _OversightScreenState._landscapeContent(
-          isFixed: isFixed,
-          outcomeColor: outcomeColor,
-          outcomeBg: outcomeBg,
-          state: state,
-          utilityColor: utilityColor,
-          utilityBg: utilityBg,
-          utilityIcon: utilityIcon,
-          utilityLabel: utilityLabel,
-          date: date,
-          description: description,
         ),
       ),
     );

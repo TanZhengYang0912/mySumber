@@ -20,6 +20,11 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  // Electricity stays blue across the app. Yellow is reserved for this
+  // comparison card so its two series are immediately distinguishable.
+  static const _comparisonElectricityColor = AppColors.warning;
+  static const _comparisonElectricitySurface = AppColors.warningSurface;
+
   String _selectedPeriod = 'Monthly';
   final _stateBarController = ScrollController();
   final _standardDashboardController = ScrollController();
@@ -582,8 +587,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Expanded(
                 child: _lossCallout(
                   icon: Icons.electric_bolt_outlined,
-                  color: AppColors.electricityAccent,
-                  bg: AppColors.electricitySurface,
+                  color: _comparisonElectricityColor,
+                  bg: _comparisonElectricitySurface,
                   label: 'Top Elec. Loss',
                   state: topElec?.key ?? 'N/A',
                   value: '${_shortNum(topElec?.value ?? 0)} Wh$unit',
@@ -607,7 +612,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               _legendDot(AppColors.waterAccent, 'Water'),
               const SizedBox(width: 24),
-              _legendDot(AppColors.electricityAccent, 'Electricity'),
+              _legendDot(
+                _comparisonElectricityColor,
+                'Electricity',
+                markerKey:
+                    const ValueKey('usage-comparison-electricity-legend'),
+              ),
             ],
           ),
         ],
@@ -786,7 +796,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 _valueBar(water, scale, AppColors.waterAccent),
                 const SizedBox(height: 4),
-                _valueBar(electricity, scale, AppColors.electricityAccent),
+                _valueBar(
+                  electricity,
+                  scale,
+                  _comparisonElectricityColor,
+                  key: const ValueKey('usage-comparison-electricity-bar'),
+                ),
               ],
             ),
           ),
@@ -795,9 +810,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _valueBar(double value, double scale, Color color) {
+  Widget _valueBar(
+    double value,
+    double scale,
+    Color color, {
+    Key? key,
+  }) {
     final ratio = scale <= 0 ? 0.0 : (value / scale).clamp(0.0, 1.0);
     return SizedBox(
+      key: key,
       height: 14,
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -857,11 +878,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _legendDot(Color color, String label) {
+  Widget _legendDot(Color color, String label, {Key? markerKey}) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
+          key: markerKey,
           width: 10,
           height: 10,
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),

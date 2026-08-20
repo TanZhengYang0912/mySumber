@@ -103,8 +103,9 @@ class _AlertQueueScreenState extends State<AlertQueueScreen>
             title: title,
             color: AppColors.workerPrimary,
             brand: 'mySumber · WORKER',
-            icon:
-                _isWater ? Icons.water_drop_outlined : Icons.electric_bolt_outlined,
+            icon: _isWater
+                ? Icons.water_drop_outlined
+                : Icons.electric_bolt_outlined,
             onLogout: () => context.read<RoleState>().logout(),
           ),
           Container(
@@ -181,8 +182,8 @@ class _AlertQueueScreenState extends State<AlertQueueScreen>
     // Each dropdown's counts reflect every OTHER active filter but not its
     // own selection — so picking "High" doesn't collapse Severity's own list
     // down to just itself.
-    List<Alert> excluding({bool state = true, bool severity = true,
-        bool status = true}) {
+    List<Alert> excluding(
+        {bool state = true, bool severity = true, bool status = true}) {
       return tabBase.where((a) {
         if (!matchesQuery(a)) return false;
         if (state && _selectedState != 'all' && a.state != _selectedState) {
@@ -256,8 +257,10 @@ class _AlertQueueScreenState extends State<AlertQueueScreen>
         final alert = alerts[index];
         return AlertCard(
           alert: alert,
+          utility: widget.utility,
           resolvedAt: alert.id == null ? null : app.resolvedAtFor(alert.id!),
-          resolvedHandledBy: app.workerNames[alert.handledById] ?? alert.handledBy,
+          resolvedHandledBy:
+              app.workerNames[alert.handledById] ?? alert.handledBy,
           onTap: () => Navigator.of(context).push(MaterialPageRoute(
               builder: (_) => AlertDetailScreen(alertId: alert.id!))),
         );

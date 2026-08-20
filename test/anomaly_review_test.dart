@@ -56,7 +56,7 @@ void main() {
 
     expect(result.map((a) => a.status), everyElement(AlertStatus.pending));
     expect(result.map((a) => a.status), isNot(contains(AlertStatus.resolved)));
-    expect(result.map((a) => a.status), isNot(contains(AlertStatus.faults)));
+    expect(result.map((a) => a.status), isNot(contains('faults')));
   });
 
   test('Oversight default keeps every pending severity and ranks high first', () {
@@ -212,8 +212,8 @@ List<Alert> _fixtureAlerts() => [
         detectedAt: DateTime.utc(2026, 7, 20),
         signature: 'electricity_hotspot',
         severity: Severity.low,
-        explanation: 'The pattern was classified as a fault.',
-        status: AlertStatus.faults,
+        explanation: 'The detection was dismissed before Worker action.',
+        status: AlertStatus.dismissed,
         facilityName: '1 Utama Shopping Centre',
         facilityCity: 'Petaling Jaya',
         equipmentName: 'Sub-Transformer B2',
