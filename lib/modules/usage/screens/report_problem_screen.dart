@@ -285,8 +285,6 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
                       child: ListView(
                         padding: EdgeInsets.zero,
                         children: [
-                          _landscapeAccountDetails(),
-                          const SizedBox(height: 8),
                           _menuCard(),
                           const SizedBox(height: 8),
                           FilledButton.icon(
@@ -374,27 +372,6 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
             icon: Icons.map_outlined,
             label: 'State',
             value: serviceState,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _landscapeAccountDetails() {
-    return AppCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        children: [
-          _detailRow(
-            icon: Icons.receipt_long_outlined,
-            label: 'Account Number',
-            value: 'ACC-2024-0847',
-          ),
-          const Divider(height: 1, indent: 16, endIndent: 16),
-          _detailRow(
-            icon: Icons.credit_card_outlined,
-            label: 'Billing Plan',
-            value: 'Residential Standard',
           ),
         ],
       ),
@@ -503,18 +480,6 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
             icon: Icons.map_outlined,
             label: 'State',
             value: serviceState,
-          ),
-          const Divider(height: 1, indent: 16, endIndent: 16),
-          _detailRow(
-            icon: Icons.receipt_long_outlined,
-            label: 'Account Number',
-            value: 'ACC-2024-0847',
-          ),
-          const Divider(height: 1, indent: 16, endIndent: 16),
-          _detailRow(
-            icon: Icons.credit_card_outlined,
-            label: 'Billing Plan',
-            value: 'Residential Standard',
           ),
         ],
       ),
