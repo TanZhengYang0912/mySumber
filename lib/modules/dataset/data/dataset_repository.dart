@@ -3,14 +3,133 @@ import 'dart:math';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/local_database/cache_status.dart';
+import '../../../core/local_database/local_database.dart';
+import '../../../core/local_database/remote_fallback.dart';
 import '../models/models.dart';
 import '../services/equipment_import.dart';
 import '../services/equipment_identity.dart';
 
+abstract class DatasetRemoteStore {
+  Future<List<Map<String, Object?>>> fetchNodes();
+  Future<void> upsertNodes(List<Map<String, Object?>> rows);
+  Future<void> deleteNode(String nodeId);
+  Future<List<Map<String, Object?>>> fetchLogsForNode(String nodeId);
+  Future<void> upsertLogs(List<Map<String, Object?>> rows);
+  Future<bool> hasEquipmentNodes();
+  Future<bool> hasLogsForNode(String nodeId);
+}
+
+class SupabaseDatasetRemoteStore implements DatasetRemoteStore {
+  const SupabaseDatasetRemoteStore(this.client);
+
+  final SupabaseClient client;
+
+  @override
+  Future<List<Map<String, Object?>>> fetchNodes() async {
+    final rows = await client
+        .from('equipment_nodes')
+        .select()
+        .order('facility_name')
+        .order('node_name');
+
+    // Resolve catalog display names before caching so offline Mall Monitoring
+    // retains the facility and equipment names instead of raw catalog ids.
+    final facilities = {
+      for (final row
+          in await client.from('facilities').select('facility_id, name, city'))
+        row['facility_id'] as String: (
+          name: row['name'] as String,
+          city: row['city'] as String,
+        ),
+    };
+    final manufacturers = {
+      for (final row
+          in await client.from('manufacturers').select('manufacturer_id, name'))
+        row['manufacturer_id'] as String: row['name'] as String,
+    };
+    final models = {
+      for (final row in await client
+          .from('equipment_models')
+          .select('model_id, model_name'))
+        row['model_id'] as String: row['model_name'] as String,
+    };
+    final firmwares = {
+      for (final row in await client
+          .from('firmware_catalog')
+          .select('firmware_id, version'))
+        row['firmware_id'] as String: row['version'] as String,
+    };
+
+    return rows.map((raw) {
+      final row = Map<String, Object?>.from(raw);
+      final facility = facilities[row['facility_id']];
+      if (facility != null) {
+        row['facility_name'] = facility.name;
+        row['facility_city'] = facility.city;
+      }
+      final manufacturer = manufacturers[row['manufacturer_id']];
+      if (manufacturer != null) row['manufacturer'] = manufacturer;
+      final model = models[row['model_id']];
+      if (model != null) row['model_name'] = model;
+      final firmware = firmwares[row['firmware_id']];
+      if (firmware != null) row['firmware_version'] = firmware;
+      return row;
+    }).toList();
+  }
+
+  @override
+  Future<void> upsertNodes(List<Map<String, Object?>> rows) =>
+      client.from('equipment_nodes').upsert(rows, onConflict: 'asset_tag');
+
+  @override
+  Future<void> deleteNode(String nodeId) =>
+      client.from('equipment_nodes').delete().eq('node_id', nodeId);
+
+  @override
+  Future<List<Map<String, Object?>>> fetchLogsForNode(String nodeId) async {
+    final rows = await client
+        .from('equipment_usage_logs')
+        .select()
+        .eq('node_id', nodeId)
+        .order('timestamp');
+    return rows.map((row) => Map<String, Object?>.from(row)).toList();
+  }
+
+  @override
+  Future<void> upsertLogs(List<Map<String, Object?>> rows) =>
+      client.from('equipment_usage_logs').upsert(rows);
+
+  @override
+  Future<bool> hasEquipmentNodes() async =>
+      (await client.from('equipment_nodes').select('node_id').limit(1))
+          .isNotEmpty;
+
+  @override
+  Future<bool> hasLogsForNode(String nodeId) async => (await client
+          .from('equipment_usage_logs')
+          .select('log_id')
+          .eq('node_id', nodeId)
+          .limit(1))
+      .isNotEmpty;
+}
+
 class DatasetRepository {
-  DatasetRepository({SupabaseClient? client}) : _client = client;
+  DatasetRepository({
+    SupabaseClient? client,
+    DatasetRemoteStore? remote,
+    LocalDatabase? database,
+    CacheStatus? cacheStatus,
+  })  : _client = client,
+        _remote = remote ??
+            (client == null ? null : SupabaseDatasetRemoteStore(client)),
+        _database = database,
+        _cacheStatus = cacheStatus ?? CacheStatus();
 
   final SupabaseClient? _client;
+  final DatasetRemoteStore? _remote;
+  final LocalDatabase? _database;
+  final CacheStatus _cacheStatus;
   final Uuid _uuid = const Uuid();
 
   // Used only by tests, where no Supabase client is supplied.
@@ -123,53 +242,30 @@ class DatasetRepository {
   }
 
   Future<List<EquipmentNode>> fetchNodes() async {
-    final client = _client;
-    if (client == null) return List.from(_localNodes);
-    final rows = await client
-        .from('equipment_nodes')
-        .select()
-        .order('facility_name')
-        .order('node_name');
+    final remote = _remote;
+    if (remote == null) return List.from(_localNodes);
+    final database = _database;
+    if (database == null) return _nodesFromRows(await remote.fetchNodes());
 
-    final facilities = {
-      for (final row
-          in await client.from('facilities').select('facility_id, name, city'))
-        row['facility_id'] as String: (
-          name: row['name'] as String,
-          city: row['city'] as String,
-        ),
-    };
-    final manufacturers = {
-      for (final row
-          in await client.from('manufacturers').select('manufacturer_id, name'))
-        row['manufacturer_id'] as String: row['name'] as String,
-    };
-    final models = {
-      for (final row in await client
-          .from('equipment_models')
-          .select('model_id, model_name'))
-        row['model_id'] as String: row['model_name'] as String,
-    };
-    final firmwares = {
-      for (final row in await client
-          .from('firmware_catalog')
-          .select('firmware_id, version'))
-        row['firmware_id'] as String: row['version'] as String,
-    };
-
-    return rows.map((row) {
-      final node = canonicalizeEquipmentNode(
-          EquipmentNode.fromMap(Map<String, Object?>.from(row)));
-      final facility = facilities[node.facilityId];
-      return node.copyWith(
-        facilityName: facility?.name ?? node.facilityName,
-        facilityCity: facility?.city ?? node.facilityCity,
-        manufacturer: manufacturers[node.manufacturerId] ?? node.manufacturer,
-        modelName: models[node.modelId] ?? node.modelName,
-        firmwareVersion: firmwares[node.firmwareId] ?? node.firmwareVersion,
-      );
-    }).toList();
+    return remoteFirst(
+      remote: () async {
+        final rows = await remote.fetchNodes();
+        await cacheBestEffort('equipment', () async {
+          await database.replaceEquipmentNodes(rows);
+          await database.setLastSync('equipment_nodes', DateTime.now());
+        });
+        return _nodesFromRows(rows);
+      },
+      local: () async => _nodesFromRows(await database.equipmentNodes()),
+      hasLocalData: (nodes) => nodes.isNotEmpty,
+      lastSync: () => database.lastSync('equipment_nodes'),
+      status: _cacheStatus,
+    );
   }
+
+  List<EquipmentNode> _nodesFromRows(List<Map<String, Object?>> rows) => rows
+      .map((row) => canonicalizeEquipmentNode(EquipmentNode.fromMap(row)))
+      .toList();
 
   Future<EquipmentImportCatalog> fetchImportCatalog() async {
     final client = _client;
@@ -260,12 +356,20 @@ class DatasetRepository {
           ? canonical.copyWith(nodeId: _uuid.v4(), createdAt: DateTime.now())
           : canonical;
     }).toList();
-    final client = _client;
-    if (client != null) {
-      await client.from('equipment_nodes').upsert(
-            savedNodes.map((node) => node.toMap()).toList(),
-            onConflict: 'asset_tag',
-          );
+    final remote = _remote;
+    if (remote != null) {
+      final rows = savedNodes.map((node) => node.toMap()).toList();
+      await remote.upsertNodes(rows);
+      final database = _database;
+      if (database != null) {
+        await cacheBestEffort('equipment', () async {
+          for (final row in rows) {
+            await database.upsertEquipmentNode(row);
+          }
+          await database.setLastSync('equipment_nodes', DateTime.now());
+        });
+      }
+      _cacheStatus.markOnline();
       return;
     }
 
@@ -287,9 +391,17 @@ class DatasetRepository {
   }
 
   Future<void> deleteNode(String nodeId) async {
-    final client = _client;
-    if (client != null) {
-      await client.from('equipment_nodes').delete().eq('node_id', nodeId);
+    final remote = _remote;
+    if (remote != null) {
+      await remote.deleteNode(nodeId);
+      final database = _database;
+      if (database != null) {
+        await cacheBestEffort(
+          'equipment',
+          () => database.deleteEquipmentNode(nodeId),
+        );
+      }
+      _cacheStatus.markOnline();
       return;
     }
     _localNodes.removeWhere((node) => node.nodeId == nodeId);
@@ -297,20 +409,31 @@ class DatasetRepository {
   }
 
   Future<List<UtilityLog>> fetchLogsForNode(String nodeId) async {
-    final client = _client;
-    if (client == null) {
+    final remote = _remote;
+    if (remote == null) {
       final logs = _localLogs.where((log) => log.nodeId == nodeId).toList();
       logs.sort((a, b) => a.timestamp!.compareTo(b.timestamp!));
       return logs;
     }
-    final rows = await client
-        .from('equipment_usage_logs')
-        .select()
-        .eq('node_id', nodeId)
-        .order('timestamp');
-    return rows
-        .map((row) => UtilityLog.fromMap(Map<String, Object?>.from(row)))
-        .toList();
+    final database = _database;
+    if (database == null) {
+      return _logsFromRows(await remote.fetchLogsForNode(nodeId));
+    }
+    final scope = 'equipment_logs:$nodeId';
+    return remoteFirst(
+      remote: () async {
+        final rows = await remote.fetchLogsForNode(nodeId);
+        await cacheBestEffort('equipment usage', () async {
+          await database.replaceEquipmentLogs(nodeId, rows);
+          await database.setLastSync(scope, DateTime.now());
+        });
+        return _logsFromRows(rows);
+      },
+      local: () async => _logsFromRows(await database.equipmentLogs(nodeId)),
+      hasLocalData: (logs) => logs.isNotEmpty,
+      lastSync: () => database.lastSync(scope),
+      status: _cacheStatus,
+    );
   }
 
   /// Newest reading per node, for the Mall Monitoring roll-up. PostgREST caps
@@ -347,6 +470,9 @@ class DatasetRepository {
     return (usage: usage, timestamps: timestamps);
   }
 
+  List<UtilityLog> _logsFromRows(List<Map<String, Object?>> rows) =>
+      rows.map(UtilityLog.fromMap).toList();
+
   Future<void> insertHistoricalLog(
       String nodeId, double value, DateTime timestamp) async {
     final log = UtilityLog(
@@ -354,23 +480,26 @@ class DatasetRepository {
         nodeId: nodeId,
         usageValue: value,
         timestamp: timestamp);
-    final client = _client;
-    if (client != null) {
-      await client.from('equipment_usage_logs').upsert(log.toMap());
+    final remote = _remote;
+    if (remote != null) {
+      await remote.upsertLogs([log.toMap()]);
+      final database = _database;
+      if (database != null) {
+        await cacheBestEffort(
+          'equipment usage',
+          () => database.upsertEquipmentLog(log.toMap()),
+        );
+      }
+      _cacheStatus.markOnline();
       return;
     }
     _localLogs.add(log);
   }
 
   Future<void> seedDemoDataIfEmpty() async {
-    final client = _client;
-    if (client == null) return;
-    final existing =
-        await client.from('equipment_nodes').select('node_id').limit(1);
-    if (existing.isNotEmpty) return;
-    await client
-        .from('equipment_nodes')
-        .insert(_localNodes.map((node) => node.toMap()).toList());
+    final remote = _remote;
+    if (remote == null || await remote.hasEquipmentNodes()) return;
+    await remote.upsertNodes(_localNodes.map((node) => node.toMap()).toList());
     for (final node in _localNodes) {
       await seedDemoLogsForNode(node);
     }
@@ -379,22 +508,16 @@ class DatasetRepository {
   Future<void> seedDemoLogsForNode(EquipmentNode node) async {
     final nodeId = node.nodeId;
     if (nodeId == null) return;
-    final client = _client;
-    if (client == null) {
+    final remote = _remote;
+    if (remote == null) {
       if (_localLogs.where((log) => log.nodeId == nodeId).isEmpty) {
         _localLogs.addAll(_demoLogs(node));
       }
       return;
     }
-    final existing = await client
-        .from('equipment_usage_logs')
-        .select('log_id')
-        .eq('node_id', nodeId)
-        .limit(1);
-    if (existing.isEmpty) {
-      await client
-          .from('equipment_usage_logs')
-          .insert(_demoLogs(node).map((log) => log.toMap()).toList());
+    if (!await remote.hasLogsForNode(nodeId)) {
+      await remote
+          .upsertLogs(_demoLogs(node).map((log) => log.toMap()).toList());
     }
   }
 

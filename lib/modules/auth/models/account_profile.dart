@@ -22,4 +22,12 @@ class AccountProfile {
         role: map['role'] as String,
         status: (map['status'] as String?) ?? 'active',
       );
+
+  Map<String, Object?> toMap() => {
+        'id': id,
+        'full_name': fullName,
+        'email': email,
+        'role': role,
+        'status': status,
+      };
 }

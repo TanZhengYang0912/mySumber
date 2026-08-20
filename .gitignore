@@ -54,6 +54,24 @@ app.*.map.json
 .codex/
 AGENTS.md
 
+# Local AI assistants and MCP tooling
+**/AGENTS*.md
+**/CLAUDE*.md
+**/CODEX*.md
+**/.agent/
+**/.agents/
+**/.claude/
+**/.claudeignore
+**/.codex/
+**/.mcp/
+**/.mcp.json
+**/.mcp.yaml
+**/.mcp.yml
+**/mcp.json
+**/mcp.yaml
+**/mcp.yml
+**/skills-lock.json
+
 # API keys — never commit
 lib/config.dart
 .worktrees/

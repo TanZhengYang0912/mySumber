@@ -19,26 +19,35 @@ bool hasPendingPasswordSetup(User user) =>
     user.userMetadata?['must_set_password'] == true;
 
 class RoleState extends ChangeNotifier {
-  RoleState({AccountRepository? accountRepository})
-      : _accountRepository = accountRepository ?? AccountRepository() {
-    _authSubscription =
-        Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+  RoleState({
+    AccountRepository? accountRepository,
+    Session? Function()? currentSession,
+    Stream<AuthState>? authStateChanges,
+  })  : _accountRepository = accountRepository ?? AccountRepository(),
+        _currentSession = currentSession ??
+            (() => Supabase.instance.client.auth.currentSession) {
+    final changes =
+        authStateChanges ?? Supabase.instance.client.auth.onAuthStateChange;
+    _authSubscription = changes.listen((data) {
       final session = data.session;
       if (data.event == AuthChangeEvent.passwordRecovery) {
         _requiresPasswordReset = true;
         notifyListeners();
       }
-      if (session != null && !_verifyingCredentials) {
+      if (session != null && !session.isExpired && !_verifyingCredentials) {
         if (hasPendingPasswordSetup(session.user)) {
           _requiresPasswordReset = true;
           notifyListeners();
         }
         unawaited(_applyProfile(session.user));
       }
+    }, onError: (Object _, StackTrace __) {
+      debugPrint('Auth state update unavailable while offline.');
     });
   }
 
   final AccountRepository _accountRepository;
+  final Session? Function() _currentSession;
   AccountProfile? _profile;
   String? _userRole;
   String? _email;
@@ -79,6 +88,17 @@ class RoleState extends ChangeNotifier {
 
   Map<String, dynamic>? get _metadata =>
       Supabase.instance.client.auth.currentUser?.userMetadata;
+
+  /// True when Google is the only sign-in method linked to this account —
+  /// such accounts have no Supabase-managed password to reset, so the
+  /// password-change UI should be hidden rather than offered and fail.
+  bool get isGoogleOnlyAccount {
+    final providers =
+        Supabase.instance.client.auth.currentUser?.appMetadata['providers'];
+    return providers is List &&
+        providers.isNotEmpty &&
+        providers.every((p) => p == 'google');
+  }
 
   /// True once a customer has been through the enforced profile setup
   /// wizard (name, gender, phone, address all saved). Used to route both
@@ -262,8 +282,8 @@ class RoleState extends ChangeNotifier {
 
   Future<void> checkExistingSession() async {
     try {
-      final session = Supabase.instance.client.auth.currentSession;
-      if (session != null) {
+      final session = _currentSession();
+      if (session != null && !session.isExpired) {
         await _applyProfile(session.user);
       }
     } catch (e) {
@@ -486,7 +506,12 @@ class RoleState extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _errorMessage = 'Could not delete account: $e';
+      // AuthRetryableFetchError means the request never reached Supabase
+      // (network drop, timeout) — it's transient, not a real failure, so
+      // don't show the raw exception text.
+      _errorMessage = e.toString().contains('AuthRetryableFetchError')
+          ? 'Could not delete account: network issue, please try again.'
+          : 'Could not delete account: $e';
       _isLoading = false;
       notifyListeners();
       return false;

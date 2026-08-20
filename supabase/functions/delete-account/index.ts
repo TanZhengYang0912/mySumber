@@ -41,9 +41,22 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
-    const { error: deleteError } = await adminClient.auth.admin.deleteUser(
-      userData.user.id,
-    )
+
+    // The fetch to GoTrue occasionally drops (cold start / transient
+    // network blip) and surfaces as AuthRetryableFetchError before any
+    // response is received, so retry a couple of times before giving up.
+    const maxAttempts = 3
+    let deleteError: unknown = null
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const { error } = await adminClient.auth.admin.deleteUser(
+        userData.user.id,
+      )
+      deleteError = error
+      if (!error) break
+      const retryable = String(error).includes('AuthRetryableFetchError')
+      if (!retryable || attempt === maxAttempts) break
+      await new Promise((resolve) => setTimeout(resolve, 250 * attempt))
+    }
     if (deleteError) throw deleteError
 
     return new Response(JSON.stringify({ success: true }), {

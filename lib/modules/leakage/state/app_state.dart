@@ -562,6 +562,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> refresh() async {
+    try {
+      await repository.readings();
+    } catch (_) {
+      debugPrint('Could not refresh the local reading backup.');
+    }
     _alerts = await repository.alerts();
     _anomalyCases = await repository.anomalyCases();
     _reports = await repository.reports();

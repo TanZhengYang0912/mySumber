@@ -94,9 +94,9 @@ class _WorkerAccountsScreenState extends State<WorkerAccountsScreen> {
           fullName: name.text.trim(),
           email: email.text.trim());
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(
-              'Worker invited successfully. A password setup email has been sent.')));
+              'Worker invited. They can log in with ${email.text.trim()} as both the username and starter password, and will be asked to set a new one.')));
       await _load();
     } catch (e) {
       if (mounted) {

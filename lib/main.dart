@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'core/local_database/cache_status.dart';
+import 'core/local_database/local_database.dart';
+import 'core/local_database/offline_status_banner.dart';
 import 'theme/tokens.dart';
 
 import 'modules/admin/screens/abnormal_production_screen.dart';
@@ -10,6 +13,7 @@ import 'modules/admin/screens/worker_accounts_screen.dart';
 import 'modules/admin/services/admin_tablet_layout.dart';
 import 'modules/admin/widgets/admin_compact_rail.dart';
 
+import 'modules/auth/data/account_repository.dart';
 import 'modules/auth/screens/login_screen.dart';
 import 'modules/auth/screens/reset_password_screen.dart';
 import 'modules/auth/state/auth_state.dart' show RoleState;
@@ -37,7 +41,9 @@ import 'modules/usage/screens/customer_home_screen.dart';
 import 'modules/usage/screens/compare_usage_screen.dart';
 import 'modules/usage/screens/profile_setup_screen.dart';
 import 'modules/usage/screens/report_problem_screen.dart';
+import 'modules/usage/data/usage_repository.dart';
 import 'modules/usage/services/customer_compact_layout.dart';
+import 'modules/usage/services/local_notification_service.dart';
 import 'modules/usage/state/usage_state.dart';
 import 'modules/usage/widgets/customer_compact_rail.dart';
 
@@ -47,19 +53,41 @@ Future<void> main() async {
     url: 'https://tnmznkdvrrpigevxdfet.supabase.co',
     publishableKey: 'sb_publishable_rPQeDFFfv1HQoYnqN2g9QQ_bLBVlaZE',
   );
-  runApp(const MySumberApp());
+  await LocalNotificationService.instance.init();
+  runApp(MySumberApp(
+    database: LocalDatabase.defaults(),
+    cacheStatus: CacheStatus(),
+  ));
 }
 
 class MySumberApp extends StatelessWidget {
-  const MySumberApp({super.key});
+  const MySumberApp({
+    super.key,
+    required this.database,
+    required this.cacheStatus,
+  });
+
+  final LocalDatabase database;
+  final CacheStatus cacheStatus;
+
+  static final GlobalKey<NavigatorState> _navigatorKey =
+      GlobalKey<NavigatorState>();
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        Provider<LocalDatabase>.value(value: database),
+        ChangeNotifierProvider<CacheStatus>.value(value: cacheStatus),
         ChangeNotifierProvider<RoleState>(
           create: (_) {
-            final roleState = RoleState();
+            final roleState = RoleState(
+              accountRepository: AccountRepository.cached(
+                client: Supabase.instance.client,
+                database: database,
+                cacheStatus: cacheStatus,
+              ),
+            );
             roleState.checkExistingSession();
             return roleState;
           },
@@ -68,7 +96,11 @@ class MySumberApp extends StatelessWidget {
           create: (_) {
             final baseline = BaselineService();
             final nrw = NrwService();
-            final repository = LeakageRepository();
+            final repository = LeakageRepository.cached(
+              client: Supabase.instance.client,
+              database: database,
+              cacheStatus: cacheStatus,
+            );
             final simulation = SimulationService(
               baseline: baseline,
               repository: repository,
@@ -87,16 +119,30 @@ class MySumberApp extends StatelessWidget {
         ),
         ChangeNotifierProvider<DatasetState>(
           create: (_) => DatasetState(
-            repository: DatasetRepository(client: Supabase.instance.client),
+            repository: DatasetRepository(
+              client: Supabase.instance.client,
+              database: database,
+              cacheStatus: cacheStatus,
+            ),
           ),
         ),
         ChangeNotifierProvider<UsageState>(
-          create: (_) => UsageState(),
+          create: (_) => UsageState(
+            repository: UsageRepository.cached(
+              client: Supabase.instance.client,
+              database: database,
+              cacheStatus: cacheStatus,
+            ),
+          ),
         ),
       ],
       child: MaterialApp(
+        navigatorKey: _navigatorKey,
         title: 'mySumber',
         debugShowCheckedModeBanner: false,
+        builder: (context, child) => OfflineStatusBanner(
+          child: child ?? const SizedBox.shrink(),
+        ),
         theme: ThemeData(
           useMaterial3: true,
           scaffoldBackgroundColor: AppColors.canvas,
@@ -161,6 +207,13 @@ class MySumberApp extends StatelessWidget {
         home: Consumer<RoleState>(
           builder: (BuildContext context, RoleState authState, Widget? _) {
             if (authState.requiresPasswordReset) {
+              // ResetPasswordScreen just became the root route, but a
+              // pushed screen (e.g. ForgotPasswordScreen) may still be
+              // sitting on top of it from before the reset-link email was
+              // opened — pop back to root so it's actually visible.
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _navigatorKey.currentState?.popUntil((route) => route.isFirst);
+              });
               return const ResetPasswordScreen();
             }
             if (authState.isLoggedIn) {

@@ -21,9 +21,18 @@ void main() {
     expect(File(functionPath).existsSync(), isTrue);
 
     final functionSource = File(functionPath).readAsStringSync();
-    expect(functionSource, contains('GROQ_API_KEY'));
-    expect(functionSource, contains('profile.role'));
-    expect(functionSource, contains('profile.status'));
+    // main's stricter assertions, re-quoted to match this branch's function:
+    // index.ts here is double-quoted where main's was single-quoted, so the
+    // literals differ even though the code they check is identical.
+    //
+    // The model stays on 120b, deliberately diverging from main's 20b. It
+    // produces better write-ups and is proven working on this branch; the
+    // trade-off is heavier Groq rate limiting on bulk inserts.
+    expect(functionSource, contains('Deno.env.get("GROQ_API_KEY")'));
+    expect(functionSource, contains('const groqModel = "openai/gpt-oss-120b"'));
+    expect(functionSource, isNot(contains('llama-3.1-8b-instant')));
+    expect(functionSource, contains('profile.role !== "admin"'));
+    expect(functionSource, contains('profile.status !== "active"'));
   });
 
   test('parses a valid Groq anomaly response', () {
