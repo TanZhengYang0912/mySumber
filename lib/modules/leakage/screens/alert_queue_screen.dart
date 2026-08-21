@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../theme/filter_controls.dart';
+import '../../../theme/landscape_filter_menu.dart';
 import '../../../theme/page_header.dart';
 import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
 import '../models/alert.dart';
+import '../services/worker_compact_layout.dart';
 import '../state/app_state.dart';
 import 'alert_detail_screen.dart';
 import 'style.dart';
@@ -94,6 +96,7 @@ class _AlertQueueScreenState extends State<AlertQueueScreen>
     final resolved = filter(resolvedAll);
 
     final title = _isWater ? 'Water Alerts' : 'Electricity Alerts';
+    final landscape = usesWorkerPhoneLandscape(MediaQuery.sizeOf(context));
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -107,6 +110,29 @@ class _AlertQueueScreenState extends State<AlertQueueScreen>
                 ? Icons.water_drop_outlined
                 : Icons.electric_bolt_outlined,
             onLogout: () => context.read<RoleState>().logout(),
+            action: landscape
+                ? LandscapeFilterMenu(
+                    compact: true,
+                    tooltip: 'Filter alerts',
+                    activeCount: activeAlertFilterCount(
+                      query: _search.text,
+                      severity: _severity,
+                      state: _selectedState,
+                      status: _status,
+                    ),
+                    footer: TextButton(
+                      onPressed: _clearFilters,
+                      child: const Text('Clear'),
+                    ),
+                    child: _filters(
+                      allStates,
+                      unresolvedAll,
+                      resolvedAll,
+                      query,
+                      chromeless: true,
+                    ),
+                  )
+                : null,
           ),
           Container(
             color: Colors.white,
@@ -148,7 +174,8 @@ class _AlertQueueScreenState extends State<AlertQueueScreen>
               ],
             ),
           ),
-          _filters(allStates, unresolvedAll, resolvedAll, query),
+          if (!landscape)
+            _filters(allStates, unresolvedAll, resolvedAll, query),
           Expanded(
             child: TabBarView(
               controller: _tabController,
@@ -170,7 +197,8 @@ class _AlertQueueScreenState extends State<AlertQueueScreen>
   ];
 
   Widget _filters(List<String> states, List<Alert> unresolvedAll,
-      List<Alert> resolvedAll, String query) {
+      List<Alert> resolvedAll, String query,
+      {bool chromeless = false}) {
     final showStatus = _tabController.index == 0;
     final tabBase = showStatus ? unresolvedAll : resolvedAll;
 
@@ -206,31 +234,34 @@ class _AlertQueueScreenState extends State<AlertQueueScreen>
         ? countBy(excluding(status: false), (a) => a.status)
         : const <String, int>{};
 
+    final bar = AlertFilterBar(
+      searchController: _search,
+      onSearchChanged: (_) => setState(() {}),
+      onSearchClear: _clearFilters,
+      accent: AppColors.workerPrimary,
+      selectedState: _selectedState == 'all' ? null : _selectedState,
+      states: states,
+      stateCounts: stateCounts,
+      onStateChanged: (v) => setState(() => _selectedState = v ?? 'all'),
+      selectedSeverity: _severity == 'all' ? null : _severity,
+      severityCounts: severityCounts,
+      onSeverityChanged: (v) => setState(() => _severity = v ?? 'all'),
+      selectedStatus: showStatus ? (_status == 'all' ? null : _status) : null,
+      statusOptions: showStatus ? _queueStatuses : null,
+      statusCounts: showStatus ? statusCounts : null,
+      onStatusChanged:
+          showStatus ? (v) => setState(() => _status = v ?? 'all') : null,
+    );
+
+    if (chromeless) return bar;
+
     return Container(
       color: AppColors.surface,
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AlertFilterBar(
-            searchController: _search,
-            onSearchChanged: (_) => setState(() {}),
-            onSearchClear: _clearFilters,
-            accent: AppColors.workerPrimary,
-            selectedState: _selectedState == 'all' ? null : _selectedState,
-            states: states,
-            stateCounts: stateCounts,
-            onStateChanged: (v) => setState(() => _selectedState = v ?? 'all'),
-            selectedSeverity: _severity == 'all' ? null : _severity,
-            severityCounts: severityCounts,
-            onSeverityChanged: (v) => setState(() => _severity = v ?? 'all'),
-            selectedStatus:
-                showStatus ? (_status == 'all' ? null : _status) : null,
-            statusOptions: showStatus ? _queueStatuses : null,
-            statusCounts: showStatus ? statusCounts : null,
-            onStatusChanged:
-                showStatus ? (v) => setState(() => _status = v ?? 'all') : null,
-          ),
+          bar,
           Align(
             alignment: Alignment.centerRight,
             child: TextButton(

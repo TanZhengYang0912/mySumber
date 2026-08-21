@@ -8,6 +8,7 @@ class ReviewQueueFilter {
     required Alert alert,
     String? selectedState,
     String? selectedSeverity,
+    String? selectedStatus,
   }) {
     final trimmed = query.trim().toLowerCase();
     if (trimmed.isNotEmpty) {
@@ -23,6 +24,7 @@ class ReviewQueueFilter {
     if (selectedSeverity != null && alert.severity != selectedSeverity) {
       return false;
     }
+    if (selectedStatus != null && alert.status != selectedStatus) return false;
     return true;
   }
 }

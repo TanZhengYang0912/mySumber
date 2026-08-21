@@ -80,7 +80,7 @@ void main() {
     );
     await tester.pump(const Duration(seconds: 1));
 
-    expect(find.text('Mall Monitoring'), findsOneWidget);
+    expect(find.text('Mall'), findsOneWidget);
     expect(find.widgetWithText(FilterDropdown, 'State / Federal Territory'),
         findsOneWidget);
     expect(find.text('Aman Central'), findsNothing);
@@ -340,7 +340,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Mall Monitoring'), findsOneWidget);
+    expect(find.text('Mall'), findsOneWidget);
     expect(find.text('State / Federal Territory'), findsOneWidget);
     expect(find.byType(FloatingActionButton), findsNothing);
   });

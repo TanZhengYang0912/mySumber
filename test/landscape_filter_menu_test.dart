@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mysumber/modules/admin/widgets/landscape_filter_menu.dart';
+import 'package:mysumber/theme/landscape_filter_menu.dart';
 
 void main() {
   testWidgets('opens filter controls from an anchored menu', (tester) async {

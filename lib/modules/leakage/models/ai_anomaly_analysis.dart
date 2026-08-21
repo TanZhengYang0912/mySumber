@@ -11,37 +11,53 @@ class AiAnomalyAnalysis {
   static const _allowedSeverities = {'Low', 'Medium', 'High'};
 
   final String summary;
-  final String possibleCause;
-  final String severityAssessment;
-  final double confidence;
+
+  /// Null for customer-submitted household reports, where the alert carries no
+  /// telemetry for the model to reason about. Asking for a cause there produced
+  /// invented ones, so those alerts get a summary and recommendation only.
+  final String? possibleCause;
+  final String? severityAssessment;
+  final double? confidence;
   final String recommendation;
   final DateTime generatedAt;
 
   const AiAnomalyAnalysis({
     required this.summary,
-    required this.possibleCause,
-    required this.severityAssessment,
-    required this.confidence,
+    this.possibleCause,
+    this.severityAssessment,
+    this.confidence,
     required this.recommendation,
     required this.generatedAt,
   });
 
   factory AiAnomalyAnalysis.fromJson(Map<String, dynamic> json) {
     final summary = _textValue(json['summary']);
-    final cause = _textValue(json['possible_cause']);
-    final severity = _normalizeSeverity(json['severity_assessment']);
     final recommendation = _textValue(json['recommendation']);
-    final confidence = _parseConfidence(json['confidence']);
 
     final invalidFields = <String>[];
     if (summary.isEmpty) invalidFields.add('summary');
-    if (cause.isEmpty) invalidFields.add('possible_cause');
-    if (!_allowedSeverities.contains(severity)) {
-      invalidFields.add('severity_assessment');
-    }
     if (recommendation.isEmpty) invalidFields.add('recommendation');
-    if (confidence == null || confidence < 0 || confidence > 1) {
-      invalidFields.add('confidence');
+
+    String? cause;
+    if (json.containsKey('possible_cause')) {
+      cause = _textValue(json['possible_cause']);
+      if (cause.isEmpty) invalidFields.add('possible_cause');
+    }
+
+    String? severity;
+    if (json.containsKey('severity_assessment')) {
+      severity = _normalizeSeverity(json['severity_assessment']);
+      if (!_allowedSeverities.contains(severity)) {
+        invalidFields.add('severity_assessment');
+      }
+    }
+
+    double? confidence;
+    if (json.containsKey('confidence')) {
+      confidence = _parseConfidence(json['confidence']);
+      if (confidence == null || confidence < 0 || confidence > 1) {
+        invalidFields.add('confidence');
+      }
     }
     if (invalidFields.isNotEmpty) {
       throw AiAnomalyFormatException(
@@ -53,7 +69,7 @@ class AiAnomalyAnalysis {
       summary: summary,
       possibleCause: cause,
       severityAssessment: severity,
-      confidence: confidence!,
+      confidence: confidence,
       recommendation: recommendation,
       generatedAt: DateTime.now(),
     );

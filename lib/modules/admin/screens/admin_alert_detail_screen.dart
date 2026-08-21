@@ -11,10 +11,13 @@ import '../../leakage/screens/report_view_screen.dart';
 import '../../leakage/screens/style.dart';
 import '../../leakage/state/app_state.dart';
 
-/// Admin's read-only view of an alert: full evidence + linked investigation
-/// reports. False positives are rejected from the Admin Review case before a
-/// Worker alert exists; Admin cannot investigate, write a report, or resolve
-/// a Worker alert.
+/// Admin's view of one alert: full evidence, AI analysis, and linked
+/// investigation reports. Opened from both Oversight's Alert Queue and the
+/// Anomalies review queue.
+///
+/// For an alert still awaiting review it also carries Approve / Fault
+/// controls; for anything already in the worker queue it stays read-only,
+/// because Admin cannot investigate, write a report, or resolve an alert.
 class AdminAlertDetailScreen extends StatefulWidget {
   final int alertId;
   const AdminAlertDetailScreen({super.key, required this.alertId});
@@ -63,6 +66,12 @@ class _AdminAlertDetailScreenState extends State<AdminAlertDetailScreen> {
         backgroundColor: AppColors.adminPrimary,
         foregroundColor: Colors.white,
       ),
+      bottomNavigationBar: AppState.awaitingDecision(alert)
+          ? Padding(
+              padding: const EdgeInsets.fromLTRB(14, 8, 14, 20),
+              child: AlertDecisionBar(alert: alert, popOnDecision: true),
+            )
+          : null,
       body: ListView(
         padding: const EdgeInsets.all(14),
         children: [
@@ -134,6 +143,12 @@ class _AdminAlertDetailScreenState extends State<AdminAlertDetailScreen> {
   ) {
     return Scaffold(
       backgroundColor: AppColors.canvas,
+      bottomNavigationBar: AppState.awaitingDecision(alert)
+          ? Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              child: AlertDecisionBar(alert: alert, popOnDecision: true),
+            )
+          : null,
       body: SafeArea(
         child: Column(
           key: const Key('admin-alert-landscape-layout'),
@@ -145,7 +160,7 @@ class _AdminAlertDetailScreenState extends State<AdminAlertDetailScreen> {
                 child: Row(
                   children: [
                     IconButton(
-                      tooltip: 'Back to Oversight',
+                      tooltip: 'Back',
                       onPressed: () => Navigator.of(context).maybePop(),
                       icon: const Icon(Icons.arrow_back),
                     ),

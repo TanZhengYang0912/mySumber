@@ -66,7 +66,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
           : Column(
               children: [
                 PageHeader(
-                  title: 'Mall Monitoring',
+                  title: 'Mall',
                   icon: Icons.location_city_outlined,
                   onLogout: () => context.read<RoleState>().logout(),
                 ),

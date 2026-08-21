@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../theme/filter_controls.dart';
+import '../../../theme/landscape_filter_menu.dart';
 import '../../../theme/page_header.dart';
 import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
 import '../models/alert.dart';
 import '../models/report.dart';
+import '../services/worker_compact_layout.dart';
 import '../state/app_state.dart';
 import 'report_view_screen.dart';
 import 'style.dart';
@@ -41,6 +43,42 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
     });
   }
 
+  /// The filter controls without their card chrome, so the same widgets serve
+  /// both the portrait strip and the landscape burger.
+  Widget _filterControls({
+    required List<String> states,
+    required Map<String, int> stateCounts,
+    required Map<String, int> outcomeCounts,
+    required Map<String, int> utilityCounts,
+  }) {
+    return Column(
+      children: [
+        ReportFilterBar(
+          searchController: _search,
+          onSearchChanged: (_) => setState(() {}),
+          onSearchClear: () => setState(_search.clear),
+          accent: AppColors.workerPrimary,
+          selectedState: _state,
+          states: states,
+          stateCounts: stateCounts,
+          onStateChanged: (v) => setState(() => _state = v),
+          selectedOutcome: _outcome,
+          outcomeCounts: outcomeCounts,
+          onOutcomeChanged: (v) => setState(() => _outcome = v),
+        ),
+        const SizedBox(height: 10),
+        UtilityChips(
+          color: AppColors.workerPrimary,
+          selected: _utility,
+          allCount: utilityCounts.values.fold<int>(0, (a, b) => a + b),
+          waterCount: utilityCounts['water'] ?? 0,
+          electricityCount: utilityCounts['electricity'] ?? 0,
+          onChanged: (u) => setState(() => _utility = u),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
@@ -59,24 +97,29 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
           r.actionTaken.toLowerCase().contains(query);
     }
 
-    List<Report> excluding({bool state = true, bool outcome = true, bool utility = true}) {
-      return app.reportsFiltered(
-        state: state ? _state : null,
-        outcome: outcome ? _outcome : null,
-        utility: utility ? _utility : null,
-      ).where(matchesQuery).toList();
+    List<Report> excluding(
+        {bool state = true, bool outcome = true, bool utility = true}) {
+      return app
+          .reportsFiltered(
+            state: state ? _state : null,
+            outcome: outcome ? _outcome : null,
+            utility: utility ? _utility : null,
+          )
+          .where(matchesQuery)
+          .toList();
     }
 
     final reports = excluding();
     final states = app.alerts.map((a) => a.state).toSet().toList()..sort();
-    final stateCounts =
-        countBy(excluding(state: false), (r) => alertById[r.alertId]?.state ?? '');
+    final stateCounts = countBy(
+        excluding(state: false), (r) => alertById[r.alertId]?.state ?? '');
     final outcomeCounts = countBy(excluding(outcome: false), (r) => r.outcome);
     final utilityCounts = countBy(
         excluding(utility: false),
         (r) => alertById[r.alertId]?.utility == Utility.electricity
             ? 'electricity'
             : 'water');
+    final landscape = usesWorkerPhoneLandscape(MediaQuery.sizeOf(context));
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -88,44 +131,51 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
             brand: 'mySumber · WORKER',
             icon: Icons.description_outlined,
             onLogout: () => context.read<RoleState>().logout(),
+            action: landscape
+                ? LandscapeFilterMenu(
+                    compact: true,
+                    tooltip: 'Filter reports',
+                    activeCount: activeReportFilterCount(
+                      query: _search.text,
+                      state: _state,
+                      outcome: _outcome,
+                      utility: _utility,
+                    ),
+                    footer: TextButton(
+                      onPressed: _clearFilters,
+                      child: const Text('Clear'),
+                    ),
+                    child: _filterControls(
+                      states: states,
+                      stateCounts: stateCounts,
+                      outcomeCounts: outcomeCounts,
+                      utilityCounts: utilityCounts,
+                    ),
+                  )
+                : null,
           ),
-          Container(
-            color: AppColors.surface,
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-            child: Column(
-              children: [
-                ReportFilterBar(
-                  searchController: _search,
-                  onSearchChanged: (_) => setState(() {}),
-                  onSearchClear: () => setState(_search.clear),
-                  accent: AppColors.workerPrimary,
-                  selectedState: _state,
-                  states: states,
-                  stateCounts: stateCounts,
-                  onStateChanged: (v) => setState(() => _state = v),
-                  selectedOutcome: _outcome,
-                  outcomeCounts: outcomeCounts,
-                  onOutcomeChanged: (v) => setState(() => _outcome = v),
-                ),
-                const SizedBox(height: 10),
-                UtilityChips(
-                  color: AppColors.workerPrimary,
-                  selected: _utility,
-                  allCount: utilityCounts.values.fold<int>(0, (a, b) => a + b),
-                  waterCount: utilityCounts['water'] ?? 0,
-                  electricityCount: utilityCounts['electricity'] ?? 0,
-                  onChanged: (u) => setState(() => _utility = u),
-                ),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: _clearFilters,
-                    child: const Text('Clear filters'),
+          if (!landscape)
+            Container(
+              color: AppColors.surface,
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+              child: Column(
+                children: [
+                  _filterControls(
+                    states: states,
+                    stateCounts: stateCounts,
+                    outcomeCounts: outcomeCounts,
+                    utilityCounts: utilityCounts,
                   ),
-                ),
-              ],
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: _clearFilters,
+                      child: const Text('Clear filters'),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
           Expanded(
             child: reports.isEmpty
                 ? const Center(
@@ -139,12 +189,15 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                       final alert = alertById[report.alertId];
                       return ReportCard(
                         report: report,
-                        locationLabel: alert?.title ?? 'Alert #${report.alertId}',
+                        locationLabel:
+                            alert?.title ?? 'Alert #${report.alertId}',
                         utility: alert?.utility,
-                        resolvedWorkerName:
-                            app.workerNames[report.workerId] ?? report.workerName,
-                        onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                            builder: (_) => ReportViewScreen(report: report))),
+                        resolvedWorkerName: app.workerNames[report.workerId] ??
+                            report.workerName,
+                        onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) =>
+                                    ReportViewScreen(report: report))),
                       );
                     },
                   ),

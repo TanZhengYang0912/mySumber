@@ -372,6 +372,45 @@ void main() {
       ),
     );
   });
+
+  test('a household-shaped analysis needs only summary and recommendation', () {
+    final analysis = AiAnomalyAnalysis.fromJson({
+      'summary': 'Resident reports water leaking in their room for four hours.',
+      'recommendation': 'Contact the resident and schedule a visit today.',
+    });
+
+    expect(analysis.summary, contains('four hours'));
+    expect(analysis.recommendation, contains('Contact the resident'));
+    expect(analysis.possibleCause, isNull);
+    expect(analysis.severityAssessment, isNull);
+    expect(analysis.confidence, isNull);
+  });
+
+  test('summary and recommendation are still mandatory', () {
+    expect(
+      () => AiAnomalyAnalysis.fromJson({
+        'recommendation': 'Contact the resident.',
+      }),
+      throwsA(isA<AiAnomalyFormatException>()),
+    );
+    expect(
+      () => AiAnomalyAnalysis.fromJson({
+        'summary': 'Resident reports a leak.',
+      }),
+      throwsA(isA<AiAnomalyFormatException>()),
+    );
+  });
+
+  test('a malformed optional field is still rejected when present', () {
+    expect(
+      () => AiAnomalyAnalysis.fromJson({
+        'summary': 'Resident reports a leak.',
+        'recommendation': 'Contact the resident.',
+        'severity_assessment': 'Catastrophic',
+      }),
+      throwsA(isA<AiAnomalyFormatException>()),
+    );
+  });
 }
 
 Alert _testAlert() => Alert(

@@ -5,11 +5,11 @@ import '../../../theme/filter_controls.dart';
 import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
 import '../../leakage/models/alert.dart';
-import '../../leakage/screens/network_error.dart';
 import '../../leakage/screens/style.dart';
 import '../../leakage/state/app_state.dart';
 import '../services/abnormal_production_filter.dart';
 import '../services/abnormal_production_layout.dart';
+import 'admin_alert_detail_screen.dart';
 import '../../../theme/page_header.dart';
 
 class AbnormalProductionScreen extends StatefulWidget {
@@ -30,16 +30,19 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
   late final TabController _tab;
   int? _selectedStateAlertId;
   int? _selectedMallAlertId;
+  int? _selectedHouseholdAlertId;
   Utility? _stateUtility;
   Utility? _mallUtility;
+  Utility? _householdUtility;
   String? _anomalyState;
   String? _anomalySeverity;
+  String? _anomalyStatus;
   final _search = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 2, vsync: this)..addListener(_refresh);
+    _tab = TabController(length: 3, vsync: this)..addListener(_refresh);
   }
 
   void _refresh() {
@@ -51,23 +54,41 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
       _search.clear();
       _anomalyState = null;
       _anomalySeverity = null;
+      _anomalyStatus = null;
       _stateUtility = null;
       _mallUtility = null;
+      _householdUtility = null;
     });
+  }
+
+  /// Tablet split view selects the row in place; a phone opens the same
+  /// pushed detail page Oversight uses, so both admin surfaces behave alike.
+  void _openAlert(
+    Alert alert, {
+    required bool split,
+    required ValueChanged<int> onSelected,
+  }) {
+    final id = alert.id;
+    if (id == null) return;
+    if (split) {
+      onSelected(id);
+      return;
+    }
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => AdminAlertDetailScreen(alertId: id),
+    ));
   }
 
   Widget _anomalyFilterBar({
     required List<String> states,
     required Map<String, int> stateCounts,
     required Map<String, int> severityCounts,
+    required Map<String, int> statusCounts,
     required Utility? utility,
     required ValueChanged<Utility?> onUtilityChanged,
   }) {
     return Column(
       children: [
-        // Status arguments are omitted deliberately: AlertFilterBar hides the
-        // dropdown when statusOptions is null, and every row in this queue is
-        // pending review, so Reported/Unreported no longer means anything.
         AlertFilterBar(
           searchController: _search,
           onSearchChanged: (_) => setState(() {}),
@@ -80,6 +101,13 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
           severityCounts: severityCounts,
           onSeverityChanged: (value) =>
               setState(() => _anomalySeverity = value),
+          // Only two statuses can reach this queue, and both stay listed even
+          // at a count of zero so the option set does not shift as rows are
+          // decided. Mirrors how Oversight passes a const queueStatuses list.
+          selectedStatus: _anomalyStatus,
+          statusOptions: const [AlertStatus.pendingReview, AlertStatus.faults],
+          statusCounts: statusCounts,
+          onStatusChanged: (value) => setState(() => _anomalyStatus = value),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
@@ -105,26 +133,6 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
     super.dispose();
   }
 
-  Future<void> _decide(AppState app, int alertId,
-      {required bool approve}) async {
-    try {
-      if (approve) {
-        await app.approveAlert(alertId);
-      } else {
-        await app.rejectAlert(alertId);
-      }
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(approve
-            ? 'Approved — sent to the worker queue.'
-            : 'Faulted — kept in Anomalies for the record.'),
-        backgroundColor: approve ? AppColors.adminPrimary : Colors.blueGrey,
-      ));
-    } catch (_) {
-      if (mounted) showNetworkErrorSnackBar(context);
-    }
-  }
-
   List<Alert> _narrow(List<Alert> source, Utility? utility) => utility == null
       ? source
       : source.where((a) => a.utility == utility).toList();
@@ -142,19 +150,27 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
         app.reviewQueue(sourceScope: AlertSourceScope.state), _stateUtility);
     final mallAlerts = _narrow(
         app.reviewQueue(sourceScope: AlertSourceScope.mall), _mallUtility);
+    // Customer-submitted reports land here as pending_review alerts too, so
+    // they need their own tab — without one they are raised, analysed, and
+    // then invisible to everybody.
+    final householdAlerts = _narrow(
+        app.reviewQueue(sourceScope: AlertSourceScope.household),
+        _householdUtility);
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
       body: Column(
         children: [
           _buildHeader(context),
-          _buildTabBar(stateAlerts.length, mallAlerts.length),
+          _buildTabBar(
+              stateAlerts.length, mallAlerts.length, householdAlerts.length),
           Expanded(
             child: TabBarView(
               controller: _tab,
               children: [
-                _stateTab(app, stateAlerts),
-                _mallTab(app, mallAlerts),
+                _stateTab(stateAlerts),
+                _mallTab(mallAlerts),
+                _householdTab(householdAlerts),
               ],
             ),
           ),
@@ -178,7 +194,7 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
     );
   }
 
-  Widget _buildTabBar(int stateCount, int mallCount) {
+  Widget _buildTabBar(int stateCount, int mallCount, int householdCount) {
     return Container(
       color: Colors.white,
       child: TabBar(
@@ -192,39 +208,31 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
         indicatorWeight: 3,
         dividerColor: AppColors.divider,
         tabs: [
-          Tab(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('State'),
-                  const SizedBox(width: 6),
-                  CountBadge(stateCount),
-                ],
-              ),
-            ),
-          ),
-          Tab(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Mall'),
-                  const SizedBox(width: 6),
-                  CountBadge(mallCount),
-                ],
-              ),
-            ),
-          ),
+          _countedTab('State', stateCount),
+          _countedTab('Mall', mallCount),
+          _countedTab('Household', householdCount),
         ],
       ),
     );
   }
 
-  Widget _stateTab(AppState app, List<Alert> alerts) => _reviewWorkspace(
-        app,
+  /// FittedBox keeps three labels legible on a phone, where "Household" plus
+  /// its badge would otherwise overflow the tab width.
+  Widget _countedTab(String label, int count) => Tab(
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(label),
+              const SizedBox(width: 6),
+              CountBadge(count),
+            ],
+          ),
+        ),
+      );
+
+  Widget _stateTab(List<Alert> alerts) => _reviewWorkspace(
         alerts,
         selectedId: _selectedStateAlertId,
         onSelected: (id) => setState(() => _selectedStateAlertId = id),
@@ -232,13 +240,20 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
         onUtilityChanged: (u) => setState(() => _stateUtility = u),
       );
 
-  Widget _mallTab(AppState app, List<Alert> alerts) => _reviewWorkspace(
-        app,
+  Widget _mallTab(List<Alert> alerts) => _reviewWorkspace(
         alerts,
         selectedId: _selectedMallAlertId,
         onSelected: (id) => setState(() => _selectedMallAlertId = id),
         utility: _mallUtility,
         onUtilityChanged: (u) => setState(() => _mallUtility = u),
+      );
+
+  Widget _householdTab(List<Alert> alerts) => _reviewWorkspace(
+        alerts,
+        selectedId: _selectedHouseholdAlertId,
+        onSelected: (id) => setState(() => _selectedHouseholdAlertId = id),
+        utility: _householdUtility,
+        onUtilityChanged: (u) => setState(() => _householdUtility = u),
       );
 
   /// The row whose detail panel is open. Falls back to the first row so the
@@ -251,7 +266,6 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
   }
 
   Widget _reviewWorkspace(
-    AppState app,
     List<Alert> alerts, {
     required int? selectedId,
     required ValueChanged<int> onSelected,
@@ -262,12 +276,14 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
     final states = alerts.map((a) => a.state).toSet().toList()..sort();
     final stateCounts = countBy(alerts, (a) => a.state);
     final severityCounts = countBy(alerts, (a) => a.severity);
+    final statusCounts = countBy(alerts, (a) => a.status);
     final filtered = alerts
         .where((a) => ReviewQueueFilter.matches(
               query: _search.text,
               alert: a,
               selectedState: _anomalyState,
               selectedSeverity: _anomalySeverity,
+              selectedStatus: _anomalyStatus,
             ))
         .toList();
     final selected = _selectedAlert(filtered, selectedId);
@@ -275,6 +291,7 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
       states: states,
       stateCounts: stateCounts,
       severityCounts: severityCounts,
+      statusCounts: statusCounts,
       utility: utility,
       onUtilityChanged: onUtilityChanged,
     );
@@ -292,17 +309,9 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
       separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         final alert = filtered[index];
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            AlertCard(
-              alert: alert,
-              onTap: () {
-                if (alert.id != null) onSelected(alert.id!);
-              },
-            ),
-            _statusStrip(alert),
-          ],
+        return AlertCard(
+          alert: alert,
+          onTap: () => _openAlert(alert, split: split, onSelected: onSelected),
         );
       },
     );
@@ -314,22 +323,11 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
           filterBar,
           const SizedBox(height: 12),
           for (final alert in filtered) ...[
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                AlertCard(
-                  alert: alert,
-                  onTap: () {
-                    if (alert.id != null) onSelected(alert.id!);
-                  },
-                ),
-                _statusStrip(alert),
-              ],
+            AlertCard(
+              alert: alert,
+              onTap: () =>
+                  _openAlert(alert, split: split, onSelected: onSelected),
             ),
-            if (alert.id == selected?.id) ...[
-              const SizedBox(height: 10),
-              _reviewDetailPanel(app, alert),
-            ],
             const SizedBox(height: 10),
           ],
         ],
@@ -350,7 +348,7 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
                   padding: const EdgeInsets.all(16),
                   child: selected == null
                       ? _emptyCard()
-                      : _reviewDetailPanel(app, selected),
+                      : _reviewDetailPanel(selected),
                 ),
               ),
             ],
@@ -360,7 +358,7 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
     );
   }
 
-  Widget _reviewDetailPanel(AppState app, Alert alert) {
+  Widget _reviewDetailPanel(Alert alert) {
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -386,29 +384,8 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
           // always has content to show — no generate button needed here.
           AiAnalysisCard(alert: alert, canGenerate: false),
           const SizedBox(height: 14),
-          if (AppState.awaitingDecision(alert))
-            Row(children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: alert.id == null
-                      ? null
-                      : () => _decide(app, alert.id!, approve: false),
-                  child: const Text('Fault'),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: FilledButton(
-                  onPressed: alert.id == null
-                      ? null
-                      : () => _decide(app, alert.id!, approve: true),
-                  style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.adminPrimary),
-                  child: const Text('Approve to Worker queue'),
-                ),
-              ),
-            ])
-          else
+          AlertDecisionBar(alert: alert),
+          if (!AppState.awaitingDecision(alert))
             Align(
               alignment: Alignment.centerLeft,
               child: Pill(AlertStatus.label(alert.status),
@@ -418,15 +395,6 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
       ),
     );
   }
-
-  Widget _statusStrip(Alert alert) => Padding(
-        padding: const EdgeInsets.only(top: 6),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Pill(AlertStatus.label(alert.status),
-              color: statusColor(alert.status), outlined: true),
-        ),
-      );
 
   Widget _emptyCard() => const AppCard(
         child: Text(

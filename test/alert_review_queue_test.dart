@@ -117,4 +117,33 @@ void main() {
       isFalse,
     );
   });
+
+  test('status narrows the queue to pending-review or faulted rows', () {
+    final pending = _alert(status: AlertStatus.pendingReview);
+    final faulted = _alert(status: AlertStatus.faults);
+
+    // Null means "all", which is what Clear filters restores.
+    expect(ReviewQueueFilter.matches(query: '', alert: pending), isTrue);
+    expect(ReviewQueueFilter.matches(query: '', alert: faulted), isTrue);
+
+    expect(
+      ReviewQueueFilter.matches(
+          query: '',
+          alert: pending,
+          selectedStatus: AlertStatus.pendingReview),
+      isTrue,
+    );
+    expect(
+      ReviewQueueFilter.matches(
+          query: '',
+          alert: faulted,
+          selectedStatus: AlertStatus.pendingReview),
+      isFalse,
+    );
+    expect(
+      ReviewQueueFilter.matches(
+          query: '', alert: faulted, selectedStatus: AlertStatus.faults),
+      isTrue,
+    );
+  });
 }

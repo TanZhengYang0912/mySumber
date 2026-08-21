@@ -2,7 +2,9 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 import {
+  analysisStorageFields,
   anomalyPrompt,
+  isHouseholdReport,
   parseAlertId,
   parseCaseId,
   parseGroqAnalysis,
@@ -24,6 +26,22 @@ async function runAnalysis(
   evidence: Record<string, unknown>,
   groqApiKey: string,
 ) {
+  const household = isHouseholdReport(evidence);
+  const systemPrompt = household
+    ? "A Malaysian utility customer has reported a problem in their own words. " +
+      "Return only valid JSON with exactly these keys: summary, recommendation. " +
+      "summary restates what the resident reported, in one neutral sentence. " +
+      "recommendation is the next step for staff. " +
+      "You have no sensor data for this report: never mention missing data, " +
+      "never speculate about the cause, and never question whether the " +
+      "resident is telling the truth."
+    : "You analyze Malaysian water and electricity equipment anomalies. " +
+      "Return only valid JSON with exactly these keys: summary, " +
+      "possible_cause, severity_assessment, confidence, recommendation. " +
+      "severity_assessment must be exactly Low, Medium, or High. " +
+      "confidence must be a JSON number from 0 to 1. " +
+      "Do not change system status or system severity. Do not recommend " +
+      "a Worker visit, photo upload, or repair result.";
   const groqResponse = await fetch(
     "https://api.groq.com/openai/v1/chat/completions",
     {
@@ -37,14 +55,7 @@ async function runAnalysis(
         messages: [
           {
             role: "system",
-            content:
-              "You analyze Malaysian water and electricity equipment anomalies. " +
-              "Return only valid JSON with exactly these keys: summary, " +
-              "possible_cause, severity_assessment, confidence, recommendation. " +
-              "severity_assessment must be exactly Low, Medium, or High. " +
-              "confidence must be a JSON number from 0 to 1. " +
-              "Do not change system status or system severity. Do not recommend " +
-              "a Worker visit, photo upload, or repair result.",
+            content: systemPrompt,
           },
           { role: "user", content: anomalyPrompt(evidence) },
         ],
@@ -56,7 +67,9 @@ async function runAnalysis(
     },
   );
   if (!groqResponse.ok) throw new Error("AI analysis is unavailable");
-  return parseGroqAnalysis(await groqResponse.json());
+  return parseGroqAnalysis(await groqResponse.json(), {
+    householdReport: household,
+  });
 }
 
 Deno.serve(async (request) => {
@@ -173,11 +186,7 @@ Deno.serve(async (request) => {
       const { error: saveError } = await adminClient
         .from("anomaly_cases")
         .update({
-          ai_summary: analysis.summary,
-          ai_possible_cause: analysis.possible_cause,
-          ai_severity_assessment: analysis.severity_assessment,
-          ai_recommendation: analysis.recommendation,
-          ai_confidence: analysis.confidence,
+          ...analysisStorageFields(analysis),
           ai_generated_at: generatedAt,
         })
         .eq("id", caseId);
@@ -201,11 +210,7 @@ Deno.serve(async (request) => {
     const { error: saveError } = await adminClient
       .from("alerts")
       .update({
-        ai_summary: analysis.summary,
-        ai_possible_cause: analysis.possible_cause,
-        ai_severity_assessment: analysis.severity_assessment,
-        ai_recommendation: analysis.recommendation,
-        ai_confidence: analysis.confidence,
+        ...analysisStorageFields(analysis),
         ai_generated_at: generatedAt,
       })
       .eq("id", alertId);

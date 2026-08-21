@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../theme/tokens.dart';
+import 'tokens.dart';
 
 class LandscapeFilterMenu extends StatelessWidget {
   const LandscapeFilterMenu({

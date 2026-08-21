@@ -4,6 +4,7 @@ import 'package:mysumber/modules/dataset/models/models.dart';
 import 'package:mysumber/modules/leakage/models/alert.dart';
 import 'package:mysumber/modules/leakage/models/report.dart';
 import 'package:mysumber/modules/leakage/screens/style.dart';
+import 'package:mysumber/modules/leakage/services/worker_compact_layout.dart';
 import 'package:mysumber/modules/leakage/services/report_presets.dart';
 import 'package:mysumber/modules/leakage/state/app_state.dart';
 
@@ -251,5 +252,86 @@ void main() {
     expect(AlertStatus.faults, 'faults');
     expect(AlertStatus.label(AlertStatus.faults), 'Fault');
     expect(AlertStatus.label(AlertStatus.pendingReview), 'Pending Review');
+  });
+
+  test('alert filter count is zero when nothing is narrowed', () {
+    expect(
+      activeAlertFilterCount(
+        query: '',
+        severity: 'all',
+        state: 'all',
+        status: 'all',
+      ),
+      0,
+    );
+    expect(
+      activeAlertFilterCount(
+        query: '   ',
+        severity: 'all',
+        state: 'all',
+        status: 'all',
+      ),
+      0,
+    );
+  });
+
+  test('alert filter count rises with each narrowed field', () {
+    expect(
+      activeAlertFilterCount(
+        query: 'perlis',
+        severity: 'all',
+        state: 'all',
+        status: 'all',
+      ),
+      1,
+    );
+    expect(
+      activeAlertFilterCount(
+        query: 'perlis',
+        severity: 'high',
+        state: 'Perlis',
+        status: 'pending',
+      ),
+      4,
+    );
+  });
+
+  test('report filter count treats null as unfiltered', () {
+    expect(activeReportFilterCount(query: ''), 0);
+    expect(
+      activeReportFilterCount(
+        query: 'x',
+        state: 'Perlis',
+        outcome: 'fixed',
+        utility: Utility.water,
+      ),
+      4,
+    );
+  });
+
+  test('an alert with only summary and recommendation still has AI analysis',
+      () {
+    final alert = _alert(
+      alertType: AlertType.household,
+      signature: LeakSignature.continuousLeak,
+    ).copyWith(
+      aiSummary: 'Resident reports a leak.',
+      aiRecommendation: 'Contact the resident today.',
+      aiGeneratedAt: DateTime(2026, 8, 21),
+    );
+
+    expect(alert.hasAiAnalysis, isTrue);
+  });
+
+  test('an alert with no summary has no AI analysis', () {
+    final alert = _alert(
+      alertType: AlertType.household,
+      signature: LeakSignature.continuousLeak,
+    ).copyWith(
+      aiRecommendation: 'Contact the resident today.',
+      aiGeneratedAt: DateTime(2026, 8, 21),
+    );
+
+    expect(alert.hasAiAnalysis, isFalse);
   });
 }

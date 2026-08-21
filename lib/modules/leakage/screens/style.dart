@@ -8,6 +8,7 @@ import '../models/alert.dart';
 import '../models/report.dart';
 import '../services/anomaly_ai_service.dart';
 import '../state/app_state.dart';
+import 'network_error.dart';
 
 Color severityColor(String severity) {
   switch (severity) {
@@ -429,9 +430,9 @@ class _AiAnalysisCardState extends State<AiAnalysisCard> {
     if (!alert.hasAiAnalysis) return null;
     return AiAnomalyAnalysis(
       summary: alert.aiSummary!,
-      possibleCause: alert.aiPossibleCause!,
-      severityAssessment: alert.aiSeverityAssessment!,
-      confidence: alert.aiConfidence!,
+      possibleCause: alert.aiPossibleCause,
+      severityAssessment: alert.aiSeverityAssessment,
+      confidence: alert.aiConfidence,
       recommendation: alert.aiRecommendation!,
       generatedAt: alert.aiGeneratedAt!,
     );
@@ -530,11 +531,16 @@ class _AiAnalysisCardState extends State<AiAnalysisCard> {
           ] else ...[
             _analysisValue('Summary', analysis.summary),
             const SizedBox(height: 12),
-            _analysisValue('Possible Cause', analysis.possibleCause),
-            const SizedBox(height: 12),
-            _analysisValue('AI Severity Assessment',
-                '${analysis.severityAssessment} · ${(analysis.confidence * 100).round()}% confidence'),
-            const SizedBox(height: 12),
+            if (analysis.possibleCause != null) ...[
+              _analysisValue('Possible Cause', analysis.possibleCause!),
+              const SizedBox(height: 12),
+            ],
+            if (analysis.severityAssessment != null &&
+                analysis.confidence != null) ...[
+              _analysisValue('AI Severity Assessment',
+                  '${analysis.severityAssessment} · ${(analysis.confidence! * 100).round()}% confidence'),
+              const SizedBox(height: 12),
+            ],
             _analysisValue('System Recommendation', analysis.recommendation),
             const SizedBox(height: 12),
             Text(
@@ -558,5 +564,86 @@ class _AiAnalysisCardState extends State<AiAnalysisCard> {
         ],
       ),
     );
+  }
+}
+
+/// Admin's Approve / Fault controls for an alert still awaiting review.
+///
+/// Renders nothing unless [AppState.awaitingDecision] is true, so the same
+/// widget can be mounted unconditionally on any alert surface: Oversight's
+/// queue never contains pending-review alerts and therefore never shows it,
+/// and a faulted row in Anomalies keeps its place in the list without
+/// offering a decision that was already made.
+class AlertDecisionBar extends StatefulWidget {
+  final Alert alert;
+
+  /// Pop the current route once a decision lands. True for the pushed detail
+  /// page, which should return to the list; false for the tablet split panel,
+  /// which stays on screen while the row updates in place.
+  final bool popOnDecision;
+
+  const AlertDecisionBar({
+    super.key,
+    required this.alert,
+    this.popOnDecision = false,
+  });
+
+  @override
+  State<AlertDecisionBar> createState() => _AlertDecisionBarState();
+}
+
+class _AlertDecisionBarState extends State<AlertDecisionBar> {
+  bool _busy = false;
+
+  Future<void> _decide({required bool approve}) async {
+    final alertId = widget.alert.id;
+    if (alertId == null || _busy) return;
+    setState(() => _busy = true);
+    final app = context.read<AppState>();
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    try {
+      if (approve) {
+        await app.approveAlert(alertId);
+      } else {
+        await app.rejectAlert(alertId);
+      }
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(
+        content: Text(approve
+            ? 'Approved — sent to the worker queue.'
+            : 'Faulted — kept in Anomalies for the record.'),
+        backgroundColor: approve ? AppColors.adminPrimary : Colors.blueGrey,
+      ));
+      if (widget.popOnDecision && navigator.canPop()) navigator.pop();
+    } catch (_) {
+      if (mounted) showNetworkErrorSnackBar(context);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!AppState.awaitingDecision(widget.alert)) {
+      return const SizedBox.shrink();
+    }
+    return Row(children: [
+      Expanded(
+        child: OutlinedButton(
+          onPressed: _busy ? null : () => _decide(approve: false),
+          child: const Text('Fault'),
+        ),
+      ),
+      const SizedBox(width: 10),
+      Expanded(
+        child: FilledButton(
+          onPressed: _busy ? null : () => _decide(approve: true),
+          style:
+              FilledButton.styleFrom(backgroundColor: AppColors.adminPrimary),
+          child: const Text('Approve to Worker queue'),
+        ),
+      ),
+    ]);
   }
 }

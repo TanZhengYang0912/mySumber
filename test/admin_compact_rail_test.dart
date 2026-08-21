@@ -23,7 +23,7 @@ void main() {
     ));
 
     final dashboard = tester.getRect(find.byTooltip('Dashboard'));
-    final inventory = tester.getRect(find.byTooltip('Mall Monitoring'));
+    final inventory = tester.getRect(find.byTooltip('Mall'));
     final anomalies = tester.getRect(find.byTooltip('Anomalies'));
     final oversight = tester.getRect(find.byTooltip('Oversight'));
 
@@ -31,7 +31,7 @@ void main() {
     expect(inventory.top, lessThan(anomalies.top));
     expect(anomalies.top, lessThan(oversight.top));
 
-    await tester.tap(find.byTooltip('Mall Monitoring'));
+    await tester.tap(find.byTooltip('Mall'));
     expect(selectedIndex, 1);
     await tester.tap(find.byTooltip('Anomalies'));
     expect(selectedIndex, 2);
@@ -53,13 +53,13 @@ void main() {
 
     expect(find.byTooltip('Dashboard'), findsOneWidget);
     expect(find.byTooltip('Anomalies'), findsOneWidget);
-    expect(find.byTooltip('Mall Monitoring'), findsOneWidget);
+    expect(find.byTooltip('Mall'), findsOneWidget);
     expect(find.byTooltip('Oversight'), findsOneWidget);
     expect(find.byTooltip('More'), findsOneWidget);
     expect(find.byTooltip('Logout'), findsNothing);
     expect(find.byTooltip('Workers'), findsNothing);
 
-    await tester.tap(find.byTooltip('Mall Monitoring'));
+    await tester.tap(find.byTooltip('Mall'));
     await tester.pump();
     expect(selectedIndex, 1);
 
@@ -107,7 +107,7 @@ void main() {
     const cameraCutout = Rect.fromLTWH(0, 173, 56, 56);
     final dashboard = tester.getRect(find.byTooltip('Dashboard'));
     final anomalies = tester.getRect(find.byTooltip('Anomalies'));
-    final inventory = tester.getRect(find.byTooltip('Mall Monitoring'));
+    final inventory = tester.getRect(find.byTooltip('Mall'));
     final oversight = tester.getRect(find.byTooltip('Oversight'));
     final more = tester.getRect(find.byTooltip('More'));
 
