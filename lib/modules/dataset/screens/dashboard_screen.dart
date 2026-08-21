@@ -25,11 +25,6 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  // Electricity stays blue across the app. Yellow is reserved for this
-  // comparison card so its two series are immediately distinguishable.
-  static const _comparisonElectricityColor = AppColors.warning;
-  static const _comparisonElectricitySurface = AppColors.warningSurface;
-
   String _selectedPeriod = 'Monthly';
   final _stateBarController = ScrollController();
   final _standardDashboardController = ScrollController();
@@ -668,8 +663,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Expanded(
                 child: _lossCallout(
                   icon: Icons.electric_bolt_outlined,
-                  color: _comparisonElectricityColor,
-                  bg: _comparisonElectricitySurface,
+                  color: AppColors.electricityAccent,
+                  bg: AppColors.electricitySurface,
                   label: 'Top Elec. Loss',
                   state: topElec?.key ?? 'N/A',
                   value: '${_shortNum(topElec?.value ?? 0)} Wh$unit',
@@ -694,7 +689,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               _legendDot(AppColors.waterAccent, 'Water'),
               const SizedBox(width: 24),
               _legendDot(
-                _comparisonElectricityColor,
+                AppColors.electricityAccent,
                 'Electricity',
                 markerKey:
                     const ValueKey('usage-comparison-electricity-legend'),
@@ -880,7 +875,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 _valueBar(
                   electricity,
                   scale,
-                  _comparisonElectricityColor,
+                  AppColors.electricityAccent,
                   key: const ValueKey('usage-comparison-electricity-bar'),
                 ),
               ],

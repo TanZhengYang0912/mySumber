@@ -10,7 +10,9 @@ import '../../leakage/services/simulation_service.dart';
 import '../../leakage/state/app_state.dart';
 import '../state/usage_state.dart';
 import 'account_settings_screen.dart';
+import '../widgets/address_search_field.dart';
 import '../widgets/customer_header.dart';
+import '../widgets/customer_landscape_scaffold.dart';
 import '../widgets/edit_address_dialog.dart';
 import '../widgets/edit_profile_dialog.dart';
 import '../widgets/logout_confirmation_dialog.dart';
@@ -204,178 +206,43 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
     String email,
     String initials,
   ) {
-    return Scaffold(
-      backgroundColor: AppColors.canvas,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
-          child: Column(
-            key: const PageStorageKey('customer-phone-landscape-profile'),
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: AppColors.customerSurface,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.person_outline,
-                      color: AppColors.customerPrimary,
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'MY ACCOUNT',
-                          style: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                        Text(
-                          'My Account',
-                          style: TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 19,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  _landscapeNotificationButton(),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      flex: 4,
-                      child: ListView(
-                        padding: EdgeInsets.zero,
-                        children: [
-                          _profileCard(
-                            displayName,
-                            email,
-                            initials,
-                            role.phoneNumber,
-                            role,
-                          ),
-                          const SizedBox(height: 4),
-                          _landscapeAddressCard(
-                            _serviceAddress,
-                            _serviceState,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 6,
-                      child: ListView(
-                        padding: EdgeInsets.zero,
-                        children: [
-                          _menuCard(),
-                          const SizedBox(height: 8),
-                          FilledButton.icon(
-                            onPressed: () => _requestLogout(context),
-                            style: FilledButton.styleFrom(
-                              minimumSize: const Size(0, 40),
-                              backgroundColor: const Color(0xFFFEF2F2),
-                              foregroundColor: AppColors.critical,
-                            ),
-                            icon: const Icon(Icons.logout, size: 18),
-                            label: const Text('Sign Out'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+    final notificationCount = context.watch<UsageState>().notifications.length;
+    return CustomerLandscapeScaffold(
+      header: CustomerHeader(
+        subtitle: 'mySumber · PROFILE',
+        title: 'My Account',
+        notificationCount: notificationCount,
       ),
-    );
-  }
-
-  Widget _landscapeNotificationButton() {
-    return Stack(
-      clipBehavior: Clip.none,
       children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border.all(color: AppColors.divider),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Icon(
-            Icons.notifications_outlined,
-            color: AppColors.textSecondary,
-            size: 21,
+        _profileCard(displayName, email, initials, role.phoneNumber, role),
+        _detailsCard(_serviceAddress, _serviceState),
+        _menuCard(),
+        FilledButton.icon(
+          onPressed: () => _requestLogout(context),
+          icon: const Icon(Icons.logout, size: 18),
+          label: const Text('Sign Out'),
+          style: FilledButton.styleFrom(
+            minimumSize: const Size.fromHeight(52),
+            backgroundColor: const Color(0xFFFEF2F2),
+            foregroundColor: AppColors.critical,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14)),
+            textStyle:
+                const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
           ),
         ),
-        Positioned(
-          top: -4,
-          right: -4,
-          child: Container(
-            width: 17,
-            height: 17,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: AppColors.critical,
-              shape: BoxShape.circle,
-              border: Border.all(color: AppColors.canvas, width: 2),
-            ),
-            child: const Text(
-              '2',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 9,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
+        TextButton.icon(
+          onPressed: () => _confirmDeleteAccount(context),
+          icon: const Icon(Icons.delete_outline, size: 18),
+          label: const Text('Delete Account'),
+          style: TextButton.styleFrom(
+            minimumSize: const Size.fromHeight(52),
+            foregroundColor: AppColors.critical,
+            textStyle:
+                const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
           ),
         ),
       ],
-    );
-  }
-
-  Widget _landscapeAddressCard(String serviceAddress, String serviceState) {
-    return AppCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        children: [
-          _detailRow(
-            icon: Icons.location_on_outlined,
-            label: 'Service Address',
-            value: serviceAddress,
-            onTap: _editAddress,
-            trailing: const Icon(Icons.edit_outlined,
-                size: 16, color: AppColors.textTertiary),
-          ),
-          const Divider(height: 1, indent: 16, endIndent: 16),
-          _detailRow(
-            icon: Icons.map_outlined,
-            label: 'State',
-            value: serviceState,
-          ),
-        ],
-      ),
     );
   }
 
@@ -563,13 +430,6 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
           ),
           const Divider(height: 1, indent: 16, endIndent: 16),
           _menuItem(
-            icon: Icons.flag_outlined,
-            label: 'Report a Problem',
-            onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const ReportFlowScreen())),
-          ),
-          const Divider(height: 1, indent: 16, endIndent: 16),
-          _menuItem(
             icon: Icons.settings_outlined,
             label: 'App Settings',
             onTap: () => Navigator.of(context).push(MaterialPageRoute(
@@ -616,7 +476,7 @@ enum _ElecScenario {
   highUsage('High electricity usage', false),
   meterTampering('Suspected meter tampering', true),
   frequentTrips('Frequent power trips', false),
-  other('Other issue', false);
+  other('Other', false);
 
   final String label;
   final bool isTampering;
@@ -632,47 +492,50 @@ class ReportFlowScreen extends StatefulWidget {
   State<ReportFlowScreen> createState() => _ReportFlowScreenState();
 }
 
+enum _LocationChoice { mine, other }
+
 class _ReportFlowScreenState extends State<ReportFlowScreen> {
-  String _selectedState = 'Selangor';
   bool _isWater = true;
-  LeakScenario? _pendingWater;
-  _ElecScenario? _pendingElec;
+  String? _pendingCategory;
   final _description = TextEditingController();
-  final _address = TextEditingController();
   DateTime _occurredAt = DateTime.now();
   bool _submitting = false;
+
+  _LocationChoice _locationChoice = _LocationChoice.mine;
+  final _otherAddressKey = GlobalKey<AddressSearchFieldState>();
+  String? _otherLocationError;
+  late String _profileAddress;
+  late String _profileState;
 
   @override
   void initState() {
     super.initState();
-    _address.text = (Supabase.instance.client.auth.currentUser
-            ?.userMetadata?['service_address'] as String?) ??
-        _defaultServiceAddress;
+    final metadata = Supabase.instance.client.auth.currentUser?.userMetadata;
+    _profileAddress =
+        (metadata?['service_address'] as String?) ?? _defaultServiceAddress;
+    _profileState =
+        (metadata?['service_state'] as String?) ?? _defaultServiceState;
   }
 
   @override
   void dispose() {
     _description.dispose();
-    _address.dispose();
     super.dispose();
   }
+
+  List<String> get _categoryOptions => _isWater
+      ? [...LeakScenario.values.map((s) => s.label), 'Other']
+      : _ElecScenario.values.map((s) => s.label).toList();
 
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
 
-    if (app.loading) {
-      return const Scaffold(
-        backgroundColor: AppColors.canvas,
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    final states = app.baseline.states;
-    if (!states.contains(_selectedState) && states.isNotEmpty) {
-      _selectedState = states.first;
-    }
-    final perCapita = app.baseline.perCapitaLPerDay(_selectedState);
+    final perCapita = _locationChoice == _LocationChoice.mine
+        ? app.baseline.perCapitaLPerDay(_profileState)
+        : null;
+    final accent =
+        _isWater ? AppColors.waterAccent : AppColors.electricityAccent;
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -681,9 +544,11 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
         backgroundColor: AppColors.adminPrimary,
         foregroundColor: Colors.white,
       ),
-      body: ListView(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(14),
-        children: [
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
           // Utility toggle
           Container(
             decoration: BoxDecoration(
@@ -707,7 +572,7 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
                         _isWater,
                         () => setState(() {
                               _isWater = true;
-                              _pendingElec = null;
+                              _pendingCategory = null;
                             }))),
                 Expanded(
                     child: _utilityTab(
@@ -717,7 +582,7 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
                         !_isWater,
                         () => setState(() {
                               _isWater = false;
-                              _pendingWater = null;
+                              _pendingCategory = null;
                             }))),
               ],
             ),
@@ -727,24 +592,45 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SectionLabel('YOUR STATE'),
+                const SectionLabel('LOCATION OF INCIDENT'),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: _selectedState,
+                DropdownButtonFormField<_LocationChoice>(
+                  initialValue: _locationChoice,
                   isDense: true,
+                  isExpanded: true,
                   decoration: const InputDecoration(
-                    labelText: 'State',
+                    labelText: 'Location',
                     contentPadding:
                         EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     border: OutlineInputBorder(),
                   ),
-                  items: states
-                      .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-                      .toList(),
-                  onChanged: (s) =>
-                      setState(() => _selectedState = s ?? _selectedState),
+                  items: [
+                    DropdownMenuItem(
+                      value: _LocationChoice.mine,
+                      child: Text(
+                        _profileAddress,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const DropdownMenuItem(
+                      value: _LocationChoice.other,
+                      child: Text('Other'),
+                    ),
+                  ],
+                  onChanged: (choice) => setState(() {
+                    _locationChoice = choice ?? _LocationChoice.mine;
+                    _otherLocationError = null;
+                  }),
                 ),
-                if (_isWater) ...[
+                if (_locationChoice == _LocationChoice.other) ...[
+                  const SizedBox(height: 12),
+                  AddressSearchField(
+                    key: _otherAddressKey,
+                    errorText: _otherLocationError,
+                  ),
+                ],
+                if (_isWater && perCapita != null) ...[
                   const SizedBox(height: 8),
                   Text(
                     'Average domestic use: ${perCapita.toStringAsFixed(0)} L/person/day (${app.baseline.latestYear})',
@@ -760,67 +646,60 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SectionLabel('WHAT\'S HAPPENING'),
-                const SizedBox(height: 4),
-                const Text(
-                  'Choose a category, then give the Admin enough detail to review it.',
-                  style:
-                      TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                ),
+                const SectionLabel('REPORT DETAILS'),
                 const SizedBox(height: 14),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: _isWater
-                      ? LeakScenario.values
-                          .map((s) => _waterChip(app, s))
-                          .toList()
-                      : _ElecScenario.values
-                          .map((s) => _elecChip(app, s))
-                          .toList(),
+                  children: _categoryOptions
+                      .map((label) => _categoryChip(label, accent))
+                      .toList(),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
-          AppCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SectionLabel('REPORT DETAILS'),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _address,
-                  decoration:
-                      const InputDecoration(labelText: 'Service address'),
-                ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 TextField(
                   controller: _description,
                   maxLines: 4,
                   decoration: const InputDecoration(
-                    labelText: 'What happened?',
-                    hintText:
-                        'For example: water is pooling under the kitchen sink.',
+                    hintText: 'Describe the incident (e.g. Leak from roof...) ',
+                    hintStyle: TextStyle(
+                      fontStyle: FontStyle.italic,
+                      color: AppColors.textTertiary,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: _occurredAt,
-                      firstDate:
-                          DateTime.now().subtract(const Duration(days: 30)),
-                      lastDate: DateTime.now(),
-                    );
-                    if (picked != null && mounted) {
-                      setState(() => _occurredAt = picked);
-                    }
-                  },
-                  icon: const Icon(Icons.schedule_outlined),
-                  label: Text(
-                      'Occurred: ${_occurredAt.day}/${_occurredAt.month}/${_occurredAt.year}'),
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Date of Incident',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(0, 40),
+                      ),
+                      onPressed: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: _occurredAt,
+                          firstDate: DateTime.now()
+                              .subtract(const Duration(days: 30)),
+                          lastDate: DateTime.now(),
+                        );
+                        if (picked != null && mounted) {
+                          setState(() => _occurredAt = picked);
+                        }
+                      },
+                      icon: const Icon(Icons.calendar_today_outlined, size: 16),
+                      label: Text(
+                          '${_occurredAt.day}/${_occurredAt.month}/${_occurredAt.year}'),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -837,10 +716,11 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
                     child: CircularProgressIndicator(
                         strokeWidth: 2, color: Colors.white))
                 : const Icon(Icons.send_outlined),
-            label: const Text('Submit for Admin review'),
+            label: const Text('Submit Report'),
           ),
           const SizedBox(height: 24),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -876,23 +756,11 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
     );
   }
 
-  Widget _waterChip(AppState app, LeakScenario scenario) {
-    final selected = _pendingWater == scenario;
+  Widget _categoryChip(String label, Color accent) {
+    final selected = _pendingCategory == label;
     return GestureDetector(
-      onTap: () {
-        setState(() => _pendingWater = scenario);
-      },
-      child: _chip(scenario.label, selected, AppColors.waterAccent),
-    );
-  }
-
-  Widget _elecChip(AppState app, _ElecScenario scenario) {
-    final selected = _pendingElec == scenario;
-    return GestureDetector(
-      onTap: () {
-        setState(() => _pendingElec = scenario);
-      },
-      child: _chip(scenario.label, selected, AppColors.electricityAccent),
+      onTap: () => setState(() => _pendingCategory = label),
+      child: _chip(label, selected, accent),
     );
   }
 
@@ -917,21 +785,40 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
   }
 
   Future<void> _submit(AppState app) async {
-    final category = _isWater ? _pendingWater?.label : _pendingElec?.label;
-    if (category == null ||
-        _description.text.trim().isEmpty ||
-        _address.text.trim().isEmpty) {
+    final category = _pendingCategory;
+    if (category == null || _description.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text(
-              'Choose a category and complete the address and description.')));
+              'Choose a category and describe what happened.')));
       return;
     }
+
     setState(() => _submitting = true);
+
+    String address;
+    String state;
+    if (_locationChoice == _LocationChoice.other) {
+      final resolved = await _otherAddressKey.currentState?.validate(
+        onError: (msg) => _otherLocationError = msg,
+      );
+      if (resolved == null) {
+        if (mounted) {
+          setState(() => _submitting = false);
+        }
+        return;
+      }
+      address = resolved.address;
+      state = resolved.state;
+    } else {
+      address = _profileAddress;
+      state = _profileState;
+    }
+
     try {
       await app.submitHouseholdProblem(
         utility: _isWater ? Utility.water : Utility.electricity,
-        state: _selectedState,
-        address: _address.text.trim(),
+        state: state,
+        address: address,
         category: category,
         description: _description.text.trim(),
         occurredAt: _occurredAt,
@@ -940,8 +827,7 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
       setState(() {
         _submitting = false;
         _description.clear();
-        _pendingWater = null;
-        _pendingElec = null;
+        _pendingCategory = null;
       });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: const Text(

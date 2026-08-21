@@ -289,8 +289,17 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     await nrw.load();
     await electricityLoss.load();
     _electricityRecords = await electricityData.loadRecords();
-    await refresh();
-    await _seedDemoDataIfNeeded();
+    try {
+      await refresh();
+      await _seedDemoDataIfNeeded();
+    } catch (e) {
+      // Alerts/reports/worker data (and the one-time demo seed) are
+      // admin/worker-facing and may be unavailable to some sessions (e.g. a
+      // customer role without RLS access to those tables). Don't let that
+      // block the rest of the app — screens that don't touch this data
+      // (like the customer report form) must still be usable.
+      debugPrint('AppState.init: could not load alerts/reports data: $e');
+    }
     _loading = false;
     notifyListeners();
     _startPolling();

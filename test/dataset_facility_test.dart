@@ -109,14 +109,14 @@ void main() {
     await tester.pump();
 
     final electricityLabel = tester.widget<Text>(find.text('Top Elec. Loss'));
-    expect(electricityLabel.style?.color, AppColors.warning);
+    expect(electricityLabel.style?.color, AppColors.electricityAccent);
 
     final legendMarker = tester.widget<Container>(
       find.byKey(const ValueKey('usage-comparison-electricity-legend')),
     );
     expect(
       (legendMarker.decoration! as BoxDecoration).color,
-      AppColors.warning,
+      AppColors.electricityAccent,
     );
 
     final electricityBar = find.byKey(
@@ -127,10 +127,11 @@ void main() {
       matching: find.byType(Container),
     );
     final fill = tester.widget<Container>(fills.at(1));
-    expect((fill.decoration! as BoxDecoration).color, AppColors.warning);
+    expect(
+        (fill.decoration! as BoxDecoration).color, AppColors.electricityAccent);
 
-    expect(AppColors.electricityAccent, const Color(0xFF3B82F6));
-    expect(AppColors.electricitySurface, const Color(0xFFE0EBFB));
+    expect(AppColors.electricityAccent, const Color(0xFFEAB308));
+    expect(AppColors.electricitySurface, const Color(0xFFFEF9C3));
   });
 
   testWidgets(

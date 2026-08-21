@@ -77,11 +77,18 @@ class CustomerCompactRail extends StatelessWidget {
         onTap: () => onDestinationSelected(1),
       ),
       _CustomerRailDestination(
+        icon: Icons.camera_alt_outlined,
+        label: 'Report',
+        tooltip: 'Report',
+        selected: currentIndex == 2,
+        onTap: () => onDestinationSelected(2),
+      ),
+      _CustomerRailDestination(
         icon: Icons.person_outline,
         label: 'Profile',
         tooltip: 'Profile',
-        selected: currentIndex == 2,
-        onTap: () => onDestinationSelected(2),
+        selected: currentIndex == 3,
+        onTap: () => onDestinationSelected(3),
       ),
     ];
 

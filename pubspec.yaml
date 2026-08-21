@@ -35,3 +35,4 @@ flutter:
     - assets/water_production.csv
     - assets/electricity_consumption.csv
     - assets/electricity_supply.csv
+    - assets/promo/

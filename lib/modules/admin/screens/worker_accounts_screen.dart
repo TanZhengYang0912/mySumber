@@ -59,33 +59,44 @@ class _WorkerAccountsScreenState extends State<WorkerAccountsScreen> {
   Future<void> _addWorker() async {
     final name = TextEditingController();
     final email = TextEditingController();
+    final formKey = GlobalKey<FormState>();
     final submit = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         scrollable: true,
         title: const Text('Add worker'),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(
+        content: Form(
+          key: formKey,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextFormField(
               controller: name,
-              decoration: const InputDecoration(labelText: 'Full name')),
-          const SizedBox(height: 12),
-          TextField(
+              maxLength: 50,
+              decoration: const InputDecoration(labelText: 'Full name'),
+              validator: _validateWorkerName,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
               controller: email,
-              decoration: const InputDecoration(labelText: 'Work email')),
-        ]),
+              decoration: const InputDecoration(labelText: 'Work email'),
+              validator: _validateWorkerEmail,
+            ),
+          ]),
+        ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('Cancel')),
           FilledButton(
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: () {
+                if (formKey.currentState!.validate()) {
+                  Navigator.pop(context, true);
+                }
+              },
               child: const Text('Send invite')),
         ],
       ),
     );
-    if (submit != true ||
-        name.text.trim().isEmpty ||
-        !email.text.contains('@')) {
+    if (submit != true) {
       return;
     }
     try {
@@ -104,6 +115,23 @@ class _WorkerAccountsScreenState extends State<WorkerAccountsScreen> {
             const SnackBar(content: Text('Could not invite worker')));
       }
     }
+  }
+
+  static final RegExp _emailPattern =
+      RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
+
+  String? _validateWorkerName(String? value) {
+    final name = value?.trim() ?? '';
+    if (name.isEmpty) return 'Full name is required';
+    if (name.length > 50) return 'Full name must be 50 characters or fewer';
+    return null;
+  }
+
+  String? _validateWorkerEmail(String? value) {
+    final email = value?.trim() ?? '';
+    if (email.isEmpty) return 'Work email is required';
+    if (!_emailPattern.hasMatch(email)) return 'Enter a valid email address';
+    return null;
   }
 
   Future<void> _toggle(WorkerAccount worker) async {

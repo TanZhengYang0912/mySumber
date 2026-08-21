@@ -20,8 +20,8 @@ class AppColors {
 
   static const Color waterAccent = Color(0xFF3B82F6);
   static const Color waterSurface = Color(0xFFE0EBFB);
-  static const Color electricityAccent = Color(0xFF3B82F6);
-  static const Color electricitySurface = Color(0xFFE0EBFB);
+  static const Color electricityAccent = Color(0xFFEAB308);
+  static const Color electricitySurface = Color(0xFFFEF9C3);
 
   static const Color success = Color(0xFF16A34A);
   static const Color successSurface = Color(0xFFDCFCE7);
