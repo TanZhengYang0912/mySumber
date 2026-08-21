@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -8,7 +11,9 @@ import '../../../theme/page_header.dart';
 import '../../leakage/screens/style.dart';
 import '../../leakage/state/app_state.dart';
 import '../models/models.dart';
+import '../services/state_csv_import.dart';
 import '../state/dataset_state.dart';
+import '../widgets/state_csv_preview_dialog.dart';
 
 class DashboardScreen extends StatefulWidget {
   final ValueChanged<String>? onStateTap;
@@ -128,13 +133,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
           icon: Icons.grid_view_outlined,
           compact: true,
           onLogout: () => context.read<RoleState>().logout(),
-          action: Tooltip(
-            message: 'View full dashboard',
-            child: AdminHeaderAction(
-              icon: Icons.unfold_more,
-              label: 'View full',
-              onPressed: _scrollToFullDashboard,
-            ),
+          action: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AdminHeaderAction(
+                icon: Icons.upload_outlined,
+                label: 'Import',
+                secondary: true,
+                onPressed: _importStateCsv,
+              ),
+              const SizedBox(width: 8),
+              Tooltip(
+                message: 'View full dashboard',
+                child: AdminHeaderAction(
+                  icon: Icons.unfold_more,
+                  label: 'View full',
+                  onPressed: _scrollToFullDashboard,
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 12),
@@ -203,6 +220,64 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final maxOffset = target.position.maxScrollExtent;
       target.jumpTo(_dashboardScrollOffset.clamp(0, maxOffset));
     });
+  }
+
+  Future<void> _importStateCsv() async {
+    final selection = await FilePicker.pickFile(
+      type: FileType.custom,
+      allowedExtensions: ['csv'],
+    );
+    if (!mounted || selection == null) return;
+
+    late final List<int> bytes;
+    try {
+      bytes = await selection.readAsBytes();
+    } catch (error) {
+      _showImportError('Could not read ${selection.name}: $error');
+      return;
+    }
+
+    late final String csv;
+    try {
+      csv = utf8.decode(bytes);
+    } on FormatException {
+      _showImportError('The selected file is not valid UTF-8 CSV.');
+      return;
+    }
+
+    late final StateCsvResult result;
+    try {
+      result = parseStateCsv(csv);
+    } on FormatException catch (error) {
+      _showImportError(error.message);
+      return;
+    }
+
+    if (!mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => StateCsvPreviewDialog(
+        fileName: selection.name,
+        result: result,
+      ),
+    );
+    if (!mounted || confirmed != true) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(
+        'Read ${result.rows.length} rows across ${result.stateCount} states '
+        'from ${result.kind.label}.',
+      ),
+      backgroundColor: AppColors.success,
+    ));
+  }
+
+  void _showImportError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(message),
+      backgroundColor: AppColors.critical,
+    ));
   }
 
   void _scrollToFullDashboard() {
@@ -375,7 +450,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           const Spacer(),
           const Text(
-            'Open Mall Monitoring for full equipment health.',
+            'Open Mall for full equipment health.',
             style: TextStyle(
               color: AppColors.textTertiary,
               fontSize: 11,
@@ -391,6 +466,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       title: 'Dashboard',
       icon: Icons.grid_view_outlined,
       onLogout: () => context.read<RoleState>().logout(),
+      action: AdminHeaderAction(
+        icon: Icons.upload_outlined,
+        label: 'Import',
+        secondary: true,
+        onPressed: _importStateCsv,
+      ),
     );
   }
 

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -55,7 +56,12 @@ Future<void> main() async {
   );
   await LocalNotificationService.instance.init();
   runApp(MySumberApp(
-    database: LocalDatabase.defaults(),
+    // Drift's web backend needs sqlite3.wasm and drift_worker.js served from
+    // web/, and driftDatabase() throws ArgumentError outright when its `web:`
+    // option is missing. A browser already needs the network to reach
+    // Supabase, so the offline cache earns nothing there — skip it and let the
+    // repositories run in their online-only mode.
+    database: kIsWeb ? null : LocalDatabase.defaults(),
     cacheStatus: CacheStatus(),
   ));
 }
@@ -67,7 +73,9 @@ class MySumberApp extends StatelessWidget {
     required this.cacheStatus,
   });
 
-  final LocalDatabase database;
+  /// Null on web, where Drift cannot open a database without wasm assets.
+  /// Every repository below treats a null database as "online only".
+  final LocalDatabase? database;
   final CacheStatus cacheStatus;
 
   static final GlobalKey<NavigatorState> _navigatorKey =
@@ -77,16 +85,21 @@ class MySumberApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        Provider<LocalDatabase>.value(value: database),
+        // Nullable because web has no local database. Nothing reads this
+        // provider today; it stays exposed for the offline work on main.
+        Provider<LocalDatabase?>.value(value: database),
         ChangeNotifierProvider<CacheStatus>.value(value: cacheStatus),
         ChangeNotifierProvider<RoleState>(
           create: (_) {
+            final localDatabase = database;
             final roleState = RoleState(
-              accountRepository: AccountRepository.cached(
-                client: Supabase.instance.client,
-                database: database,
-                cacheStatus: cacheStatus,
-              ),
+              accountRepository: localDatabase == null
+                  ? AccountRepository(client: Supabase.instance.client)
+                  : AccountRepository.cached(
+                      client: Supabase.instance.client,
+                      database: localDatabase,
+                      cacheStatus: cacheStatus,
+                    ),
             );
             roleState.checkExistingSession();
             return roleState;
@@ -96,11 +109,14 @@ class MySumberApp extends StatelessWidget {
           create: (_) {
             final baseline = BaselineService();
             final nrw = NrwService();
-            final repository = LeakageRepository.cached(
-              client: Supabase.instance.client,
-              database: database,
-              cacheStatus: cacheStatus,
-            );
+            final localDatabase = database;
+            final repository = localDatabase == null
+                ? LeakageRepository(Supabase.instance.client)
+                : LeakageRepository.cached(
+                    client: Supabase.instance.client,
+                    database: localDatabase,
+                    cacheStatus: cacheStatus,
+                  );
             final simulation = SimulationService(
               baseline: baseline,
               repository: repository,
@@ -127,13 +143,18 @@ class MySumberApp extends StatelessWidget {
           ),
         ),
         ChangeNotifierProvider<UsageState>(
-          create: (_) => UsageState(
-            repository: UsageRepository.cached(
-              client: Supabase.instance.client,
-              database: database,
-              cacheStatus: cacheStatus,
-            ),
-          ),
+          create: (_) {
+            final localDatabase = database;
+            return UsageState(
+              repository: localDatabase == null
+                  ? UsageRepository(Supabase.instance.client)
+                  : UsageRepository.cached(
+                      client: Supabase.instance.client,
+                      database: localDatabase,
+                      cacheStatus: cacheStatus,
+                    ),
+            );
+          },
         ),
       ],
       child: MaterialApp(
@@ -273,7 +294,7 @@ class _AppShellState extends State<AppShell> {
         _navItems = const [
           _NavItem(icon: Icons.grid_view_outlined, label: 'Dashboard'),
           _NavItem(
-              icon: Icons.location_city_outlined, label: 'Mall Monitoring'),
+              icon: Icons.location_city_outlined, label: 'Mall'),
           _NavItem(icon: Icons.notifications_outlined, label: 'Anomalies'),
           _NavItem(icon: Icons.shield_outlined, label: 'Oversight'),
           _NavItem(icon: Icons.manage_accounts_outlined, label: 'Workers'),

@@ -1,10 +1,20 @@
 export type AnomalyAnalysis = {
   summary: string;
-  possible_cause: string;
-  severity_assessment: "Low" | "Medium" | "High";
-  confidence: number;
+  possible_cause?: string;
+  severity_assessment?: "Low" | "Medium" | "High";
+  confidence?: number;
   recommendation: string;
 };
+
+export function analysisStorageFields(analysis: AnomalyAnalysis) {
+  return {
+    ai_summary: analysis.summary,
+    ai_possible_cause: analysis.possible_cause ?? null,
+    ai_severity_assessment: analysis.severity_assessment ?? null,
+    ai_recommendation: analysis.recommendation,
+    ai_confidence: analysis.confidence ?? null,
+  };
+}
 
 export function parseAlertId(value: unknown): number {
   if (value == null || typeof value !== "object") {
@@ -34,7 +44,10 @@ export function parseCaseId(value: unknown): string {
   return caseId;
 }
 
-export function parseGroqAnalysis(value: unknown): AnomalyAnalysis {
+export function parseGroqAnalysis(
+  value: unknown,
+  opts: { householdReport?: boolean } = {},
+): AnomalyAnalysis {
   if (value == null || typeof value !== "object") {
     throw new Error("Groq returned an invalid response.");
   }
@@ -57,14 +70,23 @@ export function parseGroqAnalysis(value: unknown): AnomalyAnalysis {
   }
 
   const summary = text(parsed.summary);
-  const possibleCause = text(parsed.possible_cause);
   const recommendation = text(parsed.recommendation);
+
+  if (!summary || !recommendation) {
+    throw new Error("Groq analysis is missing required text fields.");
+  }
+
+  if (opts.householdReport) {
+    return { summary, recommendation };
+  }
+
+  const possibleCause = text(parsed.possible_cause);
   const severity = text(parsed.severity_assessment);
   const confidence = typeof parsed.confidence === "number"
     ? parsed.confidence
     : Number.NaN;
 
-  if (!summary || !possibleCause || !recommendation) {
+  if (!possibleCause) {
     throw new Error("Groq analysis is missing required text fields.");
   }
   if (!["Low", "Medium", "High"].includes(severity)) {
@@ -84,6 +106,10 @@ export function parseGroqAnalysis(value: unknown): AnomalyAnalysis {
 }
 
 const WATER_ALERT_TYPES = new Set(["nrw_hotspot", "household"]);
+
+export function isHouseholdReport(alert: Record<string, unknown>): boolean {
+  return alert.source_scope === "household";
+}
 
 function utilityLabel(alert: Record<string, unknown>): string {
   if (alert.utility_type === "water" || alert.utility === "water") {
@@ -110,6 +136,15 @@ export function anomalyPrompt(alert: Record<string, unknown>): string {
       typeof value === "string" && value.trim() !== ""
     )
     .join(" → ");
+
+  if (isHouseholdReport(alert)) {
+    return [
+      "Source: Household report",
+      `Utility: ${utilityLabel(alert)}`,
+      `Location: ${location || "Not linked"}`,
+      `Resident's own words: ${alert.explanation ?? "Unavailable"}`,
+    ].join("\n");
+  }
 
   return [
     `Source: ${alert.source_scope ?? "Unknown"}`,

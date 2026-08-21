@@ -237,13 +237,11 @@ class Alert {
   double get ratio => baselineL == 0 ? 0 : actualL / baselineL;
   bool get isUnresolved => AlertStatus.unresolved.contains(status);
 
+  /// Cause, severity and confidence are optional: customer-submitted household
+  /// reports carry no telemetry, so the model saves a summary and
+  /// recommendation only. An alert has analysis once those two are saved.
   bool get hasAiAnalysis =>
-      aiSummary != null &&
-      aiPossibleCause != null &&
-      aiSeverityAssessment != null &&
-      aiRecommendation != null &&
-      aiConfidence != null &&
-      aiGeneratedAt != null;
+      aiSummary != null && aiRecommendation != null && aiGeneratedAt != null;
 
   String get shortTitle {
     switch (sourceScope) {

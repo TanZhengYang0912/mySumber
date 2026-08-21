@@ -47,7 +47,7 @@ class _MallDetailScreenState extends State<MallDetailScreen> {
       body: mall == null
           ? Column(children: [
               PageHeader(
-                title: 'Mall Monitoring',
+                title: 'Mall',
                 icon: Icons.location_city_outlined,
                 leading: IconButton(
                   icon: const Icon(Icons.arrow_back, color: Colors.white),
@@ -65,7 +65,7 @@ class _MallDetailScreenState extends State<MallDetailScreen> {
                   title: mall.name,
                   icon: Icons.location_city_outlined,
                   leading: IconButton(
-                    tooltip: 'Back to Mall Monitoring',
+                    tooltip: 'Back to Mall',
                     icon: const Icon(Icons.arrow_back, color: Colors.white),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
@@ -213,10 +213,12 @@ class _MallDetailScreenState extends State<MallDetailScreen> {
                               fontWeight: FontWeight.w700,
                               height: 1.35)),
                       const SizedBox(height: 10),
-                      _analysisLine(
-                          'Possible cause', _suggestion!.possibleCause),
-                      _analysisLine(
-                          'Severity', _suggestion!.severityAssessment),
+                      if (_suggestion!.possibleCause != null)
+                        _analysisLine(
+                            'Possible cause', _suggestion!.possibleCause!),
+                      if (_suggestion!.severityAssessment != null)
+                        _analysisLine(
+                            'Severity', _suggestion!.severityAssessment!),
                       _analysisLine(
                           'Recommendation', _suggestion!.recommendation),
                       const SizedBox(height: 10),

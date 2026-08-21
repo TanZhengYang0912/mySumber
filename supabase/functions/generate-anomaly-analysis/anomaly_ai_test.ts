@@ -1,6 +1,7 @@
 import { assertEquals, assertThrows } from "jsr:@std/assert@1";
 
 import {
+  analysisStorageFields,
   anomalyPrompt,
   parseAlertId,
   parseCaseId,
@@ -77,4 +78,69 @@ Deno.test("preview evidence produces the same prompt shape as an alert row", () 
     explanation: "Test.",
   });
   assertEquals(promptFromRow, promptFromPreview);
+});
+
+Deno.test("household analysis parses without cause, severity or confidence", () => {
+  const parsed = parseGroqAnalysis({
+    choices: [
+      {
+        message: {
+          content: JSON.stringify({
+            summary: "Resident reports a leak running for four hours.",
+            recommendation: "Contact the resident and schedule a visit today.",
+          }),
+        },
+      },
+    ],
+  }, { householdReport: true });
+
+  assertEquals(parsed.possible_cause, undefined);
+  assertEquals(parsed.severity_assessment, undefined);
+  assertEquals(parsed.confidence, undefined);
+});
+
+Deno.test("household analysis storage explicitly clears unavailable fields", () => {
+  assertEquals(
+    analysisStorageFields({
+      summary: "Resident reports a leak running for four hours.",
+      recommendation: "Contact the resident and schedule a visit today.",
+    }),
+    {
+      ai_summary: "Resident reports a leak running for four hours.",
+      ai_possible_cause: null,
+      ai_severity_assessment: null,
+      ai_recommendation: "Contact the resident and schedule a visit today.",
+      ai_confidence: null,
+    },
+  );
+});
+
+Deno.test("non-household analysis still demands every field", () => {
+  assertThrows(() =>
+    parseGroqAnalysis({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              summary: "Loss is high.",
+              recommendation: "Inspect the district network.",
+            }),
+          },
+        },
+      ],
+    })
+  );
+});
+
+Deno.test("household prompt omits the telemetry lines", () => {
+  const prompt = anomalyPrompt({
+    source_scope: "household",
+    household_id: "H-305",
+    state: "Perlis",
+    explanation: "Resident says water is leaking.",
+  });
+
+  assertEquals(prompt.includes("Baseline:"), false);
+  assertEquals(prompt.includes("Loss rate:"), false);
+  assertEquals(prompt.includes("Resident's own words:"), true);
 });

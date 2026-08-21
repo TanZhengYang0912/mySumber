@@ -88,7 +88,7 @@ class AdminCompactRail extends StatelessWidget {
       ),
       _RailDestination(
         icon: Icons.inventory_2_outlined,
-        tooltip: 'Mall Monitoring',
+        tooltip: 'Mall',
         selected: currentIndex == 1,
         onTap: () => onDestinationSelected(1),
       ),
