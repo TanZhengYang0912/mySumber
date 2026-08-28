@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../modules/leakage/models/alert.dart';
-import '../modules/leakage/models/report.dart';
-import 'segmented_chips.dart';
 import 'tokens.dart';
 
 /// Tallies how many items in [source] fall under each value [keyOf] returns.
@@ -178,239 +176,36 @@ class FilterDropdown extends StatelessWidget {
   }
 }
 
-/// Search + State/Severity/[Status] in one row. Used by both the Worker's
-/// Alert Queue and the Admin's Oversight Alert Queue — one filter bar for
-/// both, so they can't drift out of sync again. Pass null [statusOptions]
-/// to hide the Status dropdown (Worker's Resolved tab has no per-item
-/// status to filter by).
-class AlertFilterBar extends StatelessWidget {
-  final TextEditingController searchController;
-  final ValueChanged<String> onSearchChanged;
-  final VoidCallback? onSearchClear;
-  final Color accent;
-
-  final String? selectedState;
-  final List<String> states;
-  final Map<String, int> stateCounts;
-  final ValueChanged<String?> onStateChanged;
-
-  final String? selectedSeverity;
-  final Map<String, int> severityCounts;
-  final ValueChanged<String?> onSeverityChanged;
-
-  final String? selectedStatus;
-  final List<String>? statusOptions;
-  final Map<String, int>? statusCounts;
-  final ValueChanged<String?>? onStatusChanged;
-  final String statusCaption;
-  final String Function(String) statusLabelFor;
-
-  const AlertFilterBar({
+/// The standard Utility filter. Null remains the unfiltered All state, while
+/// the page continues to own the data matching and optional count calculation.
+class UtilityFilterDropdown extends StatelessWidget {
+  const UtilityFilterDropdown({
     super.key,
-    required this.searchController,
-    required this.onSearchChanged,
-    required this.selectedState,
-    required this.states,
-    required this.stateCounts,
-    required this.onStateChanged,
-    required this.selectedSeverity,
-    required this.severityCounts,
-    required this.onSeverityChanged,
-    this.onSearchClear,
-    this.accent = AppColors.adminPrimary,
-    this.selectedStatus,
-    this.statusOptions,
-    this.statusCounts,
-    this.onStatusChanged,
-    this.statusCaption = 'Status',
-    this.statusLabelFor = AlertStatus.label,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final showStatus = statusOptions != null;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        FilterSearchField(
-          controller: searchController,
-          hint: 'Type anything to search',
-          accent: accent,
-          onChanged: onSearchChanged,
-          onClear: onSearchClear,
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: FilterDropdown(
-                caption: 'State',
-                value: selectedState,
-                allLabel: 'All',
-                options: states,
-                counts: stateCounts,
-                onChanged: onStateChanged,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: FilterDropdown(
-                caption: 'Severity',
-                value: selectedSeverity,
-                allLabel: 'All',
-                options: const [Severity.high, Severity.medium, Severity.low],
-                labelFor: Severity.label,
-                counts: severityCounts,
-                onChanged: onSeverityChanged,
-              ),
-            ),
-            if (showStatus) ...[
-              const SizedBox(width: 8),
-              Expanded(
-                child: FilterDropdown(
-                  caption: statusCaption,
-                  value: selectedStatus,
-                  allLabel: 'All',
-                  options: statusOptions!,
-                  labelFor: statusLabelFor,
-                  counts: statusCounts,
-                  onChanged: onStatusChanged!,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-/// Search + State/Outcome in one row. Used by both the Worker's Report
-/// History and the Admin's Oversight Reports tab.
-class ReportFilterBar extends StatelessWidget {
-  final TextEditingController searchController;
-  final ValueChanged<String> onSearchChanged;
-  final VoidCallback? onSearchClear;
-  final Color accent;
-
-  final String? selectedState;
-  final List<String> states;
-  final Map<String, int> stateCounts;
-  final ValueChanged<String?> onStateChanged;
-
-  final String? selectedOutcome;
-  final Map<String, int> outcomeCounts;
-  final ValueChanged<String?> onOutcomeChanged;
-
-  const ReportFilterBar({
-    super.key,
-    required this.searchController,
-    required this.onSearchChanged,
-    required this.selectedState,
-    required this.states,
-    required this.stateCounts,
-    required this.onStateChanged,
-    required this.selectedOutcome,
-    required this.outcomeCounts,
-    required this.onOutcomeChanged,
-    this.onSearchClear,
-    this.accent = AppColors.adminPrimary,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        FilterSearchField(
-          controller: searchController,
-          hint: 'Type anything to search',
-          accent: accent,
-          onChanged: onSearchChanged,
-          onClear: onSearchClear,
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: FilterDropdown(
-                caption: 'State',
-                value: selectedState,
-                allLabel: 'All',
-                options: states,
-                counts: stateCounts,
-                onChanged: onStateChanged,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: FilterDropdown(
-                caption: 'Outcome',
-                value: selectedOutcome,
-                allLabel: 'All',
-                options: const [ReportOutcome.fixed, ReportOutcome.notFixed],
-                labelFor: ReportOutcome.label,
-                counts: outcomeCounts,
-                onChanged: onOutcomeChanged,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-/// The All / Water / Electricity toggle. Centred, because it is a short row
-/// that looks stranded when it hugs the left edge.
-class UtilityChips extends StatelessWidget {
-  final Utility? selected;
-  final ValueChanged<Utility?> onChanged;
-  final Color color;
-  final int? allCount;
-  final int? waterCount;
-  final int? electricityCount;
-
-  const UtilityChips({
-    super.key,
-    required this.selected,
+    required this.value,
     required this.onChanged,
-    this.color = AppColors.adminPrimary,
-    this.allCount,
-    this.waterCount,
-    this.electricityCount,
+    this.counts,
   });
+
+  final Utility? value;
+  final ValueChanged<Utility?> onChanged;
+  final Map<String, int>? counts;
 
   @override
   Widget build(BuildContext context) {
-    return SegmentedChipRow(
-      spacing: 8,
-      centered: true,
-      children: [
-        SegmentedChip(
-          label: 'All',
-          count: allCount,
-          selected: selected == null,
-          onTap: () => onChanged(null),
-          color: color,
-        ),
-        SegmentedChip(
-          label: 'Water',
-          icon: Icons.water_drop_outlined,
-          count: waterCount,
-          selected: selected == Utility.water,
-          onTap: () => onChanged(Utility.water),
-          color: color,
-        ),
-        SegmentedChip(
-          label: 'Electricity',
-          icon: Icons.electric_bolt_outlined,
-          count: electricityCount,
-          selected: selected == Utility.electricity,
-          onTap: () => onChanged(Utility.electricity),
-          color: color,
-        ),
-      ],
+    return FilterDropdown(
+      caption: 'Utility',
+      value: value?.name,
+      allLabel: 'All',
+      options: const ['water', 'electricity'],
+      labelFor: (option) => option == 'water' ? 'Water' : 'Electricity',
+      counts: counts,
+      onChanged: (option) => onChanged(
+        option == 'water'
+            ? Utility.water
+            : option == 'electricity'
+                ? Utility.electricity
+                : null,
+      ),
     );
   }
 }
@@ -471,4 +266,21 @@ class CountBadge extends StatelessWidget {
       ),
     );
   }
+}
+
+/// What a filtered list shows when nothing matches. One wording style across
+/// every screen, so a narrowed queue never looks like a broken one.
+class FilterEmptyState extends StatelessWidget {
+  final String message;
+
+  const FilterEmptyState(this.message, {super.key});
+
+  @override
+  Widget build(BuildContext context) => Center(
+        child: Text(
+          message,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: AppColors.textSecondary),
+        ),
+      );
 }

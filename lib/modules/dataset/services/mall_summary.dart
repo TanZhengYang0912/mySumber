@@ -30,6 +30,13 @@ class MallSummary {
 
   bool get hasWater => nodes.any((n) => n.utilityType == 'Water');
   bool get hasElectricity => nodes.any((n) => n.utilityType == 'Electricity');
+
+  /// The worse of the two utility statuses, so a mall reads as Critical when
+  /// either side is. Ranked by the same table the roll-up already uses.
+  String get worstStatus =>
+      (_statusRank[waterStatus] ?? 0) >= (_statusRank[electricityStatus] ?? 0)
+          ? waterStatus
+          : electricityStatus;
 }
 
 const _attentionStatuses = {'Critical', 'Warning', 'Maintenance'};

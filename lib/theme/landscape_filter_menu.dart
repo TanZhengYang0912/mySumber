@@ -9,16 +9,16 @@ class LandscapeFilterMenu extends StatelessWidget {
     this.label = 'Filter',
     this.tooltip = 'Filter anomalies',
     this.activeCount = 0,
-    this.footer,
     this.compact = false,
+    this.accent = AppColors.adminPrimary,
   });
 
   final Widget child;
   final String label;
   final String tooltip;
   final int activeCount;
-  final Widget? footer;
   final bool compact;
+  final Color accent;
 
   @override
   Widget build(BuildContext context) {
@@ -45,11 +45,6 @@ class LandscapeFilterMenu extends StatelessWidget {
                       child: child,
                     ),
                   ),
-                  if (footer != null)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                      child: footer,
-                    ),
                 ],
               ),
             );
@@ -72,7 +67,7 @@ class LandscapeFilterMenu extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                   decoration: BoxDecoration(
-                    color: AppColors.adminPrimary,
+                    color: accent,
                     borderRadius: BorderRadius.circular(99),
                   ),
                   alignment: Alignment.center,
@@ -89,10 +84,10 @@ class LandscapeFilterMenu extends StatelessWidget {
             ],
           ),
           style: TextButton.styleFrom(
-            foregroundColor: compact ? Colors.white : AppColors.adminPrimary,
+            foregroundColor: compact ? Colors.white : accent,
             backgroundColor: compact
                 ? Colors.white.withValues(alpha: 0.16)
-                : AppColors.adminSurface,
+                : accent.withValues(alpha: 0.10),
             minimumSize: const Size(0, 42),
             padding: const EdgeInsets.symmetric(horizontal: 14),
             shape: const StadiumBorder(),

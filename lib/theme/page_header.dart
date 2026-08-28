@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../modules/admin/services/admin_tablet_layout.dart';
+import 'logout_confirmation_dialog.dart';
 import 'tokens.dart';
 
 const adminLandscapeHorizontalInset = 16.0;
@@ -47,9 +48,9 @@ class PageHeader extends StatelessWidget {
       ),
       padding: EdgeInsets.fromLTRB(
         useCompact ? adminLandscapeHorizontalInset : 20,
-        useCompact ? 12 : 20,
+        useCompact ? 12 : 14,
         useCompact ? adminLandscapeHorizontalInset : 20,
-        useCompact ? 16 : 24,
+        useCompact ? 16 : 16,
       ),
       child: SafeArea(
         left: !useCompact,
@@ -72,7 +73,12 @@ class PageHeader extends StatelessWidget {
                     ),
                   ),
                 ),
-                _LogoutButton(onPressed: onLogout),
+                _LogoutButton(
+                  onPressed: () => showLogoutConfirmation(
+                    context,
+                    onConfirm: onLogout,
+                  ),
+                ),
               ],
             ),
             SizedBox(height: useCompact ? 8 : 12),

@@ -10,9 +10,9 @@ class AppColors {
   static const Color adminPrimaryDark = Color(0xFF0B5C55);
   static const Color adminSurface = Color(0xFFECFDF5);
 
-  static const Color workerPrimary = Color(0xFF1E40AF);
-  static const Color workerPrimaryDark = Color(0xFF1B3894);
-  static const Color workerSurface = Color(0xFFDBE7FF);
+  static const Color workerPrimary = Color(0xFF0F766E);
+  static const Color workerPrimaryDark = Color(0xFF0B5C55);
+  static const Color workerSurface = Color(0xFFCCFBF1);
 
   static const Color customerPrimary = Color(0xFF6366F1);
   static const Color customerPrimaryDark = Color(0xFF4F46E5);
@@ -20,13 +20,13 @@ class AppColors {
 
   static const Color waterAccent = Color(0xFF3B82F6);
   static const Color waterSurface = Color(0xFFE0EBFB);
-  static const Color electricityAccent = Color(0xFF3B82F6);
-  static const Color electricitySurface = Color(0xFFE0EBFB);
+  static const Color electricityAccent = Color(0xFFEAB308);
+  static const Color electricitySurface = Color(0xFFFEF9C3);
 
   static const Color success = Color(0xFF16A34A);
   static const Color successSurface = Color(0xFFDCFCE7);
-  static const Color warning = Color(0xFFF59E0B);
-  static const Color warningSurface = Color(0xFFFEF3C7);
+  static const Color warning = Color(0xFFEA580C);
+  static const Color warningSurface = Color(0xFFFFEDD5);
   static const Color critical = Color(0xFFDC2626);
   static const Color criticalSurface = Color(0xFFFEE2E2);
 
@@ -38,6 +38,15 @@ class AppColors {
   static const Color textSecondary = Color(0xFF6B7280);
   static const Color textTertiary = Color(0xFF9CA3AF);
 }
+
+/// Equipment status and alert severity are the same ladder seen from two
+/// sides, so they resolve through one set of tokens and cannot drift.
+Color equipmentStatusColor(String status) => switch (status) {
+      'Critical' => AppColors.critical,
+      'Warning' => AppColors.warning,
+      'Maintenance' => AppColors.textSecondary,
+      _ => AppColors.success,
+    };
 
 Color rolePrimary(String? role) {
   switch (role) {

@@ -25,10 +25,8 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  // Electricity stays blue across the app. Yellow is reserved for this
-  // comparison card so its two series are immediately distinguishable.
-  static const _comparisonElectricityColor = AppColors.warning;
-  static const _comparisonElectricitySurface = AppColors.warningSurface;
+  static const _comparisonElectricityColor = AppColors.electricityAccent;
+  static const _comparisonElectricitySurface = AppColors.electricitySurface;
 
   String _selectedPeriod = 'Monthly';
   final _stateBarController = ScrollController();

@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../theme/filter_controls.dart';
-import '../../../theme/landscape_filter_menu.dart';
 import '../../../theme/page_header.dart';
+import '../../../theme/responsive_filter_bar.dart';
 import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
 import '../models/alert.dart';
@@ -34,46 +34,47 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
     super.dispose();
   }
 
-  void _clearFilters() {
-    setState(() {
-      _search.clear();
-      _state = null;
-      _outcome = null;
-      _utility = null;
-    });
-  }
-
-  /// The filter controls without their card chrome, so the same widgets serve
-  /// both the portrait strip and the landscape burger.
   Widget _filterControls({
+    required bool landscape,
     required List<String> states,
     required Map<String, int> stateCounts,
     required Map<String, int> outcomeCounts,
     required Map<String, int> utilityCounts,
   }) {
-    return Column(
-      children: [
-        ReportFilterBar(
-          searchController: _search,
-          onSearchChanged: (_) => setState(() {}),
-          onSearchClear: () => setState(_search.clear),
-          accent: AppColors.workerPrimary,
-          selectedState: _state,
-          states: states,
-          stateCounts: stateCounts,
-          onStateChanged: (v) => setState(() => _state = v),
-          selectedOutcome: _outcome,
-          outcomeCounts: outcomeCounts,
-          onOutcomeChanged: (v) => setState(() => _outcome = v),
+    return ResponsiveFilterBar(
+      mode: landscape
+          ? ResponsiveFilterBarMode.menu
+          : ResponsiveFilterBarMode.inline,
+      searchController: _search,
+      onSearchChanged: (_) => setState(() {}),
+      accent: AppColors.workerPrimary,
+      menuTooltip: 'Filter reports',
+      activeFilterCount: countActiveFilters(
+        query: _search.text,
+        filters: [_state != null, _outcome != null, _utility != null],
+      ),
+      filters: [
+        FilterDropdown(
+          caption: 'State',
+          value: _state,
+          allLabel: 'All',
+          options: states,
+          counts: stateCounts,
+          onChanged: (value) => setState(() => _state = value),
         ),
-        const SizedBox(height: 10),
-        UtilityChips(
-          color: AppColors.workerPrimary,
-          selected: _utility,
-          allCount: utilityCounts.values.fold<int>(0, (a, b) => a + b),
-          waterCount: utilityCounts['water'] ?? 0,
-          electricityCount: utilityCounts['electricity'] ?? 0,
-          onChanged: (u) => setState(() => _utility = u),
+        FilterDropdown(
+          caption: 'Outcome',
+          value: _outcome,
+          allLabel: 'All',
+          options: const ['fixed', 'not_fixed'],
+          labelFor: ReportOutcome.label,
+          counts: outcomeCounts,
+          onChanged: (value) => setState(() => _outcome = value),
+        ),
+        UtilityFilterDropdown(
+          value: _utility,
+          counts: utilityCounts,
+          onChanged: (value) => setState(() => _utility = value),
         ),
       ],
     );
@@ -132,55 +133,26 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
             icon: Icons.description_outlined,
             onLogout: () => context.read<RoleState>().logout(),
             action: landscape
-                ? LandscapeFilterMenu(
-                    compact: true,
-                    tooltip: 'Filter reports',
-                    activeCount: activeReportFilterCount(
-                      query: _search.text,
-                      state: _state,
-                      outcome: _outcome,
-                      utility: _utility,
-                    ),
-                    footer: TextButton(
-                      onPressed: _clearFilters,
-                      child: const Text('Clear'),
-                    ),
-                    child: _filterControls(
-                      states: states,
-                      stateCounts: stateCounts,
-                      outcomeCounts: outcomeCounts,
-                      utilityCounts: utilityCounts,
-                    ),
-                  )
-                : null,
-          ),
-          if (!landscape)
-            Container(
-              color: AppColors.surface,
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-              child: Column(
-                children: [
-                  _filterControls(
+                ? _filterControls(
+                    landscape: true,
                     states: states,
                     stateCounts: stateCounts,
                     outcomeCounts: outcomeCounts,
                     utilityCounts: utilityCounts,
-                  ),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: _clearFilters,
-                      child: const Text('Clear filters'),
-                    ),
-                  ),
-                ],
-              ),
+                  )
+                : null,
+          ),
+          if (!landscape)
+            _filterControls(
+              landscape: false,
+              states: states,
+              stateCounts: stateCounts,
+              outcomeCounts: outcomeCounts,
+              utilityCounts: utilityCounts,
             ),
           Expanded(
             child: reports.isEmpty
-                ? const Center(
-                    child: Text('No reports match these filters.',
-                        style: TextStyle(color: AppColors.textSecondary)))
+                ? const FilterEmptyState('No reports match these filters.')
                 : ListView.builder(
                     padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
                     itemCount: reports.length,

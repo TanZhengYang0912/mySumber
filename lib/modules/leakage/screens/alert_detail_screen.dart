@@ -14,6 +14,28 @@ import 'report_form_screen.dart';
 import 'report_view_screen.dart';
 import 'style.dart';
 
+/// The AI rows a Worker actually sees, in display order. Household alerts
+/// only summarise the resident's message, so cause, severity and confidence
+/// are absent on them — and [Alert.hasAiAnalysis] does not cover those three,
+/// so nothing may force-unwrap them. Severity and confidence travel together,
+/// matching how [AiAnalysisCard] renders the same alert for Admin.
+List<({String label, String value})> workerAiRows(Alert alert) {
+  final rows = <({String label, String value})>[];
+  final summary = alert.aiSummary;
+  if (summary != null) rows.add((label: 'Summary', value: summary));
+  final cause = alert.aiPossibleCause;
+  if (cause != null) rows.add((label: 'Possible cause', value: cause));
+  final recommendation = alert.aiRecommendation;
+  if (recommendation != null) {
+    rows.add((label: 'Recommendation', value: recommendation));
+  }
+  final confidence = alert.aiConfidence;
+  if (alert.aiSeverityAssessment != null && confidence != null) {
+    rows.add((label: 'Confidence', value: '${(confidence * 100).round()}%'));
+  }
+  return rows;
+}
+
 class AlertDetailScreen extends StatelessWidget {
   final int alertId;
   const AlertDetailScreen({super.key, required this.alertId});
@@ -150,33 +172,30 @@ class AlertDetailScreen extends StatelessWidget {
         ],
       );
 
-  Widget _aiAssessmentDetails(Alert alert) => SizedBox(
-        width: double.infinity,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'AI-generated. Verify on site.',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textSecondary,
-              ),
+  Widget _aiAssessmentDetails(Alert alert) {
+    final rows = workerAiRows(alert);
+    return SizedBox(
+      width: double.infinity,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'AI-generated. Verify on site.',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
             ),
-            const SizedBox(height: 10),
-            _aiValue('Summary', alert.aiSummary!),
-            const SizedBox(height: 8),
-            _aiValue('Possible cause', alert.aiPossibleCause!),
-            const SizedBox(height: 8),
-            _aiValue('Recommendation', alert.aiRecommendation!),
-            const SizedBox(height: 8),
-            _aiValue(
-              'Confidence',
-              '${(alert.aiConfidence! * 100).round()}%',
-            ),
+          ),
+          const SizedBox(height: 10),
+          for (var i = 0; i < rows.length; i++) ...[
+            if (i > 0) const SizedBox(height: 8),
+            _aiValue(rows[i].label, rows[i].value),
           ],
-        ),
-      );
+        ],
+      ),
+    );
+  }
 
   Future<void> _updateStatus(
       BuildContext context, AppState app, int alertId, String status) async {

@@ -261,9 +261,11 @@ class AlertCard extends StatelessWidget {
     final sevColor = severityColor(sev);
 
     final date = DateFormat('d MMM').format(alert.detectedAt);
+    // Only state loss alerts carry a supply balance. Household and mall alerts
+    // compare against their own baseline, never a state average.
     final metricText = alert.lossPct != null
         ? '${alert.lossPct!.toStringAsFixed(1)}% of supply unaccounted'
-        : '${alert.ratio.toStringAsFixed(1)}x of state avg';
+        : null;
     final handled = handledLabel(alert, resolvedHandledBy, resolvedAt);
     final handledColor = alert.status == AlertStatus.resolved
         ? AppColors.success
@@ -323,15 +325,17 @@ class AlertCard extends StatelessWidget {
                   style: const TextStyle(
                       fontSize: 12, color: AppColors.textSecondary),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  metricText,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: sevColor,
+                if (metricText != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    metricText,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: sevColor,
+                    ),
                   ),
-                ),
+                ],
                 if (handled != null) ...[
                   const SizedBox(height: 6),
                   Row(

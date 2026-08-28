@@ -17,7 +17,6 @@ void main() {
         body: AdminCompactRail(
           currentIndex: 0,
           onDestinationSelected: (index) => selectedIndex = index,
-          onLogout: () {},
         ),
       ),
     ));
@@ -37,16 +36,14 @@ void main() {
     expect(selectedIndex, 2);
   });
 
-  testWidgets('keeps low-frequency destinations inside the more menu',
+  testWidgets('keeps Workers as a direct rail destination without Logout',
       (tester) async {
     int? selectedIndex;
-    var loggedOut = false;
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
         body: AdminCompactRail(
           currentIndex: 0,
           onDestinationSelected: (index) => selectedIndex = index,
-          onLogout: () => loggedOut = true,
         ),
       ),
     ));
@@ -55,28 +52,17 @@ void main() {
     expect(find.byTooltip('Anomalies'), findsOneWidget);
     expect(find.byTooltip('Mall'), findsOneWidget);
     expect(find.byTooltip('Oversight'), findsOneWidget);
-    expect(find.byTooltip('More'), findsOneWidget);
+    expect(find.byTooltip('Workers'), findsOneWidget);
+    expect(find.byTooltip('More'), findsNothing);
     expect(find.byTooltip('Logout'), findsNothing);
-    expect(find.byTooltip('Workers'), findsNothing);
 
     await tester.tap(find.byTooltip('Mall'));
     await tester.pump();
     expect(selectedIndex, 1);
 
-    await tester.tap(find.byTooltip('More'));
-    await tester.pumpAndSettle();
-    expect(find.text('Workers'), findsOneWidget);
-    expect(find.text('Logout'), findsOneWidget);
-
-    await tester.tap(find.text('Workers'));
-    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Workers'));
+    await tester.pump();
     expect(selectedIndex, 4);
-
-    await tester.tap(find.byTooltip('More'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Logout'));
-    await tester.pumpAndSettle();
-    expect(loggedOut, isTrue);
   });
 
   testWidgets('moves a rail destination clear of a left camera cutout',
@@ -99,7 +85,6 @@ void main() {
         body: AdminCompactRail(
           currentIndex: 0,
           onDestinationSelected: (_) {},
-          onLogout: () {},
         ),
       ),
     ));
@@ -109,7 +94,7 @@ void main() {
     final anomalies = tester.getRect(find.byTooltip('Anomalies'));
     final inventory = tester.getRect(find.byTooltip('Mall'));
     final oversight = tester.getRect(find.byTooltip('Oversight'));
-    final more = tester.getRect(find.byTooltip('More'));
+    final workers = tester.getRect(find.byTooltip('Workers'));
 
     // The camera occupies the middle of the rail. Destinations should be
     // evenly distributed in the available segments above and below it,
@@ -127,11 +112,11 @@ void main() {
       closeTo(anomalies.top - inventory.bottom, 1),
     );
     expect(
-      more.top - oversight.bottom,
+      workers.top - oversight.bottom,
       greaterThanOrEqualTo(10),
     );
     expect(
-      tester.getRect(find.byTooltip('More')).bottom,
+      tester.getRect(find.byTooltip('Workers')).bottom,
       lessThan(tester.view.physicalSize.height - 52),
     );
   });
@@ -156,11 +141,36 @@ void main() {
         body: AdminCompactRail(
           currentIndex: 0,
           onDestinationSelected: (_) {},
-          onLogout: () {},
         ),
       ),
     ));
 
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('names every rail destination the way portrait does',
+      (tester) async {
+    tester.view.physicalSize = const Size(914, 411);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: AdminCompactRail(
+          currentIndex: 0,
+          onDestinationSelected: (_) {},
+        ),
+      ),
+    ));
+
+    for (final label in const [
+      'Dashboard',
+      'Mall',
+      'Anomalies',
+      'Oversight',
+      'Workers',
+    ]) {
+      expect(find.text(label), findsOneWidget, reason: '$label is unlabelled');
+    }
   });
 }

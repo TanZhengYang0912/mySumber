@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../../theme/tokens.dart';
+import 'tokens.dart';
 
-/// Asks the customer to explicitly confirm before ending the current session.
+/// Asks the user to explicitly confirm before ending the current session.
 Future<void> showLogoutConfirmation(
   BuildContext context, {
   required VoidCallback onConfirm,

@@ -9,15 +9,13 @@ class AdminCompactRail extends StatelessWidget {
     super.key,
     required this.currentIndex,
     required this.onDestinationSelected,
-    required this.onLogout,
   });
 
   final int currentIndex;
   final ValueChanged<int> onDestinationSelected;
-  final VoidCallback onLogout;
 
   static const _cutoutClearance = 2.0;
-  static const _destinationHeight = 36.0;
+  static const _destinationHeight = 54.0;
   static const _destinationGap = 2.0;
   static const _railTopInset = 8.0;
   static const _railBottomInset = 54.0;
@@ -28,7 +26,7 @@ class AdminCompactRail extends StatelessWidget {
     final protectedCutout = _leftRailCutout(mediaQuery);
 
     return Container(
-      width: 56,
+      width: 88,
       color: Colors.white,
       child: SafeArea(
         left: false,
@@ -52,7 +50,7 @@ class AdminCompactRail extends StatelessWidget {
               children: [
                 for (var index = 0; index < destinations.length; index++) ...[
                   Positioned(
-                    left: 6,
+                    left: 14,
                     top: tops[index],
                     child: destinations[index],
                   ),
@@ -69,7 +67,7 @@ class AdminCompactRail extends StatelessWidget {
     for (final feature in mediaQuery.displayFeatures) {
       if (feature.type != DisplayFeatureType.cutout ||
           feature.bounds.right <= 0 ||
-          feature.bounds.left >= 56) {
+          feature.bounds.left >= 88) {
         continue;
       }
 
@@ -83,31 +81,37 @@ class AdminCompactRail extends StatelessWidget {
       _RailDestination(
         icon: Icons.grid_view_outlined,
         tooltip: 'Dashboard',
+        label: 'Dashboard',
         selected: currentIndex == 0,
         onTap: () => onDestinationSelected(0),
       ),
       _RailDestination(
         icon: Icons.inventory_2_outlined,
         tooltip: 'Mall',
+        label: 'Mall',
         selected: currentIndex == 1,
         onTap: () => onDestinationSelected(1),
       ),
       _RailDestination(
         icon: Icons.notifications_outlined,
         tooltip: 'Anomalies',
+        label: 'Anomalies',
         selected: currentIndex == 2,
         onTap: () => onDestinationSelected(2),
       ),
       _RailDestination(
         icon: Icons.shield_outlined,
         tooltip: 'Oversight',
+        label: 'Oversight',
         selected: currentIndex == 3,
         onTap: () => onDestinationSelected(3),
       ),
-      _MoreRailDestination(
-        currentIndex: currentIndex,
-        onDestinationSelected: onDestinationSelected,
-        onLogout: onLogout,
+      _RailDestination(
+        icon: Icons.manage_accounts_outlined,
+        tooltip: 'Workers',
+        label: 'Workers',
+        selected: currentIndex == 4,
+        onTap: () => onDestinationSelected(4),
       ),
     ];
   }
@@ -284,81 +288,18 @@ class AdminCompactRail extends StatelessWidget {
   }
 }
 
-enum _AdminMoreAction { workers, logout }
-
-class _MoreRailDestination extends StatelessWidget {
-  const _MoreRailDestination({
-    required this.currentIndex,
-    required this.onDestinationSelected,
-    required this.onLogout,
-  });
-
-  final int currentIndex;
-  final ValueChanged<int> onDestinationSelected;
-  final VoidCallback onLogout;
-
-  @override
-  Widget build(BuildContext context) {
-    final selected = currentIndex == 4;
-    final color = selected ? AppColors.adminPrimary : AppColors.textTertiary;
-    return PopupMenuButton<_AdminMoreAction>(
-      tooltip: 'More',
-      position: PopupMenuPosition.over,
-      offset: const Offset(48, 0),
-      padding: EdgeInsets.zero,
-      onSelected: (action) {
-        switch (action) {
-          case _AdminMoreAction.workers:
-            onDestinationSelected(4);
-          case _AdminMoreAction.logout:
-            onLogout();
-        }
-      },
-      itemBuilder: (context) => [
-        PopupMenuItem(
-          value: _AdminMoreAction.workers,
-          child: _menuItem(Icons.manage_accounts_outlined, 'Workers'),
-        ),
-        PopupMenuItem(
-          value: _AdminMoreAction.logout,
-          child: _menuItem(Icons.logout_outlined, 'Logout'),
-        ),
-      ],
-      child: Container(
-        width: 44,
-        height: AdminCompactRail._destinationHeight,
-        decoration: BoxDecoration(
-          color: selected ? AppColors.adminSurface : Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        alignment: Alignment.center,
-        child: Icon(Icons.more_horiz, color: color),
-      ),
-    );
-  }
-
-  Widget _menuItem(IconData icon, String label) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 20, color: AppColors.textSecondary),
-        const SizedBox(width: 10),
-        Text(label),
-      ],
-    );
-  }
-}
-
 class _RailDestination extends StatelessWidget {
   const _RailDestination({
     required this.icon,
     required this.tooltip,
+    required this.label,
     required this.selected,
     required this.onTap,
   });
 
   final IconData icon;
   final String tooltip;
+  final String label;
   final bool selected;
   final VoidCallback onTap;
 
@@ -373,14 +314,29 @@ class _RailDestination extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(14),
           child: Container(
-            width: 44,
+            width: 60,
             height: AdminCompactRail._destinationHeight,
             decoration: BoxDecoration(
               color: selected ? AppColors.adminSurface : Colors.transparent,
               borderRadius: BorderRadius.circular(14),
             ),
-            alignment: Alignment.center,
-            child: Icon(icon, color: color),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, color: color, size: 21),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

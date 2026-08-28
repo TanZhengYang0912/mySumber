@@ -122,4 +122,36 @@ void main() {
     );
     expect(buildMallSummaries([orphan], const {}, const {}), isEmpty);
   });
+
+  MallSummary summary(String water, String electricity) => MallSummary(
+        name: 'Test Mall',
+        state: 'Selangor',
+        city: 'Petaling Jaya',
+        waterUsage: 0,
+        electricityUsage: 0,
+        waterStatus: water,
+        electricityStatus: electricity,
+        attentionCount: 0,
+        lastUpdated: null,
+        nodes: const [],
+      );
+
+  test('worstStatus takes the more severe of the two utilities', () {
+    expect(summary('Critical', 'Active').worstStatus, 'Critical');
+    expect(summary('Active', 'Critical').worstStatus, 'Critical');
+  });
+
+  test('worstStatus ranks Warning above Maintenance above Active', () {
+    expect(summary('Warning', 'Maintenance').worstStatus, 'Warning');
+    expect(summary('Maintenance', 'Active').worstStatus, 'Maintenance');
+  });
+
+  test('worstStatus returns the shared value when both agree', () {
+    expect(summary('Active', 'Active').worstStatus, 'Active');
+  });
+
+  test('worstStatus prefers Critical over Warning from either side', () {
+    expect(summary('Warning', 'Critical').worstStatus, 'Critical');
+    expect(summary('Critical', 'Warning').worstStatus, 'Critical');
+  });
 }

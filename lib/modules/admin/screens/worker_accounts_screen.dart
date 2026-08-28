@@ -7,6 +7,7 @@ import '../data/worker_repository.dart';
 import '../models/worker_account.dart';
 import '../services/admin_tablet_layout.dart';
 import '../../../theme/page_header.dart';
+import '../../../theme/responsive_filter_bar.dart';
 
 class WorkerAccountsScreen extends StatefulWidget {
   const WorkerAccountsScreen({super.key, this.repository});
@@ -132,88 +133,91 @@ class _WorkerAccountsScreenState extends State<WorkerAccountsScreen> {
         AdminLayoutMode.phoneLandscape;
     final horizontalInset =
         isPhoneLandscape ? adminLandscapeHorizontalInset : 20.0;
+    final filterBar = ResponsiveFilterBar(
+      mode: isPhoneLandscape
+          ? ResponsiveFilterBarMode.menu
+          : ResponsiveFilterBarMode.inline,
+      searchController: _search,
+      onSearchChanged: (_) => setState(() {}),
+      activeFilterCount:
+          countActiveFilters(query: _search.text, filters: const []),
+      filters: const [],
+    );
     return Scaffold(
       backgroundColor: AppColors.canvas,
-      body: RefreshIndicator(
-        onRefresh: _load,
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            _header(),
-            Padding(
-              padding: EdgeInsets.fromLTRB(
-                horizontalInset,
-                18,
-                horizontalInset,
-                0,
-              ),
-              child: TextField(
-                controller: _search,
-                onChanged: (_) => setState(() {}),
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.search),
-                  labelText: 'Search workers',
-                ),
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.fromLTRB(
-                horizontalInset,
-                18,
-                horizontalInset,
-                0,
-              ),
-              child: Text(
-                '${_workers.length} workers · $active active',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ),
-            if (_loading)
-              const Padding(
-                padding: EdgeInsets.all(28),
-                child: Center(child: CircularProgressIndicator()),
-              ),
-            if (_error != null)
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                  horizontalInset,
-                  20,
-                  horizontalInset,
-                  0,
-                ),
-                child: Text(
-                  _error!,
-                  style: const TextStyle(color: AppColors.critical),
-                ),
-              ),
-            ...visible.map((worker) => _workerCard(worker, horizontalInset)),
-            Padding(
-              padding: EdgeInsets.fromLTRB(
-                horizontalInset,
-                16,
-                horizontalInset,
-                24,
-              ),
-              child: FilledButton.icon(
-                onPressed: _addWorker,
-                icon: const Icon(Icons.add),
-                label: const Text('Add worker'),
+      body: Column(
+        children: [
+          _header(action: isPhoneLandscape ? filterBar : null),
+          if (!isPhoneLandscape) filterBar,
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _load,
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: [
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      horizontalInset,
+                      18,
+                      horizontalInset,
+                      0,
+                    ),
+                    child: Text(
+                      '${_workers.length} workers · $active active',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                  if (_loading)
+                    const Padding(
+                      padding: EdgeInsets.all(28),
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+                  if (_error != null)
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        horizontalInset,
+                        20,
+                        horizontalInset,
+                        0,
+                      ),
+                      child: Text(
+                        _error!,
+                        style: const TextStyle(color: AppColors.critical),
+                      ),
+                    ),
+                  ...visible
+                      .map((worker) => _workerCard(worker, horizontalInset)),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      horizontalInset,
+                      16,
+                      horizontalInset,
+                      24,
+                    ),
+                    child: FilledButton.icon(
+                      onPressed: _addWorker,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add worker'),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _header() {
+  Widget _header({Widget? action}) {
     return PageHeader(
       title: 'Worker Accounts',
       icon: Icons.manage_accounts_outlined,
       onLogout: () => context.read<RoleState>().logout(),
+      action: action,
     );
   }
 

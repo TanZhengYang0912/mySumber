@@ -30,6 +30,12 @@ void main() {
     expect(find.text('Import'), findsOneWidget);
 
     await tester.tap(find.text('Logout'));
+    await tester.pumpAndSettle();
+    expect(find.text('Log out?'), findsOneWidget);
+    expect(logoutCount, 0);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Log out'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Import'));
     expect(logoutCount, 1);
     expect(actionCount, 1);
@@ -225,5 +231,32 @@ void main() {
       tester.getRect(headers.at(0)).height,
       closeTo(tester.getRect(headers.at(1)).height, 0.1),
     );
+  });
+
+  testWidgets('portrait header trims its vertical padding', (tester) async {
+    tester.view.physicalSize = const Size(411, 914);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              PageHeader(
+                title: 'Anomalies',
+                icon: Icons.notifications_outlined,
+                onLogout: () {},
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.getRect(find.byType(PageHeader)).height, 112.0);
+    expect(find.text('Anomalies'), findsOneWidget);
+    expect(find.text('Logout'), findsOneWidget);
   });
 }

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -9,9 +11,19 @@ import 'package:mysumber/modules/dataset/screens/inventory_screen.dart';
 import 'package:mysumber/modules/dataset/services/inventory_filter.dart';
 import 'package:mysumber/modules/dataset/state/dataset_state.dart';
 import 'package:mysumber/theme/filter_controls.dart';
+import 'package:mysumber/theme/page_header.dart';
 import 'package:mysumber/theme/tokens.dart';
 
 void main() {
+  test('Mall Monitoring uses the shared responsive filter shell', () {
+    final source = File('lib/modules/dataset/screens/inventory_screen.dart')
+        .readAsStringSync();
+
+    expect(source, contains('ResponsiveFilterBar('));
+    expect(source, isNot(contains('LandscapeFilterMenu(')));
+    expect(source, isNot(contains('onSearchClear:')));
+  });
+
   test('seeds every configured mall with the three core equipment types',
       () async {
     final nodes = await DatasetRepository().fetchNodes();
@@ -80,13 +92,12 @@ void main() {
     );
     await tester.pump(const Duration(seconds: 1));
 
-    expect(find.text('Mall'), findsOneWidget);
-    expect(find.widgetWithText(FilterDropdown, 'State / Federal Territory'),
-        findsOneWidget);
+    expect(find.widgetWithText(PageHeader, 'Mall'), findsOneWidget);
+    expect(find.widgetWithText(FilterDropdown, 'State'), findsOneWidget);
     expect(find.text('Aman Central'), findsNothing);
   });
 
-  testWidgets('usage comparison alone renders electricity in yellow',
+  testWidgets('usage comparison renders electricity in the electricity accent',
       (tester) async {
     tester.view.physicalSize = const Size(900, 1800);
     tester.view.devicePixelRatio = 1;
@@ -109,14 +120,14 @@ void main() {
     await tester.pump();
 
     final electricityLabel = tester.widget<Text>(find.text('Top Elec. Loss'));
-    expect(electricityLabel.style?.color, AppColors.warning);
+    expect(electricityLabel.style?.color, AppColors.electricityAccent);
 
     final legendMarker = tester.widget<Container>(
       find.byKey(const ValueKey('usage-comparison-electricity-legend')),
     );
     expect(
       (legendMarker.decoration! as BoxDecoration).color,
-      AppColors.warning,
+      AppColors.electricityAccent,
     );
 
     final electricityBar = find.byKey(
@@ -127,10 +138,11 @@ void main() {
       matching: find.byType(Container),
     );
     final fill = tester.widget<Container>(fills.at(1));
-    expect((fill.decoration! as BoxDecoration).color, AppColors.warning);
+    expect(
+        (fill.decoration! as BoxDecoration).color, AppColors.electricityAccent);
 
-    expect(AppColors.electricityAccent, const Color(0xFF3B82F6));
-    expect(AppColors.electricitySurface, const Color(0xFFE0EBFB));
+    expect(AppColors.electricityAccent, const Color(0xFFEAB308));
+    expect(AppColors.electricitySurface, const Color(0xFFFEF9C3));
   });
 
   testWidgets(
@@ -152,10 +164,9 @@ void main() {
     );
     await tester.pump(const Duration(seconds: 1));
 
-    expect(find.byType(FilterDropdown), findsOneWidget);
-    expect(find.text('State / Federal Territory'), findsOneWidget);
-    expect(find.widgetWithText(FilterDropdown, 'State / Federal Territory'),
-        findsOneWidget);
+    expect(find.byType(FilterDropdown), findsNWidgets(3));
+    expect(find.text('State'), findsOneWidget);
+    expect(find.widgetWithText(FilterDropdown, 'State'), findsOneWidget);
   });
 
   testWidgets('dashboard keeps full details below its landscape summary',
@@ -285,31 +296,6 @@ void main() {
     expect(find.text('Suria KLCC'), findsNothing);
   });
 
-  testWidgets('inventory clear filters restores the default selections',
-      (tester) async {
-    tester.view.physicalSize = const Size(800, 5000);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-    final datasetState = DatasetState(repository: DatasetRepository());
-    datasetState.stateWaterSupply['Selangor'] = 0;
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: ChangeNotifierProvider<DatasetState>.value(
-          value: datasetState,
-          child: const InventoryScreen(initialState: 'Selangor'),
-        ),
-      ),
-    );
-    await tester.pump(const Duration(seconds: 1));
-
-    expect(find.text('Clear filters'), findsOneWidget);
-    await tester.tap(find.text('Clear filters'));
-    await tester.pump();
-
-    expect(find.text('All malls'), findsOneWidget);
-  });
-
   testWidgets('Mall Monitoring keeps the mall list usable in phone landscape',
       (tester) async {
     tester.view.physicalSize = const Size(914, 411);
@@ -340,8 +326,9 @@ void main() {
       ),
     );
 
-    expect(find.text('Mall'), findsOneWidget);
-    expect(find.text('State / Federal Territory'), findsOneWidget);
+    expect(find.widgetWithText(PageHeader, 'Mall'), findsOneWidget);
+    expect(find.byTooltip('Filter malls'), findsOneWidget);
+    expect(find.text('State'), findsNothing);
     expect(find.byType(FloatingActionButton), findsNothing);
   });
 
