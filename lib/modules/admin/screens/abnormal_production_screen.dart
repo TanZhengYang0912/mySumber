@@ -71,6 +71,7 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
     required Map<String, int> stateCounts,
     required Map<String, int> severityCounts,
     required Map<String, int> statusCounts,
+    required Map<String, int> utilityCounts,
     required Utility? utility,
     required ValueChanged<Utility?> onUtilityChanged,
   }) {
@@ -119,6 +120,7 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
         ),
         UtilityFilterDropdown(
           value: utility,
+          counts: utilityCounts,
           onChanged: onUtilityChanged,
         ),
       ],
@@ -147,16 +149,20 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
       );
     }
 
-    final stateAlerts = _narrow(
-        app.reviewQueue(sourceScope: AlertSourceScope.state), _stateUtility);
-    final mallAlerts = _narrow(
-        app.reviewQueue(sourceScope: AlertSourceScope.mall), _mallUtility);
+    final stateQueue = app.reviewQueue(sourceScope: AlertSourceScope.state);
+    final mallQueue = app.reviewQueue(sourceScope: AlertSourceScope.mall);
+    final householdQueue =
+        app.reviewQueue(sourceScope: AlertSourceScope.household);
+    final stateAlerts = _narrow(stateQueue, _stateUtility);
+    final mallAlerts = _narrow(mallQueue, _mallUtility);
     // Customer-submitted reports land here as pending_review alerts too, so
     // they need their own tab — without one they are raised, analysed, and
     // then invisible to everybody.
-    final householdAlerts = _narrow(
-        app.reviewQueue(sourceScope: AlertSourceScope.household),
-        _householdUtility);
+    final householdAlerts = _narrow(householdQueue, _householdUtility);
+    final stateUtilityCounts = countBy(stateQueue, (a) => a.utility.name);
+    final mallUtilityCounts = countBy(mallQueue, (a) => a.utility.name);
+    final householdUtilityCounts =
+        countBy(householdQueue, (a) => a.utility.name);
     final landscape = usesAdminCompactHeader(MediaQuery.sizeOf(context));
     final activeAlerts = _tab.index == 0
         ? stateAlerts
@@ -168,6 +174,11 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
         : _tab.index == 1
             ? _mallUtility
             : _householdUtility;
+    final activeUtilityCounts = _tab.index == 0
+        ? stateUtilityCounts
+        : _tab.index == 1
+            ? mallUtilityCounts
+            : householdUtilityCounts;
     final onActiveUtilityChanged = _tab.index == 0
         ? (Utility? utility) => setState(() => _stateUtility = utility)
         : _tab.index == 1
@@ -182,6 +193,7 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
             context,
             landscape: landscape,
             alerts: activeAlerts,
+            utilityCounts: activeUtilityCounts,
             utility: activeUtility,
             onUtilityChanged: onActiveUtilityChanged,
           ),
@@ -197,9 +209,10 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
             child: TabBarView(
               controller: _tab,
               children: [
-                _stateTab(stateAlerts, landscape),
-                _mallTab(mallAlerts, landscape),
-                _householdTab(householdAlerts, landscape),
+                _stateTab(stateAlerts, stateUtilityCounts, landscape),
+                _mallTab(mallAlerts, mallUtilityCounts, landscape),
+                _householdTab(
+                    householdAlerts, householdUtilityCounts, landscape),
               ],
             ),
           ),
@@ -212,6 +225,7 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
     BuildContext context, {
     required bool landscape,
     required List<Alert> alerts,
+    required Map<String, int> utilityCounts,
     required Utility? utility,
     required ValueChanged<Utility?> onUtilityChanged,
   }) {
@@ -230,6 +244,7 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
               stateCounts: stateCounts,
               severityCounts: severityCounts,
               statusCounts: statusCounts,
+              utilityCounts: utilityCounts,
               utility: utility,
               onUtilityChanged: onUtilityChanged,
             )
@@ -237,30 +252,48 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
     );
   }
 
-  Widget _stateTab(List<Alert> alerts, bool landscape) => _reviewWorkspace(
+  Widget _stateTab(
+    List<Alert> alerts,
+    Map<String, int> utilityCounts,
+    bool landscape,
+  ) =>
+      _reviewWorkspace(
         alerts,
         selectedId: _selectedStateAlertId,
         onSelected: (id) => setState(() => _selectedStateAlertId = id),
         utility: _stateUtility,
         onUtilityChanged: (u) => setState(() => _stateUtility = u),
+        utilityCounts: utilityCounts,
         landscape: landscape,
       );
 
-  Widget _mallTab(List<Alert> alerts, bool landscape) => _reviewWorkspace(
+  Widget _mallTab(
+    List<Alert> alerts,
+    Map<String, int> utilityCounts,
+    bool landscape,
+  ) =>
+      _reviewWorkspace(
         alerts,
         selectedId: _selectedMallAlertId,
         onSelected: (id) => setState(() => _selectedMallAlertId = id),
         utility: _mallUtility,
         onUtilityChanged: (u) => setState(() => _mallUtility = u),
+        utilityCounts: utilityCounts,
         landscape: landscape,
       );
 
-  Widget _householdTab(List<Alert> alerts, bool landscape) => _reviewWorkspace(
+  Widget _householdTab(
+    List<Alert> alerts,
+    Map<String, int> utilityCounts,
+    bool landscape,
+  ) =>
+      _reviewWorkspace(
         alerts,
         selectedId: _selectedHouseholdAlertId,
         onSelected: (id) => setState(() => _selectedHouseholdAlertId = id),
         utility: _householdUtility,
         onUtilityChanged: (u) => setState(() => _householdUtility = u),
+        utilityCounts: utilityCounts,
         landscape: landscape,
       );
 
@@ -279,6 +312,7 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
     required ValueChanged<int> onSelected,
     required Utility? utility,
     required ValueChanged<Utility?> onUtilityChanged,
+    required Map<String, int> utilityCounts,
     required bool landscape,
   }) {
     final split = usesAbnormalProductionSplitView(MediaQuery.sizeOf(context));
@@ -302,6 +336,7 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
       stateCounts: stateCounts,
       severityCounts: severityCounts,
       statusCounts: statusCounts,
+      utilityCounts: utilityCounts,
       utility: utility,
       onUtilityChanged: onUtilityChanged,
     );
@@ -418,5 +453,4 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
       ),
     );
   }
-
 }

@@ -8,17 +8,25 @@ import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
 import '../../admin/services/admin_tablet_layout.dart';
 import '../../../theme/page_header.dart';
-import '../../leakage/screens/style.dart';
 import '../../leakage/state/app_state.dart';
-import '../models/models.dart';
+import '../services/dashboard_overview.dart';
+import '../services/mall_summary.dart';
 import '../services/state_csv_import.dart';
 import '../state/dataset_state.dart';
 import '../widgets/state_csv_preview_dialog.dart';
 
+typedef _OverviewPillData = ({
+  String keyName,
+  String text,
+  Color color,
+  IconData icon,
+});
+
 class DashboardScreen extends StatefulWidget {
   final ValueChanged<String>? onStateTap;
+  final ValueChanged<int>? onOpenTab;
 
-  const DashboardScreen({super.key, this.onStateTap});
+  const DashboardScreen({super.key, this.onStateTap, this.onOpenTab});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -32,9 +40,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final _stateBarController = ScrollController();
   final _standardDashboardController = ScrollController();
   final _landscapeDashboardController = ScrollController();
-  final _fullDashboardKey = GlobalKey();
   AdminLayoutMode? _lastDashboardMode;
   double _dashboardScrollOffset = 0;
+
+  static const _mallTabIndex = 1;
+  static const _anomaliesTabIndex = 2;
 
   @override
   void initState() {
@@ -55,22 +65,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<DatasetState>();
-    final nodes = state.nodes;
-    final total = nodes.length;
-    final active = nodes.where((n) => n.status == 'Active').length;
-    final critical = nodes.where((n) => n.status == 'Critical').length;
-    final warning = total - active - critical;
-
-    final needsAttention = nodes.where(AppState.needsAttention).toList()
-      ..sort((a, b) => a.status == b.status
-          ? 0
-          : a.status == 'Critical'
-              ? -1
-              : b.status == 'Critical'
-                  ? 1
-                  : 0);
-    final priorityResults = needsAttention.take(3).toList();
-    final priority = priorityResults.isEmpty ? null : priorityResults.first;
+    final app = context.watch<AppState>();
+    final malls = mallStatusCounts(buildMallSummaries(
+      state.nodes,
+      state.latestUsageByNode,
+      state.latestUsageAtByNode,
+    ));
+    final anomalies = anomalyCounts(app.alerts);
     final mode = adminLayoutModeFor(MediaQuery.sizeOf(context));
     _syncDashboardScrollMode(mode);
 
@@ -81,12 +82,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           : mode == AdminLayoutMode.phoneLandscape
               ? _phoneLandscapeDashboard(
                   state: state,
-                  total: total,
-                  active: active,
-                  warning: warning,
-                  critical: critical,
-                  priority: priority,
-                  priorityResults: priorityResults,
+                  malls: malls,
+                  anomalies: anomalies,
                 )
               : ListView(
                   controller: _standardDashboardController,
@@ -96,16 +93,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     _header(context),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                      child:
-                          _systemOverviewCard(total, active, warning, critical),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                      child: _usageComparisonCard(state),
+                      child: _overviewCard(malls, anomalies),
                     ),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                      child: _equipmentAnomalyCard(priorityResults),
+                      child: _usageComparisonCard(state),
                     ),
                   ],
                 ),
@@ -114,85 +106,49 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _phoneLandscapeDashboard({
     required DatasetState state,
-    required int total,
-    required int active,
-    required int warning,
-    required int critical,
-    required EquipmentNode? priority,
-    required List<EquipmentNode> priorityResults,
+    required MallStatusCounts malls,
+    required AnomalyCounts anomalies,
   }) {
-    return ListView(
+    return SingleChildScrollView(
       controller: _landscapeDashboardController,
       key: const PageStorageKey('phone-landscape-dashboard'),
       padding: EdgeInsets.zero,
-      children: [
-        PageHeader(
-          title: 'Dashboard',
-          icon: Icons.grid_view_outlined,
-          compact: true,
-          onLogout: () => context.read<RoleState>().logout(),
-          action: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AdminHeaderAction(
-                icon: Icons.upload_outlined,
-                label: 'Import',
-                secondary: true,
-                onPressed: _importStateCsv,
-              ),
-              const SizedBox(width: 8),
-              Tooltip(
-                message: 'View full dashboard',
-                child: AdminHeaderAction(
-                  icon: Icons.unfold_more,
-                  label: 'View full',
-                  onPressed: _scrollToFullDashboard,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: adminLandscapeHorizontalInset,
-          ),
-          child: SizedBox(
-            height: 200,
-            child: Row(
+      child: Column(
+        children: [
+          PageHeader(
+            title: 'Dashboard',
+            icon: Icons.grid_view_outlined,
+            compact: true,
+            onLogout: () => context.read<RoleState>().logout(),
+            action: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: _landscapeStatusPanel(
-                    active: active,
-                    critical: critical,
-                    warning: warning,
-                    total: total,
-                  ),
+                AdminHeaderAction(
+                  icon: Icons.upload_outlined,
+                  label: 'Import',
+                  secondary: true,
+                  onPressed: _importStateCsv,
                 ),
-                const SizedBox(width: 14),
-                Expanded(child: _landscapePriorityPanel(priority)),
               ],
             ),
           ),
-        ),
-        const SizedBox(height: 16),
-        Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: adminLandscapeHorizontalInset,
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: adminLandscapeHorizontalInset,
+            ),
+            child: _overviewCard(malls, anomalies),
           ),
-          child: KeyedSubtree(
-            key: _fullDashboardKey,
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: adminLandscapeHorizontalInset,
+            ),
             child: _usageComparisonCard(state),
           ),
-        ),
-        const SizedBox(height: 16),
-        Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: adminLandscapeHorizontalInset,
-          ),
-          child: _equipmentAnomalyCard(priorityResults),
-        ),
-      ],
+          const SizedBox(height: 24),
+        ],
+      ),
     );
   }
 
@@ -278,187 +234,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ));
   }
 
-  void _scrollToFullDashboard() {
-    final targetContext = _fullDashboardKey.currentContext;
-    if (targetContext == null) return;
-    Scrollable.ensureVisible(
-      targetContext,
-      duration: const Duration(milliseconds: 250),
-      curve: Curves.easeOut,
-      alignment: 0,
-    );
-  }
-
-  Widget _landscapeStatusPanel({
-    required int active,
-    required int critical,
-    required int warning,
-    required int total,
-  }) {
-    return AppCard(
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SectionLabel('System health'),
-          const Spacer(),
-          Row(
-            children: [
-              Expanded(
-                child: _landscapeStat(
-                  label: 'Active',
-                  value: active,
-                  color: AppColors.success,
-                  background: AppColors.successSurface,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _landscapeStat(
-                  label: 'Critical',
-                  value: critical,
-                  color: AppColors.critical,
-                  background: AppColors.criticalSurface,
-                ),
-              ),
-            ],
-          ),
-          const Spacer(),
-          Text(
-            '$total monitored · $warning warning${warning == 1 ? '' : 's'}',
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _landscapeStat({
-    required String label,
-    required int value,
-    required Color color,
-    required Color background,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            value.toString(),
-            style: TextStyle(
-              color: color,
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _landscapePriorityPanel(EquipmentNode? priority) {
-    if (priority == null) {
-      return const AppCard(
-        child: Center(
-          child: Text(
-            'No equipment flagged for attention.',
-            style: TextStyle(color: AppColors.textSecondary),
-          ),
-        ),
-      );
-    }
-
-    final node = priority;
-    final location = [node.facilityName, node.zoneId]
-        .whereType<String>()
-        .where((value) => value.isNotEmpty)
-        .join(' · ');
-    final scoreColor = severityColor(AppState.equipmentSeverity(node.status));
-
-    return AppCard(
-      key: const ValueKey('priority-equipment'),
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SectionLabel('Priority equipment'),
-          const Spacer(),
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: scoreColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                alignment: Alignment.center,
-                child: Icon(Icons.monitor_heart_outlined, color: scoreColor),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  node.nodeName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              Text(
-                node.status,
-                style: TextStyle(
-                  color: scoreColor,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            location.isEmpty ? 'Location not linked' : location,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const Spacer(),
-          const Text(
-            'Open Mall for full equipment health.',
-            style: TextStyle(
-              color: AppColors.textTertiary,
-              fontSize: 11,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _header(BuildContext context) {
     return PageHeader(
       title: 'Dashboard',
@@ -473,50 +248,194 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _systemOverviewCard(int total, int active, int warning, int critical) {
+  Widget _overviewCard(MallStatusCounts malls, AnomalyCounts anomalies) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _overviewSectionCard(
+          rowKey: const ValueKey('overview-malls'),
+          iconKey: const ValueKey('overview-malls-icon'),
+          title: 'Mall health',
+          metric: '${malls.total} malls',
+          icon: Icons.location_city_outlined,
+          iconColor: AppColors.adminPrimary,
+          iconBackground: AppColors.adminSurface,
+          columns: 2,
+          onTap: () => widget.onOpenTab?.call(_mallTabIndex),
+          pills: [
+            (
+              keyName: 'critical',
+              text: '${malls.critical} critical',
+              color: AppColors.critical,
+              icon: Icons.error_outline,
+            ),
+            if (malls.warning > 0)
+              (
+                keyName: 'warning',
+                text: '${malls.warning} warning',
+                color: AppColors.warning,
+                icon: Icons.warning_amber_outlined,
+              ),
+            (
+              keyName: 'maintenance',
+              text: '${malls.maintenance} maintenance',
+              color: AppColors.textSecondary,
+              icon: Icons.build_outlined,
+            ),
+            (
+              keyName: 'active',
+              text: '${malls.active} active',
+              color: AppColors.success,
+              icon: Icons.check_circle_outline,
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _overviewSectionCard(
+          rowKey: const ValueKey('overview-anomalies'),
+          iconKey: const ValueKey('overview-anomalies-icon'),
+          title: 'Anomaly queue',
+          metric: '${anomalies.toReview} to review',
+          icon: Icons.notifications_none_outlined,
+          iconColor: AppColors.waterAccent,
+          iconBackground: AppColors.waterSurface,
+          columns: 3,
+          onTap: () => widget.onOpenTab?.call(_anomaliesTabIndex),
+          pills: [
+            (
+              keyName: 'ongoing',
+              text: '${anomalies.ongoing} ongoing',
+              color: AppColors.waterAccent,
+              icon: Icons.schedule_outlined,
+            ),
+            (
+              keyName: 'resolved',
+              text: '${anomalies.resolved} resolved',
+              color: AppColors.success,
+              icon: Icons.check_circle_outline,
+            ),
+            (
+              keyName: 'rejected',
+              text: '${anomalies.rejected} rejected',
+              color: AppColors.textSecondary,
+              icon: Icons.block_outlined,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _overviewSectionCard({
+    required Key rowKey,
+    required Key iconKey,
+    required String title,
+    required String metric,
+    required IconData icon,
+    required Color iconColor,
+    required Color iconBackground,
+    required int columns,
+    required List<_OverviewPillData> pills,
+    required VoidCallback onTap,
+  }) {
     return AppCard(
-      child: Row(
+      key: rowKey,
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: StatCell(
-              icon: Icons.dns_outlined,
-              iconColor: AppColors.textPrimary,
-              value: total.toString(),
-              label: 'Total',
-              background: const Color(0xFFF3F4F6),
+          Row(
+            children: [
+              Container(
+                key: iconKey,
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: iconBackground,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: iconColor, size: 24),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right,
+                color: AppColors.textTertiary,
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            metric,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
             ),
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: StatCell(
-              icon: Icons.monitor_heart_outlined,
-              iconColor: AppColors.success,
-              value: active.toString(),
-              label: 'Active',
-              background: AppColors.successSurface,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: StatCell(
-              icon: Icons.warning_amber_outlined,
-              iconColor: AppColors.warning,
-              value: warning.toString(),
-              label: 'Warning',
-              background: AppColors.warningSurface,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: StatCell(
-              icon: Icons.dns_outlined,
-              iconColor: AppColors.critical,
-              value: critical.toString(),
-              label: 'Critical',
-              background: AppColors.criticalSurface,
-            ),
-          ),
+          const SizedBox(height: 12),
+          _overviewPillGrid(pills: pills, columns: columns),
         ],
+      ),
+    );
+  }
+
+  Widget _overviewPillGrid({
+    required List<_OverviewPillData> pills,
+    required int columns,
+  }) {
+    const gap = 8.0;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (final pill in pills)
+              SizedBox(width: width, child: _overviewStatusPill(pill)),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _overviewStatusPill(_OverviewPillData pill) {
+    return Container(
+      key: ValueKey('overview-pill-${pill.keyName}'),
+      height: 38,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: pill.color),
+      ),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(pill.icon, size: 16, color: pill.color),
+            const SizedBox(width: 6),
+            Text(
+              pill.text,
+              style: TextStyle(
+                color: pill.color,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -973,74 +892,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 fontSize: 13,
                 color: AppColors.textSecondary,
                 fontWeight: FontWeight.w500)),
-      ],
-    );
-  }
-
-  Widget _equipmentAnomalyCard(List<EquipmentNode> results) {
-    if (results.isEmpty) {
-      return AppCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            SectionLabel('ANOMALY WATCH'),
-            SizedBox(height: 12),
-            Text(
-              'No equipment flagged for attention.',
-              style: TextStyle(color: AppColors.textSecondary),
-            ),
-          ],
-        ),
-      );
-    }
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SectionLabel('ANOMALY WATCH'),
-          const SizedBox(height: 8),
-          for (int i = 0; i < results.length; i++) ...[
-            if (i > 0) const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: _anomalyWatchRow(results[i]),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _anomalyWatchRow(EquipmentNode node) {
-    final color = severityColor(AppState.equipmentSeverity(node.status));
-    return Row(
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            node.nodeName,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          node.status,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w800,
-            color: color,
-          ),
-        ),
       ],
     );
   }

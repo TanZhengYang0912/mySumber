@@ -272,67 +272,6 @@ class AppCard extends StatelessWidget {
   }
 }
 
-/// Big-number stat cell used in "System Overview" and similar rows.
-class StatCell extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final String value;
-  final String label;
-  final Color? background;
-  final bool compact;
-
-  const StatCell({
-    super.key,
-    required this.icon,
-    required this.iconColor,
-    required this.value,
-    required this.label,
-    this.background,
-    this.compact = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: compact ? 76 : null,
-      padding: EdgeInsets.symmetric(
-        vertical: compact ? 6 : 14,
-        horizontal: 8,
-      ),
-      decoration: BoxDecoration(
-        color: background ?? const Color(0xFFF3F4F6),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Icon(icon, color: iconColor, size: compact ? 16 : 20),
-          SizedBox(height: compact ? 4 : 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: compact ? 22 : 26,
-              fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
-              height: 1.0,
-            ),
-          ),
-          SizedBox(height: compact ? 2 : 4),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: compact ? 11 : 12,
-              color: AppColors.textSecondary,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// Sits over an outlined AppBar-shaped area on the header, e.g. the "Import"
 /// pill on the Admin Equipment header or the "Logout" text button.
 Widget headerActionButton({

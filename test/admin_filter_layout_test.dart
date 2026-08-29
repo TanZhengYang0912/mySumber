@@ -78,6 +78,43 @@ void main() {
     expect(find.byType(FilterDropdown), findsNWidgets(4));
   });
 
+  testWidgets('Anomaly utility counts survive selecting Water', (tester) async {
+    tester.view.physicalSize = const Size(412, 915);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AppState>.value(
+        value: _ReadyAppState(
+          repository,
+          alerts: [
+            _filterAlert(1, utilityType: 'water'),
+            _filterAlert(
+              2,
+              utilityType: 'electricity',
+              alertType: AlertType.electricityHotspot,
+            ),
+          ],
+        ),
+        child: const MaterialApp(home: AbnormalProductionScreen()),
+      ),
+    );
+
+    var utility = tester.widget<UtilityFilterDropdown>(
+      find.byType(UtilityFilterDropdown).first,
+    );
+    expect(utility.counts, {'water': 1, 'electricity': 1});
+
+    utility.onChanged(Utility.water);
+    await tester.pump();
+
+    utility = tester.widget<UtilityFilterDropdown>(
+      find.byType(UtilityFilterDropdown).first,
+    );
+    expect(utility.value, Utility.water);
+    expect(utility.counts, {'water': 1, 'electricity': 1});
+  });
+
   testWidgets('Mall opens its state filter from the landscape menu',
       (tester) async {
     tester.view.physicalSize = const Size(914, 411);
@@ -118,6 +155,57 @@ void main() {
     expect(firstCardTop - headerBottom, 16);
   });
 
+  testWidgets('Mall keeps only State and Status filters with mall counts',
+      (tester) async {
+    tester.view.physicalSize = const Size(412, 915);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final datasetState = _StaticDatasetState()
+      ..nodes = const [
+        EquipmentNode(
+          nodeName: 'Pump A',
+          utilityType: 'Water',
+          zoneId: 'Selangor',
+          facilityName: 'Mall A',
+          status: 'Active',
+        ),
+        EquipmentNode(
+          nodeName: 'Pump B',
+          utilityType: 'Water',
+          zoneId: 'Selangor',
+          facilityName: 'Mall B',
+          status: 'Critical',
+        ),
+        EquipmentNode(
+          nodeName: 'Pump C',
+          utilityType: 'Water',
+          zoneId: 'Johor',
+          facilityName: 'Mall C',
+          status: 'Maintenance',
+        ),
+      ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChangeNotifierProvider<DatasetState>.value(
+          value: datasetState,
+          child: const InventoryScreen(),
+        ),
+      ),
+    );
+
+    final dropdowns = tester.widgetList<FilterDropdown>(
+      find.byType(FilterDropdown),
+    );
+    expect(dropdowns.map((dropdown) => dropdown.caption), ['State', 'Status']);
+    expect(dropdowns.first.counts, {'Selangor': 2, 'Johor': 1});
+    expect(dropdowns.last.counts, {
+      'Active': 1,
+      'Critical': 1,
+      'Maintenance': 1,
+    });
+  });
+
   testWidgets('Worker Accounts searches with the shared filter field',
       (tester) async {
     tester.view.physicalSize = const Size(411, 914);
@@ -154,7 +242,7 @@ class _EmptyWorkerRepository extends WorkerRepository {
 }
 
 class _ReadyAppState extends AppState {
-  _ReadyAppState(LeakageRepository repository)
+  _ReadyAppState(LeakageRepository repository, {this.alerts = const []})
       : super(
           baseline: BaselineService(),
           nrw: NrwService(),
@@ -169,8 +257,32 @@ class _ReadyAppState extends AppState {
   bool get loading => false;
 
   @override
-  List<Alert> reviewQueue({String? sourceScope}) => const [];
+  final List<Alert> alerts;
+
+  @override
+  List<Alert> reviewQueue({String? sourceScope}) => alerts
+      .where((alert) => sourceScope == null || alert.sourceScope == sourceScope)
+      .toList();
 }
+
+Alert _filterAlert(
+  int id, {
+  required String utilityType,
+  String alertType = AlertType.nrwHotspot,
+}) =>
+    Alert(
+      id: id,
+      alertType: alertType,
+      sourceScope: AlertSourceScope.state,
+      utilityType: utilityType,
+      state: 'Selangor',
+      detectedAt: DateTime(2026, 8, 28),
+      signature: 'Test anomaly',
+      severity: Severity.high,
+      explanation: 'Test anomaly',
+      status: AlertStatus.pendingReview,
+      aiGeneratedAt: DateTime(2026, 8, 28),
+    );
 
 class _StaticDatasetState extends DatasetState {
   _StaticDatasetState() : super(repository: DatasetRepository());

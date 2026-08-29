@@ -210,39 +210,6 @@ class UtilityFilterDropdown extends StatelessWidget {
   }
 }
 
-/// A row of [StatCell]s. Landscape pins them to a fixed width and centres the
-/// row; portrait shares the width evenly.
-class SummaryRow extends StatelessWidget {
-  final List<Widget> cells;
-  final bool compact;
-
-  const SummaryRow({super.key, required this.cells, this.compact = false});
-
-  @override
-  Widget build(BuildContext context) {
-    if (compact) {
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          for (var index = 0; index < cells.length; index++) ...[
-            if (index > 0) const SizedBox(width: 10),
-            SizedBox(width: 164, child: cells[index]),
-          ],
-        ],
-      );
-    }
-
-    return Row(
-      children: [
-        for (var index = 0; index < cells.length; index++) ...[
-          if (index > 0) const SizedBox(width: 10),
-          Expanded(child: cells[index]),
-        ],
-      ],
-    );
-  }
-}
-
 /// The small red count that rides next to a tab label.
 class CountBadge extends StatelessWidget {
   final int count;

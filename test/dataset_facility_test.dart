@@ -1,15 +1,24 @@
 import 'dart:io';
 
+import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:mysumber/core/local_database/cache_status.dart';
+import 'package:mysumber/core/local_database/local_database.dart';
 import 'package:mysumber/modules/dataset/data/dataset_repository.dart';
 import 'package:mysumber/modules/dataset/models/models.dart';
 import 'package:mysumber/modules/dataset/screens/dashboard_screen.dart';
 import 'package:mysumber/modules/dataset/screens/inventory_screen.dart';
 import 'package:mysumber/modules/dataset/services/inventory_filter.dart';
 import 'package:mysumber/modules/dataset/state/dataset_state.dart';
+import 'package:mysumber/modules/leakage/data/leakage_repository.dart';
+import 'package:mysumber/modules/leakage/models/alert.dart';
+import 'package:mysumber/modules/leakage/services/baseline_service.dart';
+import 'package:mysumber/modules/leakage/services/nrw_service.dart';
+import 'package:mysumber/modules/leakage/services/simulation_service.dart';
+import 'package:mysumber/modules/leakage/state/app_state.dart';
 import 'package:mysumber/theme/filter_controls.dart';
 import 'package:mysumber/theme/page_header.dart';
 import 'package:mysumber/theme/tokens.dart';
@@ -109,14 +118,7 @@ void main() {
       ..stateElectricitySupply['Selangor'] = 9000
       ..stateElectricityConsumption['Selangor'] = 2000;
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: ChangeNotifierProvider<DatasetState>.value(
-          value: datasetState,
-          child: const DashboardScreen(),
-        ),
-      ),
-    );
+    await tester.pumpWidget(_dashboard(datasetState, addTearDown));
     await tester.pump();
 
     final electricityLabel = tester.widget<Text>(find.text('Top Elec. Loss'));
@@ -146,7 +148,7 @@ void main() {
   });
 
   testWidgets(
-      'Mall Monitoring keeps its state filter labelled outside the border',
+      'Mall Monitoring keeps State and Status labelled outside the border',
       (tester) async {
     tester.view.physicalSize = const Size(800, 1600);
     tester.view.devicePixelRatio = 1;
@@ -164,13 +166,13 @@ void main() {
     );
     await tester.pump(const Duration(seconds: 1));
 
-    expect(find.byType(FilterDropdown), findsNWidgets(3));
+    expect(find.byType(FilterDropdown), findsNWidgets(2));
     expect(find.text('State'), findsOneWidget);
+    expect(find.text('Status'), findsOneWidget);
     expect(find.widgetWithText(FilterDropdown, 'State'), findsOneWidget);
   });
 
-  testWidgets('dashboard keeps full details below its landscape summary',
-      (tester) async {
+  testWidgets('dashboard keeps its overview card in landscape', (tester) async {
     tester.view.physicalSize = const Size(914, 411);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -191,26 +193,20 @@ void main() {
         ),
       ];
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: ChangeNotifierProvider<DatasetState>.value(
-          value: datasetState,
-          child: const DashboardScreen(),
-        ),
-      ),
-    );
+    await tester.pumpWidget(_dashboard(datasetState, addTearDown));
 
     expect(
       find.byKey(const PageStorageKey('phone-landscape-dashboard')),
       findsOneWidget,
     );
-    expect(find.byKey(const ValueKey('priority-equipment')), findsOneWidget);
+    expect(find.byKey(const ValueKey('overview-malls')), findsOneWidget);
+    expect(find.byKey(const ValueKey('overview-anomalies')), findsOneWidget);
     expect(find.text('Usage Comparison'), findsOneWidget);
-    expect(find.byTooltip('View full dashboard'), findsOneWidget);
+    expect(find.byTooltip('View full dashboard'), findsNothing);
 
     final panels = find.byType(AppCard);
     expect(tester.getRect(panels.at(0)).left, 16);
-    expect(tester.getRect(panels.at(1)).left, greaterThan(16));
+    expect(tester.getRect(panels.at(1)).left, 16);
   });
 
   test('filters Selangor to its nine equipment nodes', () async {
@@ -371,4 +367,106 @@ class _StaticDatasetState extends DatasetState {
 
   @override
   Future<void> loadNodes() async {}
+}
+
+Widget _dashboard(
+  DatasetState dataset,
+  void Function(Future<void> Function()) addTearDown,
+) {
+  final database = LocalDatabase.forTesting(NativeDatabase.memory());
+  addTearDown(database.close);
+  final repository = LeakageRepository.withRemote(
+    remote: _UnusedLeakageRemote(),
+    database: database,
+    cacheStatus: CacheStatus(),
+  );
+
+  return MaterialApp(
+    home: MultiProvider(
+      providers: [
+        ChangeNotifierProvider<DatasetState>.value(value: dataset),
+        ChangeNotifierProvider<AppState>.value(
+          value: _ReadyAppState(repository),
+        ),
+      ],
+      child: const DashboardScreen(),
+    ),
+  );
+}
+
+class _ReadyAppState extends AppState {
+  _ReadyAppState(LeakageRepository repository)
+      : super(
+          baseline: BaselineService(),
+          nrw: NrwService(),
+          repository: repository,
+          simulation: SimulationService(
+            baseline: BaselineService(),
+            repository: repository,
+          ),
+        );
+
+  @override
+  bool get loading => false;
+
+  @override
+  List<Alert> get alerts => const [];
+}
+
+class _UnusedLeakageRemote implements LeakageRemoteStore {
+  Never _unsupported() =>
+      throw UnimplementedError('Not used by this widget test.');
+
+  @override
+  Future<Map<String, Object?>> insertAlert(Map<String, Object?> row) async =>
+      _unsupported();
+
+  @override
+  Future<Map<String, Object?>> insertReading(Map<String, Object?> row) async =>
+      _unsupported();
+
+  @override
+  Future<Map<String, Object?>> insertReport(Map<String, Object?> row) async =>
+      _unsupported();
+
+  @override
+  Future<Map<String, Object?>?> alertById(int id) async => _unsupported();
+
+  @override
+  Future<List<Map<String, Object?>>> alerts({
+    required bool includeDismissed,
+  }) async =>
+      _unsupported();
+
+  @override
+  Future<List<Map<String, Object?>>> readings() async => _unsupported();
+
+  @override
+  Future<List<Map<String, Object?>>> reports({
+    required bool includeDeleted,
+  }) async =>
+      _unsupported();
+
+  @override
+  Future<Map<String, Object?>> setReportDeleted(int id, bool isDeleted) async =>
+      _unsupported();
+
+  @override
+  Future<Map<String, Object?>> updateAlertLocation({
+    required int id,
+    String? equipmentNodeId,
+    String? facilityName,
+    String? facilityCity,
+    String? equipmentName,
+  }) async =>
+      _unsupported();
+
+  @override
+  Future<Map<String, Object?>> updateAlertStatus(
+    int id,
+    String status, {
+    String? handledBy,
+    String? handledById,
+  }) async =>
+      _unsupported();
 }

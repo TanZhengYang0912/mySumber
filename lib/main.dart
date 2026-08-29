@@ -284,7 +284,10 @@ class _AppShellState extends State<AppShell> {
     switch (widget.userRole) {
       case 'admin':
         _screens = [
-          DashboardScreen(onStateTap: _openInventoryForState),
+          DashboardScreen(
+            onStateTap: _openInventoryForState,
+            onOpenTab: (index) => setState(() => _currentIndex = index),
+          ),
           InventoryScreen(),
           const AbnormalProductionScreen(),
           const OversightScreen(),

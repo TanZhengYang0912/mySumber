@@ -632,22 +632,62 @@ class _AlertDecisionBarState extends State<AlertDecisionBar> {
     if (!AppState.awaitingDecision(widget.alert)) {
       return const SizedBox.shrink();
     }
-    return Row(children: [
-      Expanded(
-        child: OutlinedButton(
-          onPressed: _busy ? null : () => _decide(approve: false),
-          child: const Text('Fault'),
+    return Column(
+      key: const ValueKey('alert-decision-panel'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text(
+          'Review decision',
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+          ),
         ),
-      ),
-      const SizedBox(width: 10),
-      Expanded(
-        child: FilledButton(
-          onPressed: _busy ? null : () => _decide(approve: true),
-          style:
-              FilledButton.styleFrom(backgroundColor: AppColors.adminPrimary),
-          child: const Text('Approve to Worker queue'),
+        const SizedBox(height: 3),
+        const Text(
+          'Approve sends this anomaly to the Worker queue.',
+          style: TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 12,
+          ),
         ),
-      ),
-    ]);
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: SizedBox(
+                height: 48,
+                child: OutlinedButton.icon(
+                  onPressed: _busy ? null : () => _decide(approve: false),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.critical,
+                    side: const BorderSide(color: AppColors.critical),
+                  ),
+                  icon: const Icon(Icons.warning_amber_outlined, size: 18),
+                  label: const Text('Mark as fault'),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: SizedBox(
+                height: 48,
+                child: FilledButton.icon(
+                  onPressed: _busy ? null : () => _decide(approve: true),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.adminPrimary,
+                    foregroundColor: Colors.white,
+                  ),
+                  icon: const Icon(Icons.check, size: 18),
+                  label: const Text('Approve'),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 }

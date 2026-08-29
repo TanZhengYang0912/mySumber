@@ -9,6 +9,8 @@ import '../services/admin_tablet_layout.dart';
 import '../../../theme/page_header.dart';
 import '../../../theme/responsive_filter_bar.dart';
 
+typedef _WorkerInviteDraft = ({String fullName, String email});
+
 class WorkerAccountsScreen extends StatefulWidget {
   const WorkerAccountsScreen({super.key, this.repository});
 
@@ -58,53 +60,45 @@ class _WorkerAccountsScreenState extends State<WorkerAccountsScreen> {
   }
 
   Future<void> _addWorker() async {
-    final name = TextEditingController();
-    final email = TextEditingController();
-    final submit = await showDialog<bool>(
+    final draft = await showDialog<_WorkerInviteDraft>(
       context: context,
-      builder: (context) => AlertDialog(
-        scrollable: true,
-        title: const Text('Add worker'),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(
-              controller: name,
-              decoration: const InputDecoration(labelText: 'Full name')),
-          const SizedBox(height: 12),
-          TextField(
-              controller: email,
-              decoration: const InputDecoration(labelText: 'Work email')),
-        ]),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Send invite')),
-        ],
-      ),
+      builder: (_) => const _WorkerInviteDialog(),
     );
-    if (submit != true ||
-        name.text.trim().isEmpty ||
-        !email.text.contains('@')) {
+    if (draft == null) return;
+    final fullName = draft.fullName;
+    final workEmail = draft.email;
+    if (fullName.isEmpty) {
+      _showInviteMessage("Enter the worker's full name.");
+      return;
+    }
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(workEmail)) {
+      _showInviteMessage('Enter a valid work email.');
       return;
     }
     try {
       await _repository.manage(
-          action: 'create',
-          fullName: name.text.trim(),
-          email: email.text.trim());
+          action: 'create', fullName: fullName, email: workEmail);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(
-              'Worker invited. They can log in with ${email.text.trim()} as both the username and starter password, and will be asked to set a new one.')));
+              'Worker invited. They can log in with $workEmail as both the username and starter password, and will be asked to set a new one.')));
       await _load();
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Could not invite worker')));
-      }
+      final error = e.toString().toLowerCase();
+      final duplicate = error.contains('already exists') ||
+          error.contains('already registered') ||
+          error.contains('duplicate');
+      _showInviteMessage(duplicate
+          ? 'A worker account with this email already exists.'
+          : 'Could not invite worker. Check your connection and try again.');
     }
+  }
+
+  void _showInviteMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   Future<void> _toggle(WorkerAccount worker) async {
@@ -246,6 +240,61 @@ class _WorkerAccountsScreenState extends State<WorkerAccountsScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _WorkerInviteDialog extends StatefulWidget {
+  const _WorkerInviteDialog();
+
+  @override
+  State<_WorkerInviteDialog> createState() => _WorkerInviteDialogState();
+}
+
+class _WorkerInviteDialogState extends State<_WorkerInviteDialog> {
+  final _name = TextEditingController();
+  final _email = TextEditingController();
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _email.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      scrollable: true,
+      title: const Text('Add worker'),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(
+          controller: _name,
+          decoration: const InputDecoration(labelText: 'Full name'),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _email,
+          keyboardType: TextInputType.emailAddress,
+          decoration: const InputDecoration(labelText: 'Work email'),
+        ),
+      ]),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop<_WorkerInviteDraft>(
+            context,
+            (
+              fullName: _name.text.trim(),
+              email: _email.text.trim().toLowerCase(),
+            ),
+          ),
+          child: const Text('Send invite'),
+        ),
+      ],
     );
   }
 }

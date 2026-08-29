@@ -23,7 +23,6 @@ class InventoryScreen extends StatefulWidget {
 
 class _InventoryScreenState extends State<InventoryScreen> {
   late String _selectedState;
-  String _selectedMall = 'All';
   String _selectedStatus = 'All';
   final _searchController = TextEditingController();
   String _searchQuery = '';
@@ -57,7 +56,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
       if (_selectedState != 'All' && mall.state != _selectedState) {
         return false;
       }
-      if (_selectedMall != 'All' && mall.name != _selectedMall) return false;
       if (_selectedStatus != 'All' && mall.worstStatus != _selectedStatus) {
         return false;
       }
@@ -123,7 +121,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
     List<MallSummary> allMalls, {
     required bool landscape,
   }) {
-    final mallNames = allMalls.map((m) => m.name).toSet().toList()..sort();
+    final stateCounts = countBy(allMalls, (mall) => mall.state);
+    final statusCounts = countBy(allMalls, (mall) => mall.worstStatus);
     return ResponsiveFilterBar(
       mode: landscape
           ? ResponsiveFilterBarMode.menu
@@ -135,7 +134,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
         query: _searchQuery,
         filters: [
           _selectedState != 'All',
-          _selectedMall != 'All',
           _selectedStatus != 'All',
         ],
       ),
@@ -145,20 +143,15 @@ class _InventoryScreenState extends State<InventoryScreen> {
           value: _selectedState == 'All' ? null : _selectedState,
           allLabel: 'All',
           options: stateOptions.where((state) => state != 'All').toList(),
+          counts: stateCounts,
           onChanged: (value) => setState(() => _selectedState = value ?? 'All'),
-        ),
-        FilterDropdown(
-          caption: 'Mall',
-          value: _selectedMall == 'All' ? null : _selectedMall,
-          allLabel: 'All',
-          options: mallNames,
-          onChanged: (value) => setState(() => _selectedMall = value ?? 'All'),
         ),
         FilterDropdown(
           caption: 'Status',
           value: _selectedStatus == 'All' ? null : _selectedStatus,
           allLabel: 'All',
           options: const ['Critical', 'Warning', 'Maintenance', 'Active'],
+          counts: statusCounts,
           onChanged: (value) =>
               setState(() => _selectedStatus = value ?? 'All'),
         ),

@@ -1,7 +1,8 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:mysumber/modules/leakage/models/alert.dart';
-import 'package:mysumber/modules/leakage/screens/alert_detail_screen.dart';
+import 'package:mysumber/modules/leakage/screens/style.dart';
 
 Alert _alert({
   String? aiSummary,
@@ -29,28 +30,43 @@ Alert _alert({
       aiGeneratedAt: aiGeneratedAt,
     );
 
+Future<void> _pumpReadOnlyAi(WidgetTester tester, Alert alert) {
+  return tester.pumpWidget(
+    MaterialApp(
+      home: Scaffold(
+        body: SingleChildScrollView(
+          child: AiAnalysisCard(alert: alert, canGenerate: false),
+        ),
+      ),
+    ),
+  );
+}
+
 void main() {
-  // Household alerts only summarise the resident's message — the edge
-  // function deliberately writes no cause, severity or confidence for them,
-  // while hasAiAnalysis only requires summary + recommendation + timestamp.
-  // Anything rendering those three fields must treat them as optional.
-  test('a household alert renders only the rows it actually has', () {
+  testWidgets('household AI renders only saved optional fields, read-only',
+      (tester) async {
     final alert = _alert(
       aiSummary: 'Resident reports water pooling under the kitchen sink.',
       aiRecommendation: 'Send a worker to inspect the sink trap.',
       aiGeneratedAt: DateTime(2026, 8, 20, 9),
     );
 
+    await _pumpReadOnlyAi(tester, alert);
+
     expect(alert.hasAiAnalysis, isTrue);
-
-    final rows = workerAiRows(alert);
-
-    expect(rows.map((r) => r.label), ['Summary', 'Recommendation']);
-    expect(rows.first.value,
-        'Resident reports water pooling under the kitchen sink.');
+    expect(find.text('Resident reports water pooling under the kitchen sink.'),
+        findsOneWidget);
+    expect(
+        find.text('Send a worker to inspect the sink trap.'), findsOneWidget);
+    expect(find.text('Possible Cause'), findsNothing);
+    expect(find.text('AI Severity Assessment'), findsNothing);
+    expect(find.text('Generate AI Analysis'), findsNothing);
+    expect(find.text('Regenerate AI Analysis'), findsNothing);
+    expect(find.text('Retry AI Analysis'), findsNothing);
   });
 
-  test('a fully analysed alert still renders every row', () {
+  testWidgets('fully analysed alert renders every saved AI field',
+      (tester) async {
     final alert = _alert(
       aiSummary: 'Night flow stays high after midnight.',
       aiPossibleCause: 'Continuous leak on the distribution main.',
@@ -60,16 +76,17 @@ void main() {
       aiGeneratedAt: DateTime(2026, 8, 20, 9),
     );
 
-    final rows = workerAiRows(alert);
+    await _pumpReadOnlyAi(tester, alert);
 
+    expect(find.text('Possible Cause'), findsOneWidget);
     expect(
-      rows.map((r) => r.label),
-      ['Summary', 'Possible cause', 'Recommendation', 'Confidence'],
-    );
-    expect(rows.last.value, '82%');
+        find.text('Continuous leak on the distribution main.'), findsOneWidget);
+    expect(find.text('AI Severity Assessment'), findsOneWidget);
+    expect(find.text('High · 82% confidence'), findsOneWidget);
+    expect(find.text('System Recommendation'), findsOneWidget);
   });
 
-  test('a severity assessment without a confidence is not rendered', () {
+  testWidgets('severity without confidence is omitted', (tester) async {
     final alert = _alert(
       aiSummary: 'Night flow stays high after midnight.',
       aiRecommendation: 'Dispatch a leak detection crew.',
@@ -77,8 +94,9 @@ void main() {
       aiGeneratedAt: DateTime(2026, 8, 20, 9),
     );
 
-    final rows = workerAiRows(alert);
+    await _pumpReadOnlyAi(tester, alert);
 
-    expect(rows.map((r) => r.label), ['Summary', 'Recommendation']);
+    expect(find.text('AI Severity Assessment'), findsNothing);
+    expect(find.text('High · 0% confidence'), findsNothing);
   });
 }
