@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../theme/app_tab_bar.dart';
 import '../../../theme/filter_controls.dart';
-import '../../../theme/landscape_filter_menu.dart';
 import '../../../theme/page_header.dart';
+import '../../../theme/responsive_filter_bar.dart';
 import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
 import '../models/alert.dart';
@@ -59,8 +60,6 @@ class _AlertQueueScreenState extends State<AlertQueueScreen>
 
   bool get _isWater => widget.utility == Utility.water;
 
-  void _clearFilters() => setState(_resetFilters);
-
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
@@ -111,71 +110,31 @@ class _AlertQueueScreenState extends State<AlertQueueScreen>
                 : Icons.electric_bolt_outlined,
             onLogout: () => context.read<RoleState>().logout(),
             action: landscape
-                ? LandscapeFilterMenu(
-                    compact: true,
-                    tooltip: 'Filter alerts',
-                    activeCount: activeAlertFilterCount(
-                      query: _search.text,
-                      severity: _severity,
-                      state: _selectedState,
-                      status: _status,
-                    ),
-                    footer: TextButton(
-                      onPressed: _clearFilters,
-                      child: const Text('Clear'),
-                    ),
-                    child: _filters(
-                      allStates,
-                      unresolvedAll,
-                      resolvedAll,
-                      query,
-                      chromeless: true,
-                    ),
+                ? _filters(
+                    allStates,
+                    unresolvedAll,
+                    resolvedAll,
+                    query,
+                    landscape: true,
                   )
                 : null,
           ),
-          Container(
-            color: Colors.white,
-            child: TabBar(
-              controller: _tabController,
-              labelColor: AppColors.workerPrimary,
-              unselectedLabelColor: AppColors.textSecondary,
-              indicatorColor: AppColors.workerPrimary,
-              indicatorWeight: 3,
-              labelStyle:
-                  const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-              tabs: [
-                Tab(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text('Unresolved'),
-                        const SizedBox(width: 6),
-                        CountBadge(unresolvedAll.length),
-                      ],
-                    ),
-                  ),
-                ),
-                Tab(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text('Resolved'),
-                        const SizedBox(width: 6),
-                        CountBadge(resolvedAll.length),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
+          AppTabBar(
+            controller: _tabController,
+            accent: AppColors.workerPrimary,
+            tabs: [
+              (label: 'Unresolved', count: unresolvedAll.length),
+              (label: 'Resolved', count: resolvedAll.length),
+            ],
           ),
           if (!landscape)
-            _filters(allStates, unresolvedAll, resolvedAll, query),
+            _filters(
+              allStates,
+              unresolvedAll,
+              resolvedAll,
+              query,
+              landscape: false,
+            ),
           Expanded(
             child: TabBarView(
               controller: _tabController,
@@ -196,9 +155,13 @@ class _AlertQueueScreenState extends State<AlertQueueScreen>
     AlertStatus.notFixed,
   ];
 
-  Widget _filters(List<String> states, List<Alert> unresolvedAll,
-      List<Alert> resolvedAll, String query,
-      {bool chromeless = false}) {
+  Widget _filters(
+    List<String> states,
+    List<Alert> unresolvedAll,
+    List<Alert> resolvedAll,
+    String query, {
+    required bool landscape,
+  }) {
     final showStatus = _tabController.index == 0;
     final tabBase = showStatus ? unresolvedAll : resolvedAll;
 
@@ -234,43 +197,51 @@ class _AlertQueueScreenState extends State<AlertQueueScreen>
         ? countBy(excluding(status: false), (a) => a.status)
         : const <String, int>{};
 
-    final bar = AlertFilterBar(
+    return ResponsiveFilterBar(
+      mode: landscape
+          ? ResponsiveFilterBarMode.menu
+          : ResponsiveFilterBarMode.inline,
       searchController: _search,
       onSearchChanged: (_) => setState(() {}),
-      onSearchClear: _clearFilters,
       accent: AppColors.workerPrimary,
-      selectedState: _selectedState == 'all' ? null : _selectedState,
-      states: states,
-      stateCounts: stateCounts,
-      onStateChanged: (v) => setState(() => _selectedState = v ?? 'all'),
-      selectedSeverity: _severity == 'all' ? null : _severity,
-      severityCounts: severityCounts,
-      onSeverityChanged: (v) => setState(() => _severity = v ?? 'all'),
-      selectedStatus: showStatus ? (_status == 'all' ? null : _status) : null,
-      statusOptions: showStatus ? _queueStatuses : null,
-      statusCounts: showStatus ? statusCounts : null,
-      onStatusChanged:
-          showStatus ? (v) => setState(() => _status = v ?? 'all') : null,
-    );
-
-    if (chromeless) return bar;
-
-    return Container(
-      color: AppColors.surface,
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          bar,
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: _clearFilters,
-              child: const Text('Clear filters'),
-            ),
-          ),
+      menuTooltip: 'Filter alerts',
+      activeFilterCount: countActiveFilters(
+        query: _search.text,
+        filters: [
+          _selectedState != 'all',
+          _severity != 'all',
+          if (showStatus) _status != 'all',
         ],
       ),
+      filters: [
+        FilterDropdown(
+          caption: 'State',
+          value: _selectedState == 'all' ? null : _selectedState,
+          allLabel: 'All',
+          options: states,
+          counts: stateCounts,
+          onChanged: (value) => setState(() => _selectedState = value ?? 'all'),
+        ),
+        FilterDropdown(
+          caption: 'Severity',
+          value: _severity == 'all' ? null : _severity,
+          allLabel: 'All',
+          options: const [Severity.high, Severity.medium, Severity.low],
+          labelFor: Severity.label,
+          counts: severityCounts,
+          onChanged: (value) => setState(() => _severity = value ?? 'all'),
+        ),
+        if (showStatus)
+          FilterDropdown(
+            caption: 'Status',
+            value: _status == 'all' ? null : _status,
+            allLabel: 'All',
+            options: _queueStatuses,
+            labelFor: AlertStatus.label,
+            counts: statusCounts,
+            onChanged: (value) => setState(() => _status = value ?? 'all'),
+          ),
+      ],
     );
   }
 

@@ -174,7 +174,7 @@ class _MallDetailScreenState extends State<MallDetailScreen> {
                 style: TextStyle(
                     color: color, fontWeight: FontWeight.w800, fontSize: 18)),
             const SizedBox(height: 6),
-            Pill(status, color: _statusColor(status), outlined: true),
+            Pill(status, color: equipmentStatusColor(status), outlined: true),
           ],
         ),
       );
@@ -306,7 +306,8 @@ class _MallDetailScreenState extends State<MallDetailScreen> {
                       color: AppColors.textSecondary, fontSize: 12)),
             ]),
           ),
-          Pill(node.status, color: _statusColor(node.status), outlined: true),
+          Pill(node.status,
+              color: equipmentStatusColor(node.status), outlined: true),
           IconButton(
             tooltip: 'Edit equipment',
             onPressed: () => _openNodeForm(node: node),
@@ -463,10 +464,3 @@ class _MallDetailScreenState extends State<MallDetailScreen> {
     );
   }
 }
-
-Color _statusColor(String status) => switch (status) {
-      'Critical' => AppColors.critical,
-      'Warning' => AppColors.warning,
-      'Maintenance' => AppColors.textSecondary,
-      _ => AppColors.success,
-    };

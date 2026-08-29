@@ -3,19 +3,16 @@ import 'dart:ui' show DisplayFeatureType;
 import 'package:flutter/material.dart';
 
 import '../../../theme/tokens.dart';
-import 'logout_confirmation_dialog.dart';
 
 class CustomerCompactRail extends StatelessWidget {
   const CustomerCompactRail({
     super.key,
     required this.currentIndex,
     required this.onDestinationSelected,
-    required this.onLogout,
   });
 
   final int currentIndex;
   final ValueChanged<int> onDestinationSelected;
-  final VoidCallback onLogout;
 
   @override
   Widget build(BuildContext context) {
@@ -31,18 +28,6 @@ class CustomerCompactRail extends StatelessWidget {
         child: Column(
           children: [
             ..._destinations(cameraCutout),
-            const Spacer(),
-            _CustomerRailDestination(
-              icon: Icons.logout_outlined,
-              label: 'Logout',
-              tooltip: 'Logout',
-              selected: false,
-              onTap: () => showLogoutConfirmation(
-                context,
-                onConfirm: onLogout,
-              ),
-            ),
-            const SizedBox(height: 8),
           ],
         ),
       ),

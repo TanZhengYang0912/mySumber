@@ -10,9 +10,9 @@ class AppColors {
   static const Color adminPrimaryDark = Color(0xFF0B5C55);
   static const Color adminSurface = Color(0xFFECFDF5);
 
-  static const Color workerPrimary = Color(0xFF1E40AF);
-  static const Color workerPrimaryDark = Color(0xFF1B3894);
-  static const Color workerSurface = Color(0xFFDBE7FF);
+  static const Color workerPrimary = Color(0xFF0F766E);
+  static const Color workerPrimaryDark = Color(0xFF0B5C55);
+  static const Color workerSurface = Color(0xFFCCFBF1);
 
   static const Color customerPrimary = Color(0xFF6366F1);
   static const Color customerPrimaryDark = Color(0xFF4F46E5);
@@ -25,8 +25,8 @@ class AppColors {
 
   static const Color success = Color(0xFF16A34A);
   static const Color successSurface = Color(0xFFDCFCE7);
-  static const Color warning = Color(0xFFF59E0B);
-  static const Color warningSurface = Color(0xFFFEF3C7);
+  static const Color warning = Color(0xFFEA580C);
+  static const Color warningSurface = Color(0xFFFFEDD5);
   static const Color critical = Color(0xFFDC2626);
   static const Color criticalSurface = Color(0xFFFEE2E2);
 
@@ -38,6 +38,15 @@ class AppColors {
   static const Color textSecondary = Color(0xFF6B7280);
   static const Color textTertiary = Color(0xFF9CA3AF);
 }
+
+/// Equipment status and alert severity are the same ladder seen from two
+/// sides, so they resolve through one set of tokens and cannot drift.
+Color equipmentStatusColor(String status) => switch (status) {
+      'Critical' => AppColors.critical,
+      'Warning' => AppColors.warning,
+      'Maintenance' => AppColors.textSecondary,
+      _ => AppColors.success,
+    };
 
 Color rolePrimary(String? role) {
   switch (role) {
@@ -258,67 +267,6 @@ class AppCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: content,
-      ),
-    );
-  }
-}
-
-/// Big-number stat cell used in "System Overview" and similar rows.
-class StatCell extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final String value;
-  final String label;
-  final Color? background;
-  final bool compact;
-
-  const StatCell({
-    super.key,
-    required this.icon,
-    required this.iconColor,
-    required this.value,
-    required this.label,
-    this.background,
-    this.compact = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: compact ? 76 : null,
-      padding: EdgeInsets.symmetric(
-        vertical: compact ? 6 : 14,
-        horizontal: 8,
-      ),
-      decoration: BoxDecoration(
-        color: background ?? const Color(0xFFF3F4F6),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Icon(icon, color: iconColor, size: compact ? 16 : 20),
-          SizedBox(height: compact ? 4 : 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: compact ? 22 : 26,
-              fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
-              height: 1.0,
-            ),
-          ),
-          SizedBox(height: compact ? 2 : 4),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: compact ? 11 : 12,
-              color: AppColors.textSecondary,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
       ),
     );
   }

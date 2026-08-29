@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../theme/app_tab_bar.dart';
 import '../../../theme/filter_controls.dart';
+import '../../../theme/responsive_filter_bar.dart';
 import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
 import '../../leakage/models/alert.dart';
@@ -9,16 +11,12 @@ import '../../leakage/screens/style.dart';
 import '../../leakage/state/app_state.dart';
 import '../services/abnormal_production_filter.dart';
 import '../services/abnormal_production_layout.dart';
+import '../services/admin_tablet_layout.dart';
 import 'admin_alert_detail_screen.dart';
 import '../../../theme/page_header.dart';
 
 class AbnormalProductionScreen extends StatefulWidget {
-  final bool showBackToOversight;
-
-  const AbnormalProductionScreen({
-    super.key,
-    this.showBackToOversight = false,
-  });
+  const AbnormalProductionScreen({super.key});
 
   @override
   State<AbnormalProductionScreen> createState() =>
@@ -49,18 +47,6 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
     if (mounted) setState(() {});
   }
 
-  void _clearAnomalyFilters() {
-    setState(() {
-      _search.clear();
-      _anomalyState = null;
-      _anomalySeverity = null;
-      _anomalyStatus = null;
-      _stateUtility = null;
-      _mallUtility = null;
-      _householdUtility = null;
-    });
-  }
-
   /// Tablet split view selects the row in place; a phone opens the same
   /// pushed detail page Oversight uses, so both admin surfaces behave alike.
   void _openAlert(
@@ -79,46 +65,63 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
     ));
   }
 
-  Widget _anomalyFilterBar({
+  ResponsiveFilterBar _anomalyFilterBar({
+    required bool landscape,
     required List<String> states,
     required Map<String, int> stateCounts,
     required Map<String, int> severityCounts,
     required Map<String, int> statusCounts,
+    required Map<String, int> utilityCounts,
     required Utility? utility,
     required ValueChanged<Utility?> onUtilityChanged,
   }) {
-    return Column(
-      children: [
-        AlertFilterBar(
-          searchController: _search,
-          onSearchChanged: (_) => setState(() {}),
-          onSearchClear: () => setState(_search.clear),
-          selectedState: _anomalyState,
-          states: states,
-          stateCounts: stateCounts,
-          onStateChanged: (value) => setState(() => _anomalyState = value),
-          selectedSeverity: _anomalySeverity,
-          severityCounts: severityCounts,
-          onSeverityChanged: (value) =>
-              setState(() => _anomalySeverity = value),
-          // Only two statuses can reach this queue, and both stay listed even
-          // at a count of zero so the option set does not shift as rows are
-          // decided. Mirrors how Oversight passes a const queueStatuses list.
-          selectedStatus: _anomalyStatus,
-          statusOptions: const [AlertStatus.pendingReview, AlertStatus.faults],
-          statusCounts: statusCounts,
-          onStatusChanged: (value) => setState(() => _anomalyStatus = value),
+    return ResponsiveFilterBar(
+      mode: landscape
+          ? ResponsiveFilterBarMode.menu
+          : ResponsiveFilterBarMode.inline,
+      searchController: _search,
+      onSearchChanged: (_) => setState(() {}),
+      activeFilterCount: countActiveFilters(
+        query: _search.text,
+        filters: [
+          _anomalyState != null,
+          _anomalySeverity != null,
+          _anomalyStatus != null,
+          utility != null,
+        ],
+      ),
+      menuTooltip: 'Filter anomalies',
+      filters: [
+        FilterDropdown(
+          caption: 'State',
+          value: _anomalyState,
+          allLabel: 'All',
+          options: states,
+          counts: stateCounts,
+          onChanged: (value) => setState(() => _anomalyState = value),
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-          child: UtilityChips(selected: utility, onChanged: onUtilityChanged),
+        FilterDropdown(
+          caption: 'Severity',
+          value: _anomalySeverity,
+          allLabel: 'All',
+          options: const [Severity.high, Severity.medium, Severity.low],
+          labelFor: Severity.label,
+          counts: severityCounts,
+          onChanged: (value) => setState(() => _anomalySeverity = value),
         ),
-        Align(
-          alignment: Alignment.centerRight,
-          child: TextButton(
-            onPressed: _clearAnomalyFilters,
-            child: const Text('Clear filters'),
-          ),
+        FilterDropdown(
+          caption: 'Status',
+          value: _anomalyStatus,
+          allLabel: 'All',
+          options: const [AlertStatus.pendingReview, AlertStatus.faults],
+          labelFor: AlertStatus.label,
+          counts: statusCounts,
+          onChanged: (value) => setState(() => _anomalyStatus = value),
+        ),
+        UtilityFilterDropdown(
+          value: utility,
+          counts: utilityCounts,
+          onChanged: onUtilityChanged,
         ),
       ],
     );
@@ -146,31 +149,70 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
       );
     }
 
-    final stateAlerts = _narrow(
-        app.reviewQueue(sourceScope: AlertSourceScope.state), _stateUtility);
-    final mallAlerts = _narrow(
-        app.reviewQueue(sourceScope: AlertSourceScope.mall), _mallUtility);
+    final stateQueue = app.reviewQueue(sourceScope: AlertSourceScope.state);
+    final mallQueue = app.reviewQueue(sourceScope: AlertSourceScope.mall);
+    final householdQueue =
+        app.reviewQueue(sourceScope: AlertSourceScope.household);
+    final stateAlerts = _narrow(stateQueue, _stateUtility);
+    final mallAlerts = _narrow(mallQueue, _mallUtility);
     // Customer-submitted reports land here as pending_review alerts too, so
     // they need their own tab — without one they are raised, analysed, and
     // then invisible to everybody.
-    final householdAlerts = _narrow(
-        app.reviewQueue(sourceScope: AlertSourceScope.household),
-        _householdUtility);
+    final householdAlerts = _narrow(householdQueue, _householdUtility);
+    final stateUtilityCounts = countBy(stateQueue, (a) => a.utility.name);
+    final mallUtilityCounts = countBy(mallQueue, (a) => a.utility.name);
+    final householdUtilityCounts =
+        countBy(householdQueue, (a) => a.utility.name);
+    final landscape = usesAdminCompactHeader(MediaQuery.sizeOf(context));
+    final activeAlerts = _tab.index == 0
+        ? stateAlerts
+        : _tab.index == 1
+            ? mallAlerts
+            : householdAlerts;
+    final activeUtility = _tab.index == 0
+        ? _stateUtility
+        : _tab.index == 1
+            ? _mallUtility
+            : _householdUtility;
+    final activeUtilityCounts = _tab.index == 0
+        ? stateUtilityCounts
+        : _tab.index == 1
+            ? mallUtilityCounts
+            : householdUtilityCounts;
+    final onActiveUtilityChanged = _tab.index == 0
+        ? (Utility? utility) => setState(() => _stateUtility = utility)
+        : _tab.index == 1
+            ? (Utility? utility) => setState(() => _mallUtility = utility)
+            : (Utility? utility) => setState(() => _householdUtility = utility);
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
       body: Column(
         children: [
-          _buildHeader(context),
-          _buildTabBar(
-              stateAlerts.length, mallAlerts.length, householdAlerts.length),
+          _buildHeader(
+            context,
+            landscape: landscape,
+            alerts: activeAlerts,
+            utilityCounts: activeUtilityCounts,
+            utility: activeUtility,
+            onUtilityChanged: onActiveUtilityChanged,
+          ),
+          AppTabBar(
+            controller: _tab,
+            tabs: [
+              (label: 'State', count: stateAlerts.length),
+              (label: 'Mall', count: mallAlerts.length),
+              (label: 'Household', count: householdAlerts.length),
+            ],
+          ),
           Expanded(
             child: TabBarView(
               controller: _tab,
               children: [
-                _stateTab(stateAlerts),
-                _mallTab(mallAlerts),
-                _householdTab(householdAlerts),
+                _stateTab(stateAlerts, stateUtilityCounts, landscape),
+                _mallTab(mallAlerts, mallUtilityCounts, landscape),
+                _householdTab(
+                    householdAlerts, householdUtilityCounts, landscape),
               ],
             ),
           ),
@@ -179,81 +221,80 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader(
+    BuildContext context, {
+    required bool landscape,
+    required List<Alert> alerts,
+    required Map<String, int> utilityCounts,
+    required Utility? utility,
+    required ValueChanged<Utility?> onUtilityChanged,
+  }) {
+    final states = alerts.map((a) => a.state).toSet().toList()..sort();
+    final stateCounts = countBy(alerts, (a) => a.state);
+    final severityCounts = countBy(alerts, (a) => a.severity);
+    final statusCounts = countBy(alerts, (a) => a.status);
     return PageHeader(
       title: 'Anomalies',
       icon: Icons.notifications_outlined,
-      leading: widget.showBackToOversight
-          ? IconButton(
-              tooltip: 'Back to Oversight',
-              onPressed: () => Navigator.of(context).pop(),
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
+      onLogout: () => context.read<RoleState>().logout(),
+      action: landscape
+          ? _anomalyFilterBar(
+              landscape: true,
+              states: states,
+              stateCounts: stateCounts,
+              severityCounts: severityCounts,
+              statusCounts: statusCounts,
+              utilityCounts: utilityCounts,
+              utility: utility,
+              onUtilityChanged: onUtilityChanged,
             )
           : null,
-      onLogout: () => context.read<RoleState>().logout(),
     );
   }
 
-  Widget _buildTabBar(int stateCount, int mallCount, int householdCount) {
-    return Container(
-      color: Colors.white,
-      child: TabBar(
-        controller: _tab,
-        labelColor: AppColors.adminPrimary,
-        unselectedLabelColor: AppColors.textSecondary,
-        labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-        unselectedLabelStyle:
-            const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-        indicatorColor: AppColors.adminPrimary,
-        indicatorWeight: 3,
-        dividerColor: AppColors.divider,
-        tabs: [
-          _countedTab('State', stateCount),
-          _countedTab('Mall', mallCount),
-          _countedTab('Household', householdCount),
-        ],
-      ),
-    );
-  }
-
-  /// FittedBox keeps three labels legible on a phone, where "Household" plus
-  /// its badge would otherwise overflow the tab width.
-  Widget _countedTab(String label, int count) => Tab(
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(label),
-              const SizedBox(width: 6),
-              CountBadge(count),
-            ],
-          ),
-        ),
-      );
-
-  Widget _stateTab(List<Alert> alerts) => _reviewWorkspace(
+  Widget _stateTab(
+    List<Alert> alerts,
+    Map<String, int> utilityCounts,
+    bool landscape,
+  ) =>
+      _reviewWorkspace(
         alerts,
         selectedId: _selectedStateAlertId,
         onSelected: (id) => setState(() => _selectedStateAlertId = id),
         utility: _stateUtility,
         onUtilityChanged: (u) => setState(() => _stateUtility = u),
+        utilityCounts: utilityCounts,
+        landscape: landscape,
       );
 
-  Widget _mallTab(List<Alert> alerts) => _reviewWorkspace(
+  Widget _mallTab(
+    List<Alert> alerts,
+    Map<String, int> utilityCounts,
+    bool landscape,
+  ) =>
+      _reviewWorkspace(
         alerts,
         selectedId: _selectedMallAlertId,
         onSelected: (id) => setState(() => _selectedMallAlertId = id),
         utility: _mallUtility,
         onUtilityChanged: (u) => setState(() => _mallUtility = u),
+        utilityCounts: utilityCounts,
+        landscape: landscape,
       );
 
-  Widget _householdTab(List<Alert> alerts) => _reviewWorkspace(
+  Widget _householdTab(
+    List<Alert> alerts,
+    Map<String, int> utilityCounts,
+    bool landscape,
+  ) =>
+      _reviewWorkspace(
         alerts,
         selectedId: _selectedHouseholdAlertId,
         onSelected: (id) => setState(() => _selectedHouseholdAlertId = id),
         utility: _householdUtility,
         onUtilityChanged: (u) => setState(() => _householdUtility = u),
+        utilityCounts: utilityCounts,
+        landscape: landscape,
       );
 
   /// The row whose detail panel is open. Falls back to the first row so the
@@ -271,6 +312,8 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
     required ValueChanged<int> onSelected,
     required Utility? utility,
     required ValueChanged<Utility?> onUtilityChanged,
+    required Map<String, int> utilityCounts,
+    required bool landscape,
   }) {
     final split = usesAbnormalProductionSplitView(MediaQuery.sizeOf(context));
     final states = alerts.map((a) => a.state).toSet().toList()..sort();
@@ -288,18 +331,24 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
         .toList();
     final selected = _selectedAlert(filtered, selectedId);
     final filterBar = _anomalyFilterBar(
+      landscape: false,
       states: states,
       stateCounts: stateCounts,
       severityCounts: severityCounts,
       statusCounts: statusCounts,
+      utilityCounts: utilityCounts,
       utility: utility,
       onUtilityChanged: onUtilityChanged,
     );
 
     if (filtered.isEmpty) {
-      return ListView(
-        padding: const EdgeInsets.all(16),
-        children: [filterBar, const SizedBox(height: 12), _emptyCard()],
+      return Column(
+        children: [
+          if (!landscape) filterBar,
+          const Expanded(
+            child: FilterEmptyState('No anomalies awaiting review.'),
+          ),
+        ],
       );
     }
 
@@ -317,26 +366,31 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
     );
 
     if (!split) {
-      return ListView(
-        padding: const EdgeInsets.all(16),
+      return Column(
         children: [
-          filterBar,
-          const SizedBox(height: 12),
-          for (final alert in filtered) ...[
-            AlertCard(
-              alert: alert,
-              onTap: () =>
-                  _openAlert(alert, split: split, onSelected: onSelected),
+          if (!landscape) filterBar,
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                for (final alert in filtered) ...[
+                  AlertCard(
+                    alert: alert,
+                    onTap: () =>
+                        _openAlert(alert, split: split, onSelected: onSelected),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+              ],
             ),
-            const SizedBox(height: 10),
-          ],
+          ),
         ],
       );
     }
 
     return Column(
       children: [
-        Padding(padding: const EdgeInsets.all(16), child: filterBar),
+        filterBar,
         Expanded(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -347,7 +401,11 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(16),
                   child: selected == null
-                      ? _emptyCard()
+                      ? const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 24),
+                          child:
+                              FilterEmptyState('No anomalies awaiting review.'),
+                        )
                       : _reviewDetailPanel(selected),
                 ),
               ),
@@ -395,11 +453,4 @@ class _AbnormalProductionScreenState extends State<AbnormalProductionScreen>
       ),
     );
   }
-
-  Widget _emptyCard() => const AppCard(
-        child: Text(
-          'No anomalies awaiting review.',
-          style: TextStyle(color: AppColors.textSecondary),
-        ),
-      );
 }

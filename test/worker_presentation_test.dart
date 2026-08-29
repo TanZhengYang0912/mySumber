@@ -1,18 +1,23 @@
+import 'dart:io';
+
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:mysumber/modules/dataset/models/models.dart';
 import 'package:mysumber/modules/leakage/models/alert.dart';
 import 'package:mysumber/modules/leakage/models/report.dart';
 import 'package:mysumber/modules/leakage/screens/style.dart';
-import 'package:mysumber/modules/leakage/services/worker_compact_layout.dart';
 import 'package:mysumber/modules/leakage/services/report_presets.dart';
 import 'package:mysumber/modules/leakage/state/app_state.dart';
+import 'package:mysumber/theme/tokens.dart';
+import 'package:mysumber/theme/responsive_filter_bar.dart';
 
 Alert _alert({
   required String alertType,
   required String signature,
   String status = AlertStatus.pending,
   String? handledBy,
+  double? lossPct,
 }) =>
     Alert(
       alertType: alertType,
@@ -23,6 +28,7 @@ Alert _alert({
       explanation: 'Test alert',
       status: status,
       handledBy: handledBy,
+      lossPct: lossPct,
     );
 
 void main() {
@@ -254,59 +260,64 @@ void main() {
     expect(AlertStatus.label(AlertStatus.pendingReview), 'Pending Review');
   });
 
-  test('alert filter count is zero when nothing is narrowed', () {
+  test('shared filter count is zero when nothing is narrowed', () {
     expect(
-      activeAlertFilterCount(
+      countActiveFilters(
         query: '',
-        severity: 'all',
-        state: 'all',
-        status: 'all',
+        filters: const [false, false, false],
       ),
       0,
     );
     expect(
-      activeAlertFilterCount(
+      countActiveFilters(
         query: '   ',
-        severity: 'all',
-        state: 'all',
-        status: 'all',
+        filters: const [false, false, false],
       ),
       0,
     );
   });
 
-  test('alert filter count rises with each narrowed field', () {
+  test('shared filter count rises with each narrowed field', () {
     expect(
-      activeAlertFilterCount(
+      countActiveFilters(
         query: 'perlis',
-        severity: 'all',
-        state: 'all',
-        status: 'all',
+        filters: const [false, false, false],
       ),
       1,
     );
     expect(
-      activeAlertFilterCount(
+      countActiveFilters(
         query: 'perlis',
-        severity: 'high',
-        state: 'Perlis',
-        status: 'pending',
+        filters: const [true, true, true],
       ),
       4,
     );
   });
 
-  test('report filter count treats null as unfiltered', () {
-    expect(activeReportFilterCount(query: ''), 0);
+  test('shared filter count treats null-equivalent selections as unfiltered',
+      () {
     expect(
-      activeReportFilterCount(
+        countActiveFilters(query: '', filters: const [false, false, false]), 0);
+    expect(
+      countActiveFilters(
         query: 'x',
-        state: 'Perlis',
-        outcome: 'fixed',
-        utility: Utility.water,
+        filters: const [true, true, true],
       ),
       4,
     );
+  });
+
+  test('worker lists use the shared responsive filter shell', () {
+    for (final path in <String>[
+      'lib/modules/leakage/screens/alert_queue_screen.dart',
+      'lib/modules/leakage/screens/report_history_screen.dart',
+    ]) {
+      final source = File(path).readAsStringSync();
+      expect(source, contains('ResponsiveFilterBar('));
+      expect(source, isNot(contains('LandscapeFilterMenu(')));
+      expect(source, isNot(contains('UtilityChips(')));
+      expect(source, isNot(contains('onSearchClear:')));
+    }
   });
 
   test('an alert with only summary and recommendation still has AI analysis',
@@ -333,5 +344,59 @@ void main() {
     );
 
     expect(alert.hasAiAnalysis, isFalse);
+  });
+
+  test('the utility pill is the only place utility colour appears', () {
+    expect(AppColors.waterAccent, const Color(0xFF3B82F6));
+    expect(AppColors.electricityAccent, const Color(0xFFEAB308));
+    expect(AppColors.workerPrimary, const Color(0xFF0F766E));
+    expect(AppColors.workerPrimary, isNot(AppColors.waterAccent));
+    expect(AppColors.workerPrimary, isNot(AppColors.electricityAccent));
+  });
+
+  testWidgets('a state loss alert still shows its unaccounted-supply figure',
+      (tester) async {
+    tester.view.physicalSize = const Size(900, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final alert = _alert(
+      alertType: AlertType.nrwHotspot,
+      signature: LeakSignature.nrwHotspot,
+      lossPct: 42.5,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AlertCard(alert: alert, onTap: () {}),
+        ),
+      ),
+    );
+
+    expect(find.text('42.5% of supply unaccounted'), findsOneWidget);
+  });
+
+  testWidgets('a household alert shows no state-average comparison',
+      (tester) async {
+    tester.view.physicalSize = const Size(900, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final alert = _alert(
+      alertType: AlertType.household,
+      signature: LeakSignature.suddenBurst,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AlertCard(alert: alert, onTap: () {}),
+        ),
+      ),
+    );
+
+    expect(find.textContaining('of state avg'), findsNothing);
+    expect(find.textContaining('Sudden burst'), findsOneWidget);
   });
 }

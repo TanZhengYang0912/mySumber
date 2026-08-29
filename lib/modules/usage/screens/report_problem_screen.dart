@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../theme/tokens.dart';
+import '../../../theme/logout_confirmation_dialog.dart';
 import '../../auth/state/auth_state.dart';
 import '../../leakage/models/alert.dart';
 import '../../leakage/screens/network_error.dart';
@@ -15,7 +16,6 @@ import '../widgets/customer_header.dart';
 import '../widgets/customer_landscape_scaffold.dart';
 import '../widgets/edit_address_dialog.dart';
 import '../widgets/edit_profile_dialog.dart';
-import '../widgets/logout_confirmation_dialog.dart';
 import '../services/customer_compact_layout.dart';
 
 const _defaultServiceAddress = 'No. 12, Jln Merdeka, Selangor';

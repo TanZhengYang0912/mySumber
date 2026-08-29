@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:mysumber/modules/leakage/models/alert.dart';
 import 'package:mysumber/theme/filter_controls.dart';
+import 'package:mysumber/theme/responsive_filter_bar.dart';
 import 'package:mysumber/theme/segmented_chips.dart';
 import 'package:mysumber/theme/tokens.dart';
 
@@ -67,39 +68,37 @@ void main() {
     expect(tester.getRect(find.text('All')).left, lessThan(20));
   });
 
-  testWidgets('utility chips report the tapped utility', (tester) async {
+  testWidgets('utility dropdown maps Electricity to the enum', (tester) async {
     Utility? picked;
-    var changed = 0;
     await _pump(
       tester,
-      UtilityChips(
-        selected: null,
-        onChanged: (u) {
-          picked = u;
-          changed++;
-        },
+      UtilityFilterDropdown(
+        value: null,
+        onChanged: (value) => picked = value,
       ),
     );
 
-    await tester.tap(find.text('Electricity'));
-    expect(changed, 1);
+    await tester.tap(find.text('All'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Electricity').last);
+
     expect(picked, Utility.electricity);
   });
 
-  testWidgets('utility chips show counts when given them', (tester) async {
+  testWidgets('utility dropdown shows counts for all options', (tester) async {
     await _pump(
       tester,
-      UtilityChips(
-        selected: Utility.water,
+      UtilityFilterDropdown(
+        value: Utility.water,
+        counts: const {'water': 4, 'electricity': 5},
         onChanged: (_) {},
-        allCount: 9,
-        waterCount: 4,
-        electricityCount: 5,
       ),
     );
 
-    expect(find.text('All (9)'), findsOneWidget);
     expect(find.text('Water (4)'), findsOneWidget);
+    await tester.tap(find.text('Water (4)'));
+    await tester.pumpAndSettle();
+    expect(find.text('All (9)'), findsOneWidget);
     expect(find.text('Electricity (5)'), findsOneWidget);
   });
 
@@ -148,30 +147,29 @@ void main() {
     expect(find.text('All States (7)'), findsOneWidget);
   });
 
-  testWidgets('alert filter bar can present reporting statuses',
+  testWidgets('the shared filter shell can present reporting statuses',
       (tester) async {
     final controller = TextEditingController();
     addTearDown(controller.dispose);
 
     await _pump(
       tester,
-      AlertFilterBar(
+      ResponsiveFilterBar(
+        mode: ResponsiveFilterBarMode.inline,
         searchController: controller,
         onSearchChanged: (_) {},
-        selectedState: null,
-        states: const ['Selangor'],
-        stateCounts: const {'Selangor': 1},
-        onStateChanged: (_) {},
-        selectedSeverity: null,
-        severityCounts: const {Severity.high: 1},
-        onSeverityChanged: (_) {},
-        selectedStatus: 'reported',
-        statusOptions: const ['reported', 'unreported'],
-        statusCounts: const {'reported': 1, 'unreported': 2},
-        onStatusChanged: (_) {},
-        statusCaption: 'Reporting',
-        statusLabelFor: (value) =>
-            value == 'reported' ? 'Reported' : 'Unreported',
+        filters: [
+          FilterDropdown(
+            caption: 'Reporting',
+            value: 'reported',
+            allLabel: 'All',
+            options: const ['reported', 'unreported'],
+            counts: const {'reported': 1, 'unreported': 2},
+            labelFor: (value) =>
+                value == 'reported' ? 'Reported' : 'Unreported',
+            onChanged: (_) {},
+          ),
+        ],
       ),
     );
 

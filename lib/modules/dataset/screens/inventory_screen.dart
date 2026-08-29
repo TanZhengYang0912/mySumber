@@ -4,8 +4,10 @@ import 'package:provider/provider.dart';
 
 import '../../../theme/filter_controls.dart';
 import '../../../theme/page_header.dart';
+import '../../../theme/responsive_filter_bar.dart';
 import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
+import '../../admin/services/admin_tablet_layout.dart';
 import '../services/mall_summary.dart';
 import '../state/dataset_state.dart';
 import 'mall_detail_screen.dart';
@@ -21,6 +23,7 @@ class InventoryScreen extends StatefulWidget {
 
 class _InventoryScreenState extends State<InventoryScreen> {
   late String _selectedState;
+  String _selectedStatus = 'All';
   final _searchController = TextEditingController();
   String _searchQuery = '';
 
@@ -53,11 +56,15 @@ class _InventoryScreenState extends State<InventoryScreen> {
       if (_selectedState != 'All' && mall.state != _selectedState) {
         return false;
       }
+      if (_selectedStatus != 'All' && mall.worstStatus != _selectedStatus) {
+        return false;
+      }
       return query.isEmpty ||
           '${mall.name} ${mall.city ?? ''} ${mall.state}'
               .toLowerCase()
               .contains(query);
     }).toList();
+    final landscape = usesAdminCompactHeader(MediaQuery.sizeOf(context));
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -69,38 +76,12 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   title: 'Mall',
                   icon: Icons.location_city_outlined,
                   onLogout: () => context.read<RoleState>().logout(),
+                  action: landscape
+                      ? _filters(stateOptions, allMalls, landscape: true)
+                      : null,
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                  child: FilterSearchField(
-                    controller: _searchController,
-                    hint: 'Search shopping malls',
-                    onChanged: (value) => setState(() => _searchQuery = value),
-                    onClear: () => setState(() {
-                      _searchController.clear();
-                      _searchQuery = '';
-                    }),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: FilterDropdown(
-                    caption: 'State / Federal Territory',
-                    value: _selectedState == 'All' ? null : _selectedState,
-                    allLabel: 'All malls',
-                    options:
-                        stateOptions.where((state) => state != 'All').toList(),
-                    onChanged: (value) =>
-                        setState(() => _selectedState = value ?? 'All'),
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: _clearFilters,
-                    child: const Text('Clear filters'),
-                  ),
-                ),
+                if (!landscape)
+                  _filters(stateOptions, allMalls, landscape: false),
                 Expanded(
                   child: malls.isEmpty
                       ? const Center(
@@ -110,7 +91,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           ),
                         )
                       : ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                           itemCount: malls.length,
                           separatorBuilder: (_, __) =>
                               const SizedBox(height: 10),
@@ -135,12 +116,47 @@ class _InventoryScreenState extends State<InventoryScreen> {
     return ['All', ...states];
   }
 
-  void _clearFilters() {
-    setState(() {
-      _selectedState = 'All';
-      _searchQuery = '';
-      _searchController.clear();
-    });
+  Widget _filters(
+    List<String> stateOptions,
+    List<MallSummary> allMalls, {
+    required bool landscape,
+  }) {
+    final stateCounts = countBy(allMalls, (mall) => mall.state);
+    final statusCounts = countBy(allMalls, (mall) => mall.worstStatus);
+    return ResponsiveFilterBar(
+      mode: landscape
+          ? ResponsiveFilterBarMode.menu
+          : ResponsiveFilterBarMode.inline,
+      searchController: _searchController,
+      onSearchChanged: (value) => setState(() => _searchQuery = value),
+      menuTooltip: 'Filter malls',
+      activeFilterCount: countActiveFilters(
+        query: _searchQuery,
+        filters: [
+          _selectedState != 'All',
+          _selectedStatus != 'All',
+        ],
+      ),
+      filters: [
+        FilterDropdown(
+          caption: 'State',
+          value: _selectedState == 'All' ? null : _selectedState,
+          allLabel: 'All',
+          options: stateOptions.where((state) => state != 'All').toList(),
+          counts: stateCounts,
+          onChanged: (value) => setState(() => _selectedState = value ?? 'All'),
+        ),
+        FilterDropdown(
+          caption: 'Status',
+          value: _selectedStatus == 'All' ? null : _selectedStatus,
+          allLabel: 'All',
+          options: const ['Critical', 'Warning', 'Maintenance', 'Active'],
+          counts: statusCounts,
+          onChanged: (value) =>
+              setState(() => _selectedStatus = value ?? 'All'),
+        ),
+      ],
+    );
   }
 
   Widget _mallCard(MallSummary mall) {
@@ -247,10 +263,3 @@ class _InventoryScreenState extends State<InventoryScreen> {
     );
   }
 }
-
-Color equipmentStatusColor(String status) => switch (status) {
-      'Critical' => AppColors.critical,
-      'Warning' => AppColors.warning,
-      'Maintenance' => AppColors.textSecondary,
-      _ => AppColors.success,
-    };

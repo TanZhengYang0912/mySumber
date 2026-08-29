@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../theme/tokens.dart';
+import '../../../theme/logout_confirmation_dialog.dart';
 import '../../auth/state/auth_state.dart';
 import '../screens/notifications_screen.dart';
-import 'logout_confirmation_dialog.dart';
 
 /// Shared rounded header used by the customer Home, Usage, and Profile
 /// tabs so the three pages present one consistent top bar (avatar, title,
@@ -70,8 +70,7 @@ class CustomerHeader extends StatelessWidget {
             ),
             _notificationBell(context, notificationCount),
             IconButton(
-              icon:
-                  const Icon(Icons.logout, color: Colors.white70, size: 20),
+              icon: const Icon(Icons.logout, color: Colors.white70, size: 20),
               onPressed: () => showLogoutConfirmation(
                 context,
                 onConfirm: () => context.read<RoleState>().logout(),
@@ -112,8 +111,7 @@ class CustomerHeader extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: AppColors.critical,
                   borderRadius: BorderRadius.circular(999),
-                  border:
-                      Border.all(color: AppColors.adminPrimary, width: 1.5),
+                  border: Border.all(color: AppColors.adminPrimary, width: 1.5),
                 ),
                 child: Text(
                   count > 9 ? '9+' : '$count',
