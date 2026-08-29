@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -410,13 +412,47 @@ class AddConsumptionFab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FloatingActionButton.extended(
-      backgroundColor: AppColors.success,
-      foregroundColor: Colors.white,
-      onPressed: () => showAddConsumptionFlow(context, utility: utility),
-      icon: const Icon(Icons.add),
-      label: const Text('Add',
-          style: TextStyle(fontWeight: FontWeight.w700)),
+    return ClipOval(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        child: Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: AppColors.adminPrimary.withValues(alpha: 0.4),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.35),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.adminPrimary.withValues(alpha: 0.35),
+                blurRadius: 18,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: () => showAddConsumptionFlow(context, utility: utility),
+              child: const Center(
+                child: Text(
+                  '+',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 30,
+                    fontWeight: FontWeight.w600,
+                    height: 1,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

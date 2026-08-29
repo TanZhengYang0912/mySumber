@@ -48,42 +48,7 @@ class UsageState extends ChangeNotifier {
     UtilityType.electricity: [],
   };
 
-  final List<AppNotification> _notifications = [
-    AppNotification(
-      icon: Icons.warning_amber_rounded,
-      color: AppColors.warning,
-      bg: AppColors.warningSurface,
-      title: 'Bill Due Soon',
-      message: 'Your July bill of RM 78.40 is due on 31 Jul 2025.',
-      timestamp: DateTime.now().subtract(const Duration(hours: 2)),
-      showStrip: true,
-    ),
-    AppNotification(
-      icon: Icons.check_circle_outline,
-      color: AppColors.success,
-      bg: AppColors.successSurface,
-      title: 'Usage Down This Month',
-      message: 'Great news! Your water usage dropped 3.1% vs last month.',
-      timestamp: DateTime.now().subtract(const Duration(days: 1)),
-      showStrip: true,
-    ),
-    AppNotification(
-      icon: Icons.info_outline,
-      color: AppColors.waterAccent,
-      bg: AppColors.waterSurface,
-      title: 'Scheduled Maintenance',
-      message: 'Water supply interruption on 10 Aug, 9am–12pm.',
-      timestamp: DateTime.now().subtract(const Duration(days: 2)),
-    ),
-    AppNotification(
-      icon: Icons.check_circle_outline,
-      color: AppColors.success,
-      bg: AppColors.successSurface,
-      title: 'Meter Reading Confirmed',
-      message: 'Your July meter reading has been recorded successfully.',
-      timestamp: DateTime.now().subtract(const Duration(days: 3)),
-    ),
-  ];
+  final List<AppNotification> _notifications = [];
 
   bool get loading => _loading;
   String? get error => _error;

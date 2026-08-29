@@ -268,6 +268,14 @@ class _AppShellState extends State<AppShell> {
   int _currentIndex = 0;
   late final List<Widget> _screens;
   late final List<_NavItem> _navItems;
+  // Rotating between portrait and landscape moves the screen stack to a
+  // different place in the tree (direct Scaffold.body vs nested inside the
+  // compact-rail Row). Without a stable key, Flutter can't match the old
+  // element across that structural change, so it disposes and rebuilds
+  // every screen from scratch — wiping any in-progress typing (e.g. the
+  // report description field). A GlobalKey lets it relocate the same
+  // element instead.
+  final GlobalKey _screenStackKey = GlobalKey();
 
   @override
   void initState() {
@@ -318,11 +326,13 @@ class _AppShellState extends State<AppShell> {
           CustomerHomeScreen(
               onUsageTap: () => setState(() => _currentIndex = 1)),
           const CompareUsageScreen(),
+          const ReportFlowScreen(),
           const ReportProblemScreen(),
         ];
         _navItems = const [
           _NavItem(icon: Icons.home_outlined, label: 'Home'),
           _NavItem(icon: Icons.bar_chart_outlined, label: 'Usage'),
+          _NavItem(icon: Icons.camera_alt_outlined, label: 'Report'),
           _NavItem(icon: Icons.person_outline, label: 'Profile'),
         ];
     }
@@ -362,6 +372,7 @@ class _AppShellState extends State<AppShell> {
         final usesRoleRail =
             usesAdminRail || usesCustomerCompactRail || usesWorkerCompactRail;
         final screenStack = IndexedStack(
+          key: _screenStackKey,
           index: _currentIndex,
           children: _screens,
         );
