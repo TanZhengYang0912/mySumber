@@ -7,8 +7,6 @@ import 'package:provider/provider.dart';
 import '../../../theme/page_header.dart';
 import '../../../theme/tokens.dart';
 import '../../auth/state/auth_state.dart';
-import '../../leakage/models/ai_anomaly_analysis.dart';
-import '../../leakage/services/anomaly_ai_service.dart';
 import '../models/models.dart';
 import '../services/equipment_identity.dart';
 import '../services/equipment_import.dart';
@@ -28,9 +26,6 @@ class MallDetailScreen extends StatefulWidget {
 }
 
 class _MallDetailScreenState extends State<MallDetailScreen> {
-  AiAnomalyAnalysis? _suggestion;
-  bool _isGeneratingSuggestion = false;
-
   @override
   Widget build(BuildContext context) {
     final state = context.watch<DatasetState>();
@@ -76,10 +71,6 @@ class _MallDetailScreenState extends State<MallDetailScreen> {
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
                     children: [
                       _overview(mall),
-                      const SizedBox(height: 18),
-                      _sectionTitle('AI maintenance suggestion'),
-                      const SizedBox(height: 8),
-                      _aiSuggestionCard(mall),
                       const SizedBox(height: 18),
                       _sectionTitle('Equipment (${mall.nodes.length})'),
                       const SizedBox(height: 8),
@@ -178,108 +169,6 @@ class _MallDetailScreenState extends State<MallDetailScreen> {
           ],
         ),
       );
-
-  Widget _aiSuggestionCard(MallSummary mall) => AppCard(
-        child: _isGeneratingSuggestion
-            ? const Padding(
-                padding: EdgeInsets.all(12),
-                child: Center(child: CircularProgressIndicator()),
-              )
-            : _suggestion == null
-                ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Generate a mock maintenance suggestion from this mall’s '
-                        'current equipment and usage roll-up.',
-                        style: TextStyle(color: AppColors.textSecondary),
-                      ),
-                      const SizedBox(height: 12),
-                      FilledButton.icon(
-                        onPressed: () => _generateSuggestion(mall),
-                        icon: const Icon(Icons.auto_awesome_outlined),
-                        label: const Text('Generate suggestion'),
-                        style: FilledButton.styleFrom(
-                            backgroundColor: AppColors.adminPrimary),
-                      ),
-                    ],
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(_suggestion!.summary,
-                          style: const TextStyle(
-                              color: AppColors.textPrimary,
-                              fontWeight: FontWeight.w700,
-                              height: 1.35)),
-                      const SizedBox(height: 10),
-                      if (_suggestion!.possibleCause != null)
-                        _analysisLine(
-                            'Possible cause', _suggestion!.possibleCause!),
-                      if (_suggestion!.severityAssessment != null)
-                        _analysisLine(
-                            'Severity', _suggestion!.severityAssessment!),
-                      _analysisLine(
-                          'Recommendation', _suggestion!.recommendation),
-                      const SizedBox(height: 10),
-                      TextButton.icon(
-                        onPressed: () => _generateSuggestion(mall),
-                        icon: const Icon(Icons.refresh, size: 18),
-                        label: const Text('Generate again'),
-                      ),
-                    ],
-                  ),
-      );
-
-  Widget _analysisLine(String label, String value) => Padding(
-        padding: const EdgeInsets.only(bottom: 7),
-        child: RichText(
-          text: TextSpan(
-            style: const TextStyle(color: AppColors.textSecondary, height: 1.3),
-            children: [
-              TextSpan(
-                  text: '$label: ',
-                  style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w700)),
-              TextSpan(text: value),
-            ],
-          ),
-        ),
-      );
-
-  Future<void> _generateSuggestion(MallSummary mall) async {
-    setState(() => _isGeneratingSuggestion = true);
-    final equipment = mall.nodes
-        .map((node) => '${node.nodeName} (${node.utilityType}, ${node.status})')
-        .join(', ');
-    try {
-      final suggestion = await AnomalyAiService().previewMall({
-        'state': mall.state,
-        'facility_name': mall.name,
-        'facility_city': mall.city,
-        'equipment_name': equipment,
-        'alert_type': 'mall_usage_review',
-        'signature': 'Mall usage roll-up',
-        'severity': mall.attentionCount > 0 ? 'medium' : 'low',
-        'utility_type': 'electricity',
-        'explanation':
-            'Mock monitoring totals: water ${mall.waterUsage.toStringAsFixed(1)} m³ '
-                '(${mall.waterStatus}); electricity ${mall.electricityUsage.toStringAsFixed(1)} '
-                'kWh (${mall.electricityStatus}). Equipment: $equipment',
-      });
-      if (mounted) setState(() => _suggestion = suggestion);
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('AI suggestion is unavailable. Please try again.'),
-          backgroundColor: AppColors.critical,
-        ));
-      }
-    } finally {
-      if (mounted) setState(() => _isGeneratingSuggestion = false);
-    }
-  }
 
   Widget _equipmentRow(DatasetState state, EquipmentNode node) => AppCard(
         onTap: () => _openEquipmentDetail(state, node),

@@ -1,0 +1,2 @@
+asset_tag,equipment_type,utility_type,facility_code,serial_number,manufacturer,model,ip_assignment,ip_address,firmware_version,status,installation_date,last_maintenance_date,next_maintenance_date
+TEST-1U-WP-901,Main Water Pump,Water,LEGACY-3f8da489c4,TEST-1U-SN-901,Grundfos,Unspecified,DHCP,,v2.4.1,Active,2026-08-01,2026-08-20,2027-02-20
