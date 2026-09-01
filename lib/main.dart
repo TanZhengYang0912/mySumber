@@ -12,7 +12,6 @@ import 'modules/admin/screens/abnormal_production_screen.dart';
 import 'modules/admin/screens/oversight_screen.dart';
 import 'modules/admin/screens/worker_accounts_screen.dart';
 import 'modules/admin/services/admin_tablet_layout.dart';
-import 'modules/admin/widgets/admin_compact_rail.dart';
 
 import 'modules/auth/data/account_repository.dart';
 import 'modules/auth/screens/login_screen.dart';
@@ -30,7 +29,6 @@ import 'modules/leakage/services/nrw_service.dart';
 import 'modules/leakage/services/simulation_service.dart';
 import 'modules/leakage/services/worker_compact_layout.dart';
 import 'modules/leakage/state/app_state.dart';
-import 'modules/leakage/widgets/worker_compact_rail.dart';
 
 import 'modules/dataset/data/dataset_repository.dart';
 import 'modules/dataset/screens/dashboard_screen.dart';
@@ -45,7 +43,7 @@ import 'modules/usage/data/usage_repository.dart';
 import 'modules/usage/services/customer_compact_layout.dart';
 import 'modules/usage/services/local_notification_service.dart';
 import 'modules/usage/state/usage_state.dart';
-import 'modules/usage/widgets/customer_compact_rail.dart';
+import 'theme/compact_rail.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -267,7 +265,7 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _currentIndex = 0;
   late final List<Widget> _screens;
-  late final List<_NavItem> _navItems;
+  late final List<RailDestination> _navItems;
   // Rotating between portrait and landscape moves the screen stack to a
   // different place in the tree (direct Scaffold.body vs nested inside the
   // compact-rail Row). Without a stable key, Flutter can't match the old
@@ -302,11 +300,11 @@ class _AppShellState extends State<AppShell> {
           const WorkerAccountsScreen(),
         ];
         _navItems = const [
-          _NavItem(icon: Icons.grid_view_outlined, label: 'Dashboard'),
-          _NavItem(icon: Icons.location_city_outlined, label: 'Mall'),
-          _NavItem(icon: Icons.notifications_outlined, label: 'Anomalies'),
-          _NavItem(icon: Icons.shield_outlined, label: 'Oversight'),
-          _NavItem(icon: Icons.manage_accounts_outlined, label: 'Workers'),
+          RailDestination(icon: Icons.grid_view_outlined, label: 'Dashboard'),
+          RailDestination(icon: Icons.location_city_outlined, label: 'Mall'),
+          RailDestination(icon: Icons.notifications_outlined, label: 'Anomalies'),
+          RailDestination(icon: Icons.shield_outlined, label: 'Oversight'),
+          RailDestination(icon: Icons.manage_accounts_outlined, label: 'Workers'),
         ];
         break;
       case 'worker':
@@ -316,9 +314,9 @@ class _AppShellState extends State<AppShell> {
           ReportHistoryScreen(),
         ];
         _navItems = const [
-          _NavItem(icon: Icons.water_drop_outlined, label: 'Water'),
-          _NavItem(icon: Icons.electric_bolt_outlined, label: 'Electricity'),
-          _NavItem(icon: Icons.description_outlined, label: 'Reports'),
+          RailDestination(icon: Icons.water_drop_outlined, label: 'Water'),
+          RailDestination(icon: Icons.electric_bolt_outlined, label: 'Electricity'),
+          RailDestination(icon: Icons.description_outlined, label: 'Reports'),
         ];
         break;
       default:
@@ -330,10 +328,10 @@ class _AppShellState extends State<AppShell> {
           const ReportProblemScreen(),
         ];
         _navItems = const [
-          _NavItem(icon: Icons.home_outlined, label: 'Home'),
-          _NavItem(icon: Icons.bar_chart_outlined, label: 'Usage'),
-          _NavItem(icon: Icons.camera_alt_outlined, label: 'Report'),
-          _NavItem(icon: Icons.person_outline, label: 'Profile'),
+          RailDestination(icon: Icons.home_outlined, label: 'Home'),
+          RailDestination(icon: Icons.bar_chart_outlined, label: 'Usage'),
+          RailDestination(icon: Icons.camera_alt_outlined, label: 'Report'),
+          RailDestination(icon: Icons.person_outline, label: 'Profile'),
         ];
     }
   }
@@ -378,54 +376,45 @@ class _AppShellState extends State<AppShell> {
         );
         final Widget? rail = !usesRoleRail
             ? null
-            : useCompactRail
-                ? AdminCompactRail(
+            : useTabletRail
+                ? NavigationRail(
+                    selectedIndex: _currentIndex,
+                    onDestinationSelected: (index) =>
+                        setState(() => _currentIndex = index),
+                    labelType: NavigationRailLabelType.all,
+                    backgroundColor: Colors.white,
+                    indicatorColor: AppColors.adminSurface,
+                    selectedIconTheme: const IconThemeData(
+                      color: AppColors.adminPrimary,
+                    ),
+                    selectedLabelTextStyle: const TextStyle(
+                      color: AppColors.adminPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    unselectedIconTheme: const IconThemeData(
+                      color: AppColors.textTertiary,
+                    ),
+                    unselectedLabelTextStyle: const TextStyle(
+                      color: AppColors.textTertiary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    destinations: [
+                      for (final item in _navItems)
+                        NavigationRailDestination(
+                          icon: Icon(item.icon),
+                          selectedIcon: Icon(item.icon),
+                          label: Text(item.label),
+                        ),
+                    ],
+                  )
+                : CompactRail(
+                    destinations: _navItems,
                     currentIndex: _currentIndex,
                     onDestinationSelected: (index) =>
                         setState(() => _currentIndex = index),
-                  )
-                : useTabletRail
-                    ? NavigationRail(
-                        selectedIndex: _currentIndex,
-                        onDestinationSelected: (index) =>
-                            setState(() => _currentIndex = index),
-                        labelType: NavigationRailLabelType.all,
-                        backgroundColor: Colors.white,
-                        indicatorColor: AppColors.adminSurface,
-                        selectedIconTheme: const IconThemeData(
-                          color: AppColors.adminPrimary,
-                        ),
-                        selectedLabelTextStyle: const TextStyle(
-                          color: AppColors.adminPrimary,
-                          fontWeight: FontWeight.w700,
-                        ),
-                        unselectedIconTheme: const IconThemeData(
-                          color: AppColors.textTertiary,
-                        ),
-                        unselectedLabelTextStyle: const TextStyle(
-                          color: AppColors.textTertiary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        destinations: [
-                          for (final item in _navItems)
-                            NavigationRailDestination(
-                              icon: Icon(item.icon),
-                              selectedIcon: Icon(item.icon),
-                              label: Text(item.label),
-                            ),
-                        ],
-                      )
-                    : usesWorkerCompactRail
-                        ? WorkerCompactRail(
-                            currentIndex: _currentIndex,
-                            onDestinationSelected: (index) =>
-                                setState(() => _currentIndex = index),
-                          )
-                        : CustomerCompactRail(
-                            currentIndex: _currentIndex,
-                            onDestinationSelected: (index) =>
-                                setState(() => _currentIndex = index),
-                          );
+                    role: widget.userRole,
+                    width: isCustomer ? 72 : 88,
+                  );
 
         return ExitConfirmationScope(
           child: Scaffold(
@@ -517,8 +506,3 @@ class _RoleShellBodyState extends State<RoleShellBody> {
   }
 }
 
-class _NavItem {
-  final IconData icon;
-  final String label;
-  const _NavItem({required this.icon, required this.label});
-}

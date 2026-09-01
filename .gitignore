@@ -56,7 +56,7 @@ AGENTS.md
 
 # Local AI assistants and MCP tooling
 **/AGENTS*.md
-**/CLAUDE*.md
+**/CLAUDE*.mdflu
 **/CODEX*.md
 **/.agent/
 **/.agents/
@@ -78,3 +78,4 @@ lib/config.dart
 mysumber_flowchart.drawio
 
 .figma_ref
+CLAUDE.md

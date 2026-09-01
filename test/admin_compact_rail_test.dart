@@ -2,7 +2,15 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mysumber/modules/admin/widgets/admin_compact_rail.dart';
+import 'package:mysumber/theme/compact_rail.dart';
+
+const _adminDestinations = [
+  RailDestination(icon: Icons.grid_view_outlined, label: 'Dashboard'),
+  RailDestination(icon: Icons.location_city_outlined, label: 'Mall'),
+  RailDestination(icon: Icons.notifications_outlined, label: 'Anomalies'),
+  RailDestination(icon: Icons.shield_outlined, label: 'Oversight'),
+  RailDestination(icon: Icons.manage_accounts_outlined, label: 'Workers'),
+];
 
 void main() {
   testWidgets('orders horizontal admin destinations by workflow',
@@ -14,9 +22,11 @@ void main() {
     int? selectedIndex;
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
-        body: AdminCompactRail(
+        body: CompactRail(
+          destinations: _adminDestinations,
           currentIndex: 0,
           onDestinationSelected: (index) => selectedIndex = index,
+          role: 'admin',
         ),
       ),
     ));
@@ -41,9 +51,11 @@ void main() {
     int? selectedIndex;
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
-        body: AdminCompactRail(
+        body: CompactRail(
+          destinations: _adminDestinations,
           currentIndex: 0,
           onDestinationSelected: (index) => selectedIndex = index,
+          role: 'admin',
         ),
       ),
     ));
@@ -65,15 +77,21 @@ void main() {
     expect(selectedIndex, 4);
   });
 
-  testWidgets('moves a rail destination clear of a left camera cutout',
+  testWidgets(
+      'moves the whole rail group clear of a left camera cutout, as one block',
       (tester) async {
-    tester.view.physicalSize = const Size(914, 411);
+    // A realistic phone-landscape size (shortestSide 500 < 600, width >
+    // height) with enough slack for the 5-destination admin group (302
+    // logical pixels tall) to actually clear a cutout as one contiguous
+    // block — the replacement for the old algorithm's "split above/below
+    // the cutout" behaviour, which this refactor deliberately removes.
+    tester.view.physicalSize = const Size(914, 500);
     tester.view.devicePixelRatio = 1;
     tester.view.padding = const FakeViewPadding(top: 28);
     tester.view.viewPadding = const FakeViewPadding(top: 28);
     tester.view.displayFeatures = const [
       DisplayFeature(
-        bounds: Rect.fromLTWH(0, 173, 56, 56),
+        bounds: Rect.fromLTWH(0, 350, 56, 56),
         type: DisplayFeatureType.cutout,
         state: DisplayFeatureState.unknown,
       ),
@@ -82,43 +100,38 @@ void main() {
 
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
-        body: AdminCompactRail(
+        body: CompactRail(
+          destinations: _adminDestinations,
           currentIndex: 0,
           onDestinationSelected: (_) {},
+          role: 'admin',
         ),
       ),
     ));
 
-    const cameraCutout = Rect.fromLTWH(0, 173, 56, 56);
+    const cameraCutout = Rect.fromLTWH(0, 350, 56, 56);
     final dashboard = tester.getRect(find.byTooltip('Dashboard'));
+    final mall = tester.getRect(find.byTooltip('Mall'));
     final anomalies = tester.getRect(find.byTooltip('Anomalies'));
-    final inventory = tester.getRect(find.byTooltip('Mall'));
     final oversight = tester.getRect(find.byTooltip('Oversight'));
     final workers = tester.getRect(find.byTooltip('Workers'));
 
-    // The camera occupies the middle of the rail. Destinations should be
-    // evenly distributed in the available segments above and below it,
-    // with Inventory above the camera and Anomalies below it.
-    expect(
-      inventory.bottom,
-      lessThanOrEqualTo(cameraCutout.top),
-    );
-    expect(
-      oversight.top,
-      greaterThanOrEqualTo(cameraCutout.bottom),
-    );
-    expect(
-      inventory.top - dashboard.bottom,
-      closeTo(anomalies.top - inventory.bottom, 1),
-    );
-    expect(
+    // The whole group sits above the cutout — none of it dips below the
+    // cutout's top edge, and Workers (the last destination) ends before it.
+    expect(workers.bottom, lessThanOrEqualTo(cameraCutout.top));
+
+    // The group moved as one contiguous block: every gap between
+    // consecutive destinations is the same, not widened around the
+    // obstacle the way the old split-above/below strategy did.
+    final gaps = [
+      mall.top - dashboard.bottom,
+      anomalies.top - mall.bottom,
+      oversight.top - anomalies.bottom,
       workers.top - oversight.bottom,
-      greaterThanOrEqualTo(10),
-    );
-    expect(
-      tester.getRect(find.byTooltip('Workers')).bottom,
-      lessThan(tester.view.physicalSize.height - 52),
-    );
+    ];
+    for (final gap in gaps.skip(1)) {
+      expect(gap, closeTo(gaps.first, 0.5));
+    }
   });
 
   testWidgets('does not throw when the landscape rail has limited height',
@@ -138,9 +151,11 @@ void main() {
 
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
-        body: AdminCompactRail(
+        body: CompactRail(
+          destinations: _adminDestinations,
           currentIndex: 0,
           onDestinationSelected: (_) {},
+          role: 'admin',
         ),
       ),
     ));
@@ -156,9 +171,11 @@ void main() {
 
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
-        body: AdminCompactRail(
+        body: CompactRail(
+          destinations: _adminDestinations,
           currentIndex: 0,
           onDestinationSelected: (_) {},
+          role: 'admin',
         ),
       ),
     ));
