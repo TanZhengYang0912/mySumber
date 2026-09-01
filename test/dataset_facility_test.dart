@@ -357,6 +357,9 @@ void main() {
     expect(find.text('Suria KLCC'), findsOneWidget);
     await tester.tap(find.text('Suria KLCC'));
     await tester.pumpAndSettle();
+    expect(find.text('AI maintenance suggestion'), findsNothing);
+    expect(
+        find.widgetWithText(FilledButton, 'Generate suggestion'), findsNothing);
     expect(find.text('Equipment (1)'), findsOneWidget);
     expect(find.text('Manage equipment'), findsOneWidget);
   });
