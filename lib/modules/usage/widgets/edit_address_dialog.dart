@@ -90,6 +90,7 @@ class _EditAddressDialogState extends State<_EditAddressDialog> {
           ],
         ),
       ),
+      actionsAlignment: MainAxisAlignment.center,
       actions: [
         TextButton(
           onPressed: _saving ? null : () => Navigator.of(context).pop(),

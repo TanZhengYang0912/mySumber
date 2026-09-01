@@ -371,6 +371,10 @@ class _ValueEntryDialogState extends State<_ValueEntryDialog> {
                   final value = double.tryParse((v ?? '').trim());
                   if (value == null) return 'Enter a valid number';
                   if (value < 0) return 'Must be zero or more';
+                  final max = utility == UtilityType.water ? 499.0 : 1999.0;
+                  if (value > max) {
+                    return 'Must be $max ${utility.unit} or less';
+                  }
                   return null;
                 },
               ),

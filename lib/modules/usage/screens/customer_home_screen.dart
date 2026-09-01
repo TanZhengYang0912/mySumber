@@ -464,7 +464,14 @@ class _TrendCard extends StatefulWidget {
 }
 
 class _TrendCardState extends State<_TrendCard> {
-  _TrendRange _range = _TrendRange.monthly;
+  /// Selected range per utility, kept here so it survives the widget being
+  /// rebuilt from scratch on orientation change (portrait and landscape
+  /// homes place the card in structurally different trees).
+  static final Map<UtilityType, _TrendRange> _rangeByUtility = {};
+
+  _TrendRange get _range =>
+      _rangeByUtility[widget.utility] ?? _TrendRange.monthly;
+  set _range(_TrendRange value) => _rangeByUtility[widget.utility] = value;
 
   Color get _accent => widget.utility == UtilityType.water
       ? AppColors.waterAccent
